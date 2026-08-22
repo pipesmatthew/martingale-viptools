@@ -220,6 +220,21 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .kt.just{animation:ktpop .2s ease-out}
 .kt.pick.just{animation:kthit .34s ease-out}
 .board.revealing .kt{cursor:default}
+.boardwrap{position:relative}
+.pop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  padding:13px 26px;text-align:center;pointer-events:none;z-index:5;
+  animation:winin .2s ease-out;box-shadow:0 12px 34px rgba(0,0,0,.55);min-width:190px}
+.pop .pmain{font-family:var(--mono);font-size:32px;font-weight:700;letter-spacing:-.025em;
+  line-height:1;font-variant-numeric:tabular-nums}
+.pop .psub{font-size:12.5px;color:var(--fg-2);margin-top:5px;font-family:var(--mono)}
+.pop.win{background:#10241a;border:1px solid var(--green)}
+.pop.win .pmain{color:var(--green)}
+.pop.warn{background:#2a2010;border:1px solid var(--accent)}
+.pop.warn .pmain{color:var(--accent)}
+.pop.bad{background:#2a1412;border:1px solid var(--danger)}
+.pop.bad .pmain{color:var(--danger)}
+@keyframes winin{0%{opacity:0;transform:translate(-50%,-50%) scale(.85)}
+                 100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 .kt.pick{border-color:var(--cream);color:var(--cream);background:#23211a}
 .kt.drawn{background:var(--track);color:var(--fg-2);border-color:var(--track)}
 .kt.pick.drawn{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
@@ -438,7 +453,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <!-- keno -->
         <div class="card" id="boardCard">
           <div class="cardbody">
-            <div class="board" id="board"></div>
+            <div class="boardwrap">
+              <div class="board" id="board"></div>
+              <div class="pop win" id="pop" hidden aria-live="polite">
+                <div class="pmain" id="popMain">11x</div>
+                <div class="psub" id="popSub">+$11.00</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -840,7 +861,8 @@ var S = {
   history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null,
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
-  speed: "normal", seed: 0, rand: Math.random, hideDraw: false
+  speed: "normal", seed: 0, rand: Math.random, hideDraw: false,
+  pop: null, popSounded: false
 };
 
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
@@ -887,6 +909,21 @@ function ping(step){
   var ac = audio(); if (!ac) return;
   if (ac.state === "suspended") ac.resume();
   tone(523.25 * Math.pow(2, Math.min(step, 10) * 2 / 12), 0, 0.26, 0.16);
+}
+function chime(){
+  if (S.muted) return;
+  var ac = audio(); if (!ac) return;
+  if (ac.state === "suspended") ac.resume();
+  tone(880, 0, 0.17, 0.13, "sine");
+  tone(1318.51, 0.065, 0.28, 0.10, "sine");
+}
+function thud(kind){
+  if (S.muted) return;
+  var ac = audio(); if (!ac) return;
+  if (ac.state === "suspended") ac.resume();
+  var base = kind === "bad" ? 196 : 261.63;          /* deeper the worse it is */
+  tone(base, 0, 0.34, 0.15, "sine");
+  tone(base * 0.75, 0.09, 0.42, 0.12, "sine");
 }
 function fanfare(){
   if (S.muted) return;
@@ -1045,6 +1082,9 @@ function step(){
   r.staked += bet; r.done += 1; r.net = r.recovered - r.staked;
   var out = c.game === "limbo" ? limboDraw(c) : kenoDraw();
   r.last = out; S.hideDraw = false;
+  /* cleared on every spin, so pressing spin dismisses the popup and plays the
+     next one in a single press */
+  S.pop = null;
   if (out.tape !== undefined){ r.tape.push(out.tape); if (r.tape.length > 40) r.tape.shift(); }
   if (out.mult > r.best) r.best = out.mult;
 
@@ -1055,6 +1095,8 @@ function step(){
 
   if (out.stop){
     var paid = bet * out.pay;
+    S.pop = { kind:"win", main: out.pay + "x", sub: "+" + m2(paid), ending: true };
+    S.popSounded = false;
     r.recovered += paid; r.payout = paid; r.net = r.recovered - r.staked;
     say("HIT", out.label + " paid " + money(paid) + " on " + c.noun + " " + r.done +
                " " + DOT + " run ends " + signed(r.net));
@@ -1063,6 +1105,8 @@ function step(){
   }
   if (out.consol){
     r.n4 += 1; r.recovered += bet * out.pay; r.net = r.recovered - r.staked;
+    S.pop = { kind:"win", main: out.pay + "x", sub: "+" + m2(bet * out.pay), ending: false };
+    S.popSounded = false;
     say("11X", "4 of 6 paid " + money(bet*out.pay) + " " + DOT + " still " + money(r.net) + " down");
   }
 
@@ -1072,6 +1116,11 @@ function step(){
     else {
       say("LEVEL", "Level " + (after+1) + " " + DOT + " bet goes to " + m2(c.levels[after].bet) +
                   " " + DOT + " " + money(r.staked) + " in so far");
+      S.pop = { kind: after >= 2 ? "bad" : "warn",
+                main: "Level " + (after+1),
+                sub: m2(c.levels[ri].bet) + " &rarr; " + m2(c.levels[after].bet),
+                levelUp: true };
+      S.popSounded = false;
     }
   }
 }
@@ -1189,7 +1238,7 @@ function startRun(fresh){
     S.history = [];
     reseed();
   }
-  S.ended = null;
+  S.ended = null; S.pop = null; S.hideDraw = false;
   S.run = newRun();
   say("SYS", "New run " + DOT + " " + m2(S.cfg.levels[0].bet) + " a " + S.cfg.noun +
              ", giving up after " + num(S.cfg.total));
@@ -1240,7 +1289,6 @@ function revealDraw(done){
   (function next(){
     if (S.revealUpto >= all.length){
       S.animating = false; S.revealUpto = null;
-      if (S.run.over && S.run.won) fanfare();
       done();
       return;
     }
@@ -1497,6 +1545,26 @@ function paintPlay(){
     : "a hit right now finishes you <b style=\"color:var(--green)\">" +
       signed(r.net - bet + c.pay*bet) + "</b>";
 
+  var pop = $("pop");
+  if (S.pop && !S.animating){
+    if (c.game === "keno"){
+      $("popMain").textContent = S.pop.main;
+      $("popSub").innerHTML = S.pop.sub;
+      pop.className = "pop " + S.pop.kind;
+      pop.hidden = false;
+    } else {
+      pop.hidden = true;
+    }
+    if (!S.popSounded){
+      S.popSounded = true;
+      if (S.pop.levelUp) thud(S.pop.kind);
+      else if (S.pop.ending) fanfare();
+      else chime();
+    }
+  } else {
+    pop.hidden = true;
+  }
+
   paintLevels(); paintOdds(); paintLog(); paintResult(); paintHistory();
 
   /* the paytable is a 6-pick paytable, so 6 is not a preference */
@@ -1648,7 +1716,9 @@ function toggleAuto(){
   $("btnAuto").innerHTML = "Stop &#9632;";
   S.timer = setInterval(function(){
     if (!S.run || S.run.over){ stopAuto(); paintPlay(); return; }
-    step(); paintPlay();
+    step();
+    if (S.pop && S.pop.levelUp) stopAuto();
+    paintPlay();
   }, 55);
 }
 
@@ -1698,7 +1768,15 @@ $("btnSpin").addEventListener("click", function(){
   if (S.cfg.game === "keno" && !REDUCED && S.speed !== "instant" && S.run.last && S.run.last.drawn) revealDraw(paintPlay);
   else paintPlay();
 });
-function batchSize(){ return clamp(Math.round(+$("batch").value || 1), 1, 100000); }
+function batchSize(){
+  var typed = clamp(Math.round(+$("batch").value || 1), 1, 100000);
+  if (!S.cfg || !S.run || S.run.over) return typed;
+  var i = levelAt(S.cfg, S.run.done);
+  if (i < 0) return typed;
+  /* stop on the boundary rather than stepping over it, so the level change is
+     something you are shown rather than something you find afterwards */
+  return Math.max(1, Math.min(typed, S.cfg.ends[i] - S.run.done));
+}
 $("batch").addEventListener("input", function(){
   $("btnSpinN").innerHTML = (S.cfg && S.cfg.game === "limbo" ? "Roll" : "Spin") +
                             " &times;" + num(batchSize());

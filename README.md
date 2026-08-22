@@ -75,6 +75,27 @@ between a simulator you can check and one you have to trust.
 Picking your own six uses `Math.random`, deliberately — your choices are not
 part of the game's stream, so they do not consume it or shift the draws.
 
+### Popups
+
+One slot over the board, three meanings, each with its own sound:
+
+| | colour | when |
+|---|---|---|
+| a payout | green | any win — 11x, 350x, 710x — with the amount |
+| **Level 2** | amber | the bet has doubled once |
+| **Level 3** and past it | red | the bet has doubled again |
+
+A level popup outranks a win on the same spin, because it is the bigger news.
+Nothing needs dismissing: the next spin clears whatever is showing and plays, in
+one press.
+
+### Batches stop at the level boundary
+
+Type any number into the batch box and the button rounds it down to whatever is
+left in the current level — 25 becomes 15 if 15 remain. Autoplay halts there
+too. A level change is the moment the strategy costs you something, so it is
+shown to you rather than found afterwards in the log.
+
 ### Reveal speed and sound
 
 Keno turns its draw over one tile at a time, at **Normal**, **Faster** or
