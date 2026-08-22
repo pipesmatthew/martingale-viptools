@@ -667,7 +667,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <span class="note" id="histNote"></span>
         <button class="ghost" id="clearHist" style="font-size:11.5px;padding:2px 9px">Clear</button></div>
       <div class="cardbody" id="histSparkWrap">
-        <svg id="histSpark" style="display:block;width:100%;height:190px"
+        <svg id="histSpark" style="display:block;width:100%;height:340px"
              role="img" aria-label="Balance across the rounds of this run"></svg>
         <div class="meterrow" style="margin-top:2px"><span id="histFirst">round 1</span>
           <span style="color:var(--muted)">your run against 1,000 others on the same ladder</span><span id="histLast">round 1</span></div>
@@ -1936,8 +1936,8 @@ function paintHistory(){
      stretched to the card width, which squashes the markers into ovals. */
   var base0c = S.cfg0 || S.cfg;
   var svg = $("histSpark");
-  var W = Math.max(240, Math.round(svg.clientWidth || 480)), Hh = 190;
-  var padL = 10, padR = 10, padT = 16, padB = 26;
+  var W = Math.max(240, Math.round(svg.clientWidth || 480)), Hh = 340;
+  var padL = 10, padR = 10, padT = 22, padB = 28;
   var mine = [S.startBank].concat(H.map(function(h){ return h.balance; }));
   var rounds = H.length;
 
@@ -2056,13 +2056,21 @@ function paintHistory(){
        to where the run started, otherwise doubling. Same first-passage maths as
        the play screen, which is where the sting is: getting back to even from a
        long way down is not a coin flip, it is 1/T. */
+    /* Only worth asking when there is a number worth reaching. Ahead of where
+       you started with no walk-away set, the only target left is an arbitrary
+       multiple of what you hold, and the answer to that is a constant - 47% to
+       double, whatever the balance - which is a row that says nothing. */
     var here = Math.max(0.01, S.balance);
-    var goal, why;
+    var goal = null, why = "";
     if (base0.walk > 0 && S.balance < base0.walk){ goal = base0.walk; why = "your walk-away"; }
     else if (S.balance < S.startBank){ goal = S.startBank; why = "where you started"; }
-    else { goal = S.balance * 2; why = "double what you hold"; }
-    var fwd = reachOdds(goal / here);
 
+    var fwdRow = $("fwdLab").parentNode;
+    var fwdBarRow = fwdRow.nextElementSibling, fwdSubRow = fwdBarRow.nextElementSibling;
+    fwdRow.hidden = fwdBarRow.hidden = fwdSubRow.hidden = (goal === null);
+    if (goal === null) return;
+
+    var fwd = reachOdds(goal / here);
     $("fwdLab").textContent = "Chance of ever reaching " + money(goal);
     /* getting back from a long way down rounds to 0.0%, which reads as
        impossible when it is merely very unlikely */
