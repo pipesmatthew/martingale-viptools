@@ -85,6 +85,12 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
   letter-spacing:-.03em;line-height:1.05;color:var(--cream)}
 .balsub{font-size:11.5px;color:var(--faint);margin-top:4px}
 .balsub b{font-family:var(--mono);font-weight:600}
+.playpad{display:flex;flex-direction:column;gap:5px}
+.playpad > button.primary{width:100%;padding:9px;font-size:14px}
+.playgrid{display:grid;grid-template-columns:82px minmax(0,1fr);gap:5px}
+.playgrid.two{grid-template-columns:1fr 1fr}
+.playgrid input{text-align:center}
+.playgrid button{width:100%;padding:6px 8px}
 
 /* ──────────────────────────────────────────────────────────── buttons ── */
 button.ghost,button.primary{
@@ -415,9 +421,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
       <div>
         <!-- keno -->
         <div class="card" id="boardCard">
-          <div class="cardhead"><h2>Keno &middot; your six</h2><span class="grow"></span>
-            <span class="note" id="pickNote"></span>
-            <button class="ghost" id="btnRandom" style="font-size:11.5px;padding:2px 9px">Random</button></div>
           <div class="cardbody">
             <div class="board" id="board"></div>
           </div>
@@ -444,20 +447,29 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardbody"><div class="levels" id="playLevels"></div></div>
         </div>
 
-        <div class="card"><div class="cardbody" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
-          <button class="primary" id="btnSpin" style="min-width:104px">Spin</button>
-          <button class="ghost" id="btnSpin25">Spin &times;25</button>
-          <button class="ghost" id="btnAuto">Auto &#9654;</button>
-        </div></div>
       </div>
 
       <div>
         <div class="card">
-          <div class="cardhead"><h2>Balance</h2><span class="grow"></span>
-            <span class="pill amber">Practice money</span></div>
+          <div class="cardhead"><h2>Balance</h2></div>
           <div class="cardbody">
             <div class="balbig n" id="bal">$2,000.00</div>
             <div class="balsub" id="balSub"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardbody playpad">
+            <button class="primary" id="btnSpin">Spin</button>
+            <div class="playgrid">
+              <input type="number" id="batch" value="25" min="1" max="100000" step="5"
+                     aria-label="How many spins at once">
+              <button class="ghost" id="btnSpinN">Spin &times;25</button>
+            </div>
+            <div class="playgrid two">
+              <button class="ghost" id="btnAuto">Auto &#9654;</button>
+              <button class="ghost" id="btnRandom">Random six</button>
+            </div>
           </div>
         </div>
 
@@ -468,27 +480,21 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <div class="oddsrow"><span>Already got their hit by now</span>
                 <b id="oAlready" style="color:var(--green)">0.0%</b></div>
               <div class="meter" style="margin-top:5px"><i class="greenb" id="bAlready" style="width:0%"></i></div>
-              <div class="meterrow"><span>you are in the slower <b id="oSlower">100%</b></span>
-                <span id="oSpinLab">spin <b id="oSpin">0</b></span></div>
             </div>
             <div>
               <div class="oddsrow"><span id="oNowLab">Chance it lands on this spin</span>
                 <b id="oNow" style="color:var(--accent)">0.20%</b></div>
               <div class="meter" style="margin-top:5px"><i id="bNow" style="width:2%"></i></div>
-              <div class="meterrow"><span id="oNowSub">1 in 494</span><span>same as it was on spin 1</span></div>
             </div>
             <div>
               <div class="oddsrow"><span id="o100Lab">Chance in your next 100 spins</span>
                 <b id="o100" style="color:var(--accent)">18.3%</b></div>
               <div class="meter" style="margin-top:5px"><i id="b100" style="width:18.3%"></i></div>
-              <div class="meterrow"><span id="o100Sub">about 2 minutes of autobet</span><span>&nbsp;</span></div>
             </div>
             <div>
               <div class="oddsrow"><span>Chance before you'd give up</span>
                 <b id="oEnd" style="color:var(--green)">75.8%</b></div>
               <div class="meter" style="margin-top:5px"><i class="greenb" id="bEnd" style="width:75.8%"></i></div>
-              <div class="meterrow"><span><b id="oLeft">700</b> <span id="oLeftLab">spins left in the ladder</span></span>
-                <span>fails <b id="oFail" style="color:var(--danger)">24.2%</b></span></div>
             </div>
           </div>
           <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="oddsNote"></p>
@@ -1141,23 +1147,16 @@ function paintOdds(){
 
   $("oAlready").textContent = pct(already);
   $("bAlready").style.width = (100*already) + "%";
-  $("oSlower").textContent = pct(1-already);
-  $("oSpinLab").innerHTML = c.noun + ' <b id="oSpin">' + num(done) + '</b>';
   $("oNowLab").textContent = "Chance it lands on this " + c.noun;
   $("oNow").textContent = (100*q).toFixed(dp) + "%";
   $("bNow").style.width = Math.max(1.4, Math.min(100, 100*q*10)) + "%";
-  $("oNowSub").textContent = "1 in " + (1/q).toFixed(1);
   $("o100Lab").textContent = "Chance in your next 100 " + c.noun + "s";
   $("o100").textContent = pct(next100);
   $("b100").style.width = (100*next100) + "%";
-  $("o100Sub").textContent = "about " + minutes(100) + " of autobet";
   $("oEnd").textContent = pct(end);
   $("bEnd").style.width = (100*end) + "%";
   $("bEnd").className = end < 0.25 ? "redb" : "greenb";
   $("oEnd").style.color = end < 0.25 ? "var(--danger)" : "var(--green)";
-  $("oLeft").textContent = num(left);
-  $("oLeftLab").textContent = c.noun + "s left in the ladder";
-  $("oFail").textContent = pct(1-end);
   $("oddsNote").innerHTML = SHOW_NOTES
     ? "<b>It is never due.</b> Every one of these " + c.noun + "s is a fresh 1-in-" + (1/q).toFixed(0) +
       ". The only thing a dry spell changes is how much you have already put in."
@@ -1363,15 +1362,15 @@ function paintPlay(){
 
   /* the paytable is a 6-pick paytable, so 6 is not a preference */
   var short = c.game === "keno" && S.picks.length < 6;
-  $("pickNote").textContent = short ? (6 - S.picks.length) + " more to pick" : "";
-  $("pickNote").style.color = short ? "var(--accent)" : "var(--faint)";
-
-  var dead = r.over || short;
-  $("btnSpin").disabled = dead; $("btnSpin25").disabled = dead; $("btnAuto").disabled = dead;
+  var verb  = c.game === "limbo" ? "Roll" : "Spin";
+  var dead  = r.over || short;
   if (short) stopAuto();
-  $("btnSpin").textContent = c.game === "limbo" ? "Roll" : "Spin";
-  $("btnSpin25").innerHTML = (c.game === "limbo" ? "Roll" : "Spin") + " &times;25";
+
+  $("btnSpin").disabled = dead; $("btnSpinN").disabled = dead; $("btnAuto").disabled = dead;
+  $("btnSpin").textContent = short ? "Pick " + (6 - S.picks.length) + " more" : verb;
+  $("btnSpinN").innerHTML = verb + " &times;" + num(batchSize());
   $("btnSpin").className = "primary" + (c.game === "limbo" ? " teal" : "");
+  $("btnRandom").hidden = c.game !== "keno";
 }
 
 /* ═══════════════════════════════ history ══════════════════════════════ */
@@ -1559,8 +1558,14 @@ function needsFreshSession(c){
   return false;
 }
 $("btnSpin").addEventListener("click", function(){ step(); paintPlay(); });
-$("btnSpin25").addEventListener("click", function(){
-  for (var i=0;i<25 && S.run && !S.run.over;i++) step();
+function batchSize(){ return clamp(Math.round(+$("batch").value || 1), 1, 100000); }
+$("batch").addEventListener("input", function(){
+  $("btnSpinN").innerHTML = (S.cfg && S.cfg.game === "limbo" ? "Roll" : "Spin") +
+                            " &times;" + num(batchSize());
+});
+$("btnSpinN").addEventListener("click", function(){
+  var k = batchSize();
+  for (var i=0;i<k && S.run && !S.run.over;i++) step();
   paintPlay();
 });
 $("btnAuto").addEventListener("click", toggleAuto);
