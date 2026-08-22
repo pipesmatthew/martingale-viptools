@@ -520,6 +520,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   <div id="view-play" hidden>
 
     <div class="tiles six">
+      <div class="tile"><div class="k">Round</div><div class="v cream" id="p-round">1</div>
+        <div class="d" id="p-roundD">of this run</div></div>
       <div class="tile"><div class="k" id="kSpin">Spin</div><div class="v" id="p-spin">0</div>
         <div class="d" id="p-spinD">of 350 on this level</div></div>
       <div class="tile"><div class="k">Level</div><div class="v amber" id="p-level">1</div>
@@ -528,10 +530,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="d" id="p-betD">per spin</div></div>
       <div class="tile"><div class="k">Put in</div><div class="v" id="p-stk">$0</div>
         <div class="d">this run</div></div>
-      <div class="tile"><div class="k" id="p-sideK">11x paid back</div><div class="v amber" id="p-side">$0</div>
-        <div class="d" id="p-sideD">0 four-hits</div></div>
       <div class="tile"><div class="k" id="p-netK">Down</div><div class="v red" id="p-net">$0</div>
-        <div class="d">right now</div></div>
+        <div class="d">this run</div></div>
     </div>
 
 
@@ -665,12 +665,16 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
     <div class="card" id="histCard">
       <div class="cardhead"><h2>This run, round by round</h2><span class="grow"></span>
         <span class="note" id="histNote"></span>
+        <div class="seg" id="scaleSeg" role="group" aria-label="Balance scale">
+          <button data-sc="linear" class="on">Linear</button>
+          <button data-sc="log">Log</button>
+        </div>
         <button class="ghost" id="clearHist" style="font-size:11.5px;padding:2px 9px">Clear</button></div>
       <div class="cardbody" id="histSparkWrap">
         <svg id="histSpark" style="display:block;width:100%;height:340px"
              role="img" aria-label="Balance across the rounds of this run"></svg>
         <div class="meterrow" style="margin-top:2px"><span id="histFirst">round 1</span>
-          <span style="color:var(--muted)">your run against 1,000 others on the same ladder</span><span id="histLast">round 1</span></div>
+          <span style="color:var(--muted)" id="chartCaption">your run against 1,000 others on the same ladder</span><span id="histLast">round 1</span></div>
       </div>
       <div class="tablewrap"><table>
         <thead><tr><th class="n">#</th><th>Game</th><th>How it ended</th><th class="n">Spin</th>
@@ -975,7 +979,7 @@ var S = {
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
   speed: "normal", seed: 0, nonce: 0, rand: Math.random, hideDraw: false,
-  pop: null, popSounded: false
+  pop: null, popSounded: false, chartLog: false
 };
 
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
@@ -1727,27 +1731,18 @@ function paintPlay(){
   $("p-betD").textContent = "per " + c.noun;
   $("p-stk").textContent = money(r.staked);
 
-  if (c.game === "keno"){
-    $("p-sideK").textContent = "11x paid back";
-    $("p-side").textContent = money(r.recovered - (r.won ? r.payout : 0));
-    $("p-side").className = "v amber";
-    $("p-sideD").textContent = r.n4 + (r.n4 === 1 ? " four-hit" : " four-hits");
-  } else if (r.over && r.won && r.last){
-    /* Once it has landed, how close the misses got is no longer the question. */
-    $("p-sideK").textContent = "Landed on";
-    $("p-side").textContent = r.last.mult.toFixed(2) + "x";
-    $("p-side").className = "v green";
-    $("p-sideD").textContent = "target " + c.lmult.toFixed(2) + "x";
-  } else {
-    $("p-sideK").textContent = "Closest yet";
-    $("p-side").textContent = r.best ? r.best.toFixed(2) + "x" : "—";
-    $("p-side").className = "v tealc";
-    $("p-sideD").textContent = "target " + c.lmult.toFixed(2) + "x";
-  }
+  /* finish() pushes the round into the history, so a finished round is already
+     counted and a live one is not */
+  var roundNo = S.history.length + (r.over ? 0 : 1);
+  $("p-round").textContent = num(roundNo);
+  $("p-roundD").textContent = r.over ? "just finished" : "of this run";
 
-  $("p-netK").textContent = r.net >= 0 ? "Up" : "Down";
-  $("p-net").textContent = signed(r.net);
-  $("p-net").className = "v " + (r.net >= 0 ? "green" : "red");
+  /* the whole run, not the round: the round's own figure is the one thing on
+     this row you can work out from the two beside it */
+  var runNet = S.balance + (r.over ? 0 : r.net) - S.startBank;
+  $("p-netK").textContent = runNet >= 0 ? "Up" : "Down";
+  $("p-net").textContent = signed(runNet);
+  $("p-net").className = "v " + (runNet >= 0 ? "green" : "red");
   $("bal").textContent = m2(S.balance + (r.over ? 0 : r.net));
 
   $("boardCard").hidden = c.game !== "keno";
@@ -1964,7 +1959,15 @@ function paintHistory(){
   others.forEach(function(pth){ all = all.concat(pth); });
   all.sort(function(a,b){ return a-b; });
   var lo, hi;
-  if (all.length){
+  if (S.chartLog){
+    /* A log scale squashes the big winners enough that the whole field fits, so
+       nothing has to be trimmed and the outliers become the point rather than
+       the casualty. */
+    lo = all.length ? all[0] : Math.min.apply(null, mine);
+    hi = all.length ? all[all.length-1] : Math.max.apply(null, mine);
+  } else if (all.length){
+    /* Linear has to trim, or one path that ran to six figures presses every
+       other one flat against the floor. */
     lo = all[Math.floor(all.length * 0.02)];
     hi = all[Math.floor(all.length * 0.98)];
   } else { lo = Math.min.apply(null, mine); hi = Math.max.apply(null, mine); }
@@ -1972,12 +1975,21 @@ function paintHistory(){
   hi = Math.max(hi, Math.max.apply(null, mine), S.startBank);
   if (hi - lo < 1) hi = lo + 1;
   var padv = (hi - lo) * 0.08; lo -= padv; hi += padv;
+  var FLOOR = Math.max(0.5, S.startBank / 5000);
+  var LG = function(v){ return Math.log10(Math.max(FLOOR, v)); };
+  var llo = LG(Math.max(FLOOR, lo)), lhi = LG(Math.max(FLOOR*2, hi));
+  if (lhi - llo < 0.05) lhi = llo + 0.05;
 
   var X = function(i){ return mine.length < 2 ? padL : padL + (W - padL - padR) * i / (mine.length - 1); };
   var Y = function(v){
-    var y = padT + (Hh - padT - padB) * (1 - (v - lo) / (hi - lo));
+    var f = S.chartLog ? (LG(v) - llo) / (lhi - llo) : (v - lo) / (hi - lo);
+    var y = padT + (Hh - padT - padB) * (1 - f);
     return Math.max(padT - 6, Math.min(Hh - padB + 6, y));      /* clip strays to the edge */
   };
+  /* say how many are pressed against the frame rather than pretending the
+     picture is complete */
+  var over = 0, under = 0;
+  if (!S.chartLog) all.forEach(function(v){ if (v > hi) over++; else if (v < lo) under++; });
   var baseY = Y(S.startBank);
   function poly(arr){ return arr.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join(" "); }
 
@@ -2018,6 +2030,13 @@ function paintHistory(){
     '<circle cx="' + X(endI).toFixed(1) + '" cy="' + Y(mine[endI]).toFixed(1) +
       '" r="4" fill="' + endColour + '" stroke="#0e0e11" stroke-width="1.5"></circle>' +
     label(endI, money(mine[endI]), endColour, mine[endI] >= S.startBank);
+
+  $("chartCaption").textContent = S.chartLog
+    ? "your run against " + num(PATHS) + " others, log scale, all of them in view"
+    : (over + under
+        ? "your run against " + num(PATHS) + " others " + DOT + " " + num(over + under) +
+          " readings sit outside the frame - switch to log to see them"
+        : "your run against " + num(PATHS) + " others on the same ladder");
 
   /* Where this run's finish sits among runs of the same length on the same
      ladder. An approximation on purpose: it holds the opening ladder fixed, so
@@ -2271,6 +2290,13 @@ $("seedVal").addEventListener("change", function(){
   /* typing a seed back in replays that hunt's draws exactly */
   var v = Math.max(1, Math.round(+$("seedVal").value || 0));
   reseed(v); saveState();
+});
+$$("#scaleSeg button").forEach(function(b){
+  b.addEventListener("click", function(){
+    S.chartLog = b.getAttribute("data-sc") === "log";
+    $$("#scaleSeg button").forEach(function(o){ o.classList.toggle("on", o === b); });
+    paintHistory();
+  });
 });
 $("clearHist").addEventListener("click", function(){
   S.history = []; S.balance = S.startBank; saveState(); paintPlay();
