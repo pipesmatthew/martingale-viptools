@@ -939,7 +939,10 @@ var SHOW_NOTES       = false;  /* prose explaining a control rather than reporti
 var $  = function(id){ return document.getElementById(id); };
 var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
 var MINUS = "−", DOT = "·";
-var STORE = "martingale.dryrun.v1";
+/* Bumped when a stored setting would fight a changed default. A browser that
+   played before the $1,400 default existed had $2,000 saved and restored it
+   over the new value, which looks exactly like the default not working. */
+var STORE = "martingale.dryrun.v2";
 
 function m0(v){ return (v < 0 ? MINUS : "") + "$" + Math.round(Math.abs(v)).toLocaleString("en-US"); }
 function m2(v){ return (v < 0 ? MINUS : "") + "$" + Math.abs(v).toLocaleString("en-US",
