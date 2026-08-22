@@ -574,7 +574,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardhead"><h2>Balance</h2></div>
           <div class="cardbody">
             <div class="balbig n" id="bal">$2,000.00</div>
-            <div class="balsub" id="balSub"></div>
           </div>
         </div>
 
@@ -669,10 +668,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <span class="note" id="histNote"></span>
         <button class="ghost" id="clearHist" style="font-size:11.5px;padding:2px 9px">Clear</button></div>
       <div class="cardbody" id="histSparkWrap">
-        <svg id="histSpark" viewBox="0 0 480 95" preserveAspectRatio="none"
-             style="display:block;width:100%;height:112px" role="img" aria-label="Balance across the rounds of this run"></svg>
+        <svg id="histSpark" style="display:block;width:100%;height:190px"
+             role="img" aria-label="Balance across the rounds of this run"></svg>
         <div class="meterrow" style="margin-top:2px"><span id="histFirst">round 1</span>
-          <span style="color:var(--muted)">dashed line is where you started</span><span id="histLast">round 1</span></div>
+          <span style="color:var(--muted)">your run against 140 others on the same ladder</span><span id="histLast">round 1</span></div>
       </div>
       <div class="tablewrap"><table>
         <thead><tr><th class="n">#</th><th>Game</th><th>How it ended</th><th class="n">Spin</th>
@@ -690,10 +689,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="meter" style="margin-top:6px;height:9px"><i id="lastBar" style="width:0%"></i></div>
         <div class="meterrow" style="margin-bottom:12px"><span id="lastSub"></span></div>
 
-        <div class="oddsrow"><span id="luckLab">Luckier than</span>
-          <b id="luckVal" style="font-size:15px">&mdash;</b></div>
-        <div class="meter" style="margin-top:6px;height:9px"><i id="luckBar" style="width:0%"></i></div>
-        <div class="meterrow"><span id="luckLo"></span><span id="luckMid"></span><span id="luckHi"></span></div>
+        <div class="oddsrow"><span id="fwdLab">Chance of ever getting back</span>
+          <b id="fwdVal" style="font-size:15px">&mdash;</b></div>
+        <div class="meter" style="margin-top:6px;height:9px"><i id="fwdBar" style="width:0%"></i></div>
+        <div class="meterrow"><span id="fwdSub"></span></div>
       </div>
     </div>
 
@@ -1627,7 +1626,7 @@ function paintOdds(){
 function paintUpBet(){
   var c = S.cfg, v = +$("roUpAmt").value || 0;
   var ok = v >= 0.01 && v <= S.balance + 1e-9;
-  $("roDoubleAmt").textContent = ok ? m2(v) + " a " + c.noun : "more than you have";
+  $("roDoubleAmt").textContent = ok ? m2(v) + " a bet" : "more than you have";
   $("roDouble").disabled = !ok;
   document.querySelector(".upgrid").hidden = !!(S.run && S.run.over && S.run.why === "broke");
 }
@@ -1687,7 +1686,7 @@ function paintResult(){
   var out = r.why === "broke";
   $("roNext").hidden = out || S.balance < base;
   $("roNext").className = "btn primary wide" + (ok ? " green" : "");
-  $("roNextAmt").textContent = m2(base) + " a " + c.noun;
+  $("roNextAmt").textContent = m2(base) + " a bet";
   /* Doubling the opening bet is the martingale applied across runs rather than
      inside one. Only offered when the balance can actually place that bet. */
   /* Default the field to the doubling, so the old behaviour is one click away,
@@ -1750,13 +1749,7 @@ function paintPlay(){
   $("p-netK").textContent = r.net >= 0 ? "Up" : "Down";
   $("p-net").textContent = signed(r.net);
   $("p-net").className = "v " + (r.net >= 0 ? "green" : "red");
-  var shown = S.balance + (r.over ? 0 : r.net);
-  var move = shown - S.startBank;
-  $("bal").textContent = m2(shown);
-  $("balSub").innerHTML = "started at <b>" + money(S.startBank) + "</b>" +
-    (Math.abs(move) < 0.005 ? ""
-      : ' &middot; <b style="color:' + (move > 0 ? "var(--green)" : "var(--danger)") + '">' +
-        signed(move) + "</b>");
+  $("bal").textContent = m2(S.balance + (r.over ? 0 : r.net));
 
   $("boardCard").hidden = c.game !== "keno";
   $("limboCard").hidden = c.game !== "limbo";
@@ -1902,22 +1895,6 @@ function shareAtLeast(sorted, v){
   while (lo < hi){ var mid = (lo + hi) >> 1; if (sorted[mid] < v) lo = mid + 1; else hi = mid; }
   return (sorted.length - lo) / sorted.length;
 }
-function outcomeSpread(c, rounds, trials){
-  var rnd = streamFor(0x9E3779B9 ^ rounds), out = new Float64Array(trials);
-  for (var t=0; t<trials; t++){
-    var sum = 0;
-    var bal = c.bank;
-    for (var i=0; i<rounds; i++){
-      if (bal < c.levels[0].bet) break;
-      var out2 = sampleRound(c, rnd, bal);
-      sum += out2[0]; bal += out2[0];
-      if (out2[2]) break;
-    }
-    out[t] = sum;
-  }
-  Array.prototype.sort.call(out, function(a,b){ return a-b; });
-  return out;
-}
 function paintHistory(){
   var H = S.history;
   $("histCard").hidden = H.length === 0;
@@ -1955,24 +1932,91 @@ function paintHistory(){
   $("histFirst").textContent = "round 1";
   $("histLast").textContent = "round " + H.length;
 
-  /* the balance line */
-  var pts = [S.startBank].concat(H.map(function(h){ return h.balance; }));
-  var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts);
-  if (hi - lo < 1){ hi = lo + 1; }
-  var pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
-  var X = function(i){ return pts.length < 2 ? 0 : (480 * i / (pts.length-1)); };
-  var Y = function(v){ return 88 - ((v - lo)/(hi - lo)) * 81; };
-  var poly = pts.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(2); }).join(" ");
-  var peakI = pts.indexOf(Math.max.apply(null, pts));
-  $("histSpark").innerHTML =
-    '<line x1="0" y1="' + Y(S.startBank).toFixed(2) + '" x2="480" y2="' + Y(S.startBank).toFixed(2) +
-      '" stroke="#8b8b93" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"></line>' +
-    '<polyline points="' + poly + '" fill="none" stroke="#ffb454" stroke-width="2" ' +
-      'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></polyline>' +
-    '<circle cx="' + X(peakI).toFixed(1) + '" cy="' + Y(pts[peakI]).toFixed(2) +
-      '" r="3" fill="#4ade80" vector-effect="non-scaling-stroke"></circle>' +
-    '<circle cx="480" cy="' + Y(pts[pts.length-1]).toFixed(2) + '" r="3" fill="' +
-      (netAll >= 0 ? "#4ade80" : "#e06c5a") + '" vector-effect="non-scaling-stroke"></circle>';
+  /* YOUR RUN AGAINST THE RUNS IT COULD HAVE BEEN. One line on its own says
+     nothing about whether it was ordinary; a hundred faint ones behind it turn
+     the same picture into a position. Same ladder, same number of rounds, and
+     a run that goes broke flatlines rather than vanishing, because that is what
+     it does.
+
+     Drawn at the real pixel size of the box - the old chart was a 480x95 viewBox
+     stretched to the card width, which squashes the markers into ovals. */
+  var base0c = S.cfg0 || S.cfg;
+  var svg = $("histSpark");
+  var W = Math.max(240, Math.round(svg.clientWidth || 480)), Hh = 190;
+  var padL = 10, padR = 10, padT = 16, padB = 26;
+  var mine = [S.startBank].concat(H.map(function(h){ return h.balance; }));
+  var rounds = H.length;
+
+  var others = [], PATHS = 140;
+  if (base0c && base0c.levels && base0c.levels.length){
+    var rnd = streamFor(0xC0FFEE ^ rounds);
+    for (var k2=0; k2<PATHS; k2++){
+      var bal = S.startBank, path = [bal], dead = false;
+      for (var i2=0; i2<rounds; i2++){
+        if (!dead && bal >= base0c.levels[0].bet){
+          var o2 = sampleRound(base0c, rnd, bal);
+          bal += o2[0];
+          if (o2[2]) dead = true;
+        }
+        path.push(bal);
+      }
+      others.push(path);
+    }
+  }
+
+  /* Scale to the middle of the crowd, not its extremes - one lucky path would
+     otherwise flatten everything else against the floor. */
+  var all = [];
+  others.forEach(function(pth){ all = all.concat(pth); });
+  all.sort(function(a,b){ return a-b; });
+  var lo, hi;
+  if (all.length){
+    lo = all[Math.floor(all.length * 0.02)];
+    hi = all[Math.floor(all.length * 0.98)];
+  } else { lo = Math.min.apply(null, mine); hi = Math.max.apply(null, mine); }
+  lo = Math.min(lo, Math.min.apply(null, mine), S.startBank);
+  hi = Math.max(hi, Math.max.apply(null, mine), S.startBank);
+  if (hi - lo < 1) hi = lo + 1;
+  var padv = (hi - lo) * 0.08; lo -= padv; hi += padv;
+
+  var X = function(i){ return mine.length < 2 ? padL : padL + (W - padL - padR) * i / (mine.length - 1); };
+  var Y = function(v){
+    var y = padT + (Hh - padT - padB) * (1 - (v - lo) / (hi - lo));
+    return Math.max(padT - 6, Math.min(Hh - padB + 6, y));      /* clip strays to the edge */
+  };
+  var baseY = Y(S.startBank);
+  function poly(arr){ return arr.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join(" "); }
+
+  var ghosts = others.map(function(pth){
+    return '<polyline points="' + poly(pth) + '" fill="none" stroke="#ffb454" stroke-opacity="0.10" stroke-width="1"></polyline>';
+  }).join("");
+
+  var peakI = mine.indexOf(Math.max.apply(null, mine)), endI = mine.length - 1;
+  var endColour = netAll >= 0 ? "#4ade80" : "#e06c5a";
+  function label(i, txt, colour, above){
+    var x = X(i), y = Y(mine[i]) + (above ? -10 : 18);
+    return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" fill="' + colour +
+      '" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="' +
+      (i === 0 ? "start" : i === endI ? "end" : "middle") + '">' + txt + '</text>';
+  }
+
+  svg.setAttribute("viewBox", "0 0 " + W + " " + Hh);
+  svg.innerHTML =
+    ghosts +
+    '<line x1="0" y1="' + baseY.toFixed(1) + '" x2="' + W + '" y2="' + baseY.toFixed(1) +
+      '" stroke="#6a6a76" stroke-width="1" stroke-dasharray="4 4"></line>' +
+    '<polyline points="' + poly(mine) + '" fill="none" stroke="#0e0e11" stroke-width="5" ' +
+      'stroke-linejoin="round" stroke-linecap="round"></polyline>' +
+    '<polyline points="' + poly(mine) + '" fill="none" stroke="' + endColour + '" stroke-width="2.4" ' +
+      'stroke-linejoin="round" stroke-linecap="round"></polyline>' +
+    (peakI !== endI && peakI !== 0
+      ? '<circle cx="' + X(peakI).toFixed(1) + '" cy="' + Y(mine[peakI]).toFixed(1) +
+        '" r="3.5" fill="#4ade80" stroke="#0e0e11" stroke-width="1.5"></circle>' +
+        label(peakI, money(mine[peakI]), "#4ade80", true)
+      : "") +
+    '<circle cx="' + X(endI).toFixed(1) + '" cy="' + Y(mine[endI]).toFixed(1) +
+      '" r="4" fill="' + endColour + '" stroke="#0e0e11" stroke-width="1.5"></circle>' +
+    label(endI, money(mine[endI]), endColour, mine[endI] >= S.startBank);
 
   /* Where this run's finish sits among runs of the same length on the same
      ladder. An approximation on purpose: it holds the opening ladder fixed, so
@@ -1980,13 +2024,6 @@ function paintHistory(){
      balance. It answers "was I lucky", not "what exactly were my odds". */
   var base0 = S.cfg0 || S.cfg;
   if (base0 && H.length){
-    var trials = Math.max(3000, Math.min(20000, Math.round(160000 / H.length)));
-    var spread = outcomeSpread(base0, H.length, trials);
-    var lo = 0, hi = spread.length;
-    while (lo < hi){ var mid = (lo + hi) >> 1; if (spread[mid] < netAll) lo = mid + 1; else hi = mid; }
-    var pctl = lo / spread.length;
-    var median = spread[Math.floor(spread.length / 2)];
-
     var sv = survivalSpread(base0, 1200);
     var spinsPlayed = H.reduce(function(a,h){ return a + h.spin; }, 0);
     var reachP = shareAtLeast(sv.rounds, H.length);
@@ -2012,15 +2049,25 @@ function paintHistory(){
       num(midSpins) + " " + base0.noun + "s";
 
     $("luckBlock").hidden = false;
-    var lucky = pctl >= 0.5;
-    $("luckLab").textContent = lucky ? "Luckier than" : "Unluckier than";
-    $("luckVal").textContent = pct(lucky ? pctl : 1 - pctl) + " of runs like this";
-    $("luckVal").style.color = pctl >= 0.5 ? "var(--green)" : "var(--danger)";
-    $("luckBar").style.width = (100 * pctl) + "%";
-    $("luckBar").className = pctl >= 0.5 ? "greenb" : "redb";
-    $("luckLo").textContent = "worst " + money(spread[0]);
-    $("luckMid").textContent = "middle " + money(median);
-    $("luckHi").textContent = "best " + money(spread[spread.length - 1]);
+    /* The other two rows say how this run compared with others. This one looks
+       forward instead: from the balance in hand, the chance of ever touching a
+       number that matters - the walk-away if one was set, otherwise getting back
+       to where the run started, otherwise doubling. Same first-passage maths as
+       the play screen, which is where the sting is: getting back to even from a
+       long way down is not a coin flip, it is 1/T. */
+    var here = Math.max(0.01, S.balance);
+    var goal, why;
+    if (base0.walk > 0 && S.balance < base0.walk){ goal = base0.walk; why = "your walk-away"; }
+    else if (S.balance < S.startBank){ goal = S.startBank; why = "where you started"; }
+    else { goal = S.balance * 2; why = "double what you hold"; }
+    var fwd = reachOdds(goal / here);
+
+    $("fwdLab").textContent = "Chance of ever reaching " + money(goal);
+    $("fwdVal").textContent = pct(fwd);
+    $("fwdVal").style.color = fwd < 0.25 ? "var(--danger)" : fwd < 0.6 ? "var(--accent)" : "var(--green)";
+    $("fwdBar").style.width = (100 * fwd) + "%";
+    $("fwdBar").className = fwd < 0.25 ? "redb" : fwd < 0.6 ? "" : "greenb";
+    $("fwdSub").textContent = "from the " + money(S.balance) + " you hold, back to " + why;
   } else {
     $("luckBlock").hidden = true;
   }
