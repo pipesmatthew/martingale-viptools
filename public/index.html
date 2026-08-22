@@ -494,7 +494,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="tile"><div class="k">Most you can lose</div>
             <div class="v red" id="tMaxLoss">$1,400</div><div class="d" id="tMaxLossD">70% of your balance</div></div>
           <div class="tile"><div class="k">Longest you'd ride</div>
-            <div class="v" id="tSpins">700</div><div class="d">spins before you bail</div></div>
+            <div class="v" id="tSpins">700</div><div class="d">spins before you bankrupt</div></div>
         </div>
         <div class="tiles two">
           <div class="tile"><div class="k">Rounds that get the hit</div>
@@ -523,7 +523,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
       <div class="tile"><div class="k">Round</div><div class="v cream" id="p-round">1</div>
         <div class="d" id="p-roundD">of this run</div></div>
       <div class="tile"><div class="k">Level</div><div class="v amber" id="p-level">1</div>
-        <div class="d" id="p-levelD">of 3 before you bail</div></div>
+        <div class="d" id="p-levelD">of 3 before you bankrupt</div></div>
       <div class="tile"><div class="k" id="kSpin">Spin</div><div class="v" id="p-spin">0</div>
         <div class="d" id="p-spinD">of 350 on this level</div></div>
       <div class="tile"><div class="k">Bet</div><div class="v" id="p-bet">$1.00</div>
@@ -1390,7 +1390,8 @@ function paintSetup(){
     ? "your whole balance"
     : Math.round(100*share) + "% of your balance";
   $("tSpins").textContent = num(c.afford);
-  $("tSpins").nextElementSibling.textContent = c.noun + "s before you bail";
+  $("tSpins").nextElementSibling.textContent = c.noun + "s" +
+    (c.mode === "broke" ? " before you bankrupt" : " before you bail");
   $("tWin").textContent = pct(c.reach);
   $("tWinD").textContent = plainOdds(c.reach);
 
@@ -1646,7 +1647,7 @@ function paintResult(){
   mult.className = "mult" + (ok && r.last && r.last.pay === 710 ? " gold" : "");
   mult.textContent = ok
     ? (r.last && r.last.pay ? r.last.pay + "x hit" : "Hit")
-    : (r.why === "broke" ? "Bet too big" : "No hit");
+    : (r.why === "broke" ? "Bankrupt" : "No hit");
   $("roDelta").textContent = signed(r.net);
 
   $("roFrom").textContent = money(S.balance - r.net);
@@ -1711,22 +1712,30 @@ function paintPlay(){
   var ri = r.over ? -1 : levelAt(c, r.done);
   var bet = ri < 0 ? 0 : c.levels[ri].bet;
 
+  /* What this round has to spend in total, which is what decides how much of
+     each level it can actually pay for. */
+  var purse = fundedLevels(c, S.balance + (r.over ? 0 : r.net) + r.staked);
+
   $("kSpin").textContent = c.noun.charAt(0).toUpperCase() + c.noun.slice(1);
   $("p-spin").textContent = num(r.done);
-  /* the big figure is the nonce, which is what the odds are computed on; the
+  /* The big figure is the nonce, which is what the odds are computed on; the
      sub-line is where you are inside THIS level, which is a different count.
-     They were the same number on level 1 and nonsense after it ("400 of 175"). */
+     The denominator is the level as far as the MONEY reaches - the last level
+     a balance can afford is nearly always a part of one, and quoting its full
+     175 promises spins that cannot be paid for. */
   var atLevel = ri < 0 ? 0 : r.done - (ri > 0 ? c.ends[ri-1] : 0);
+  var levelLen = ri < 0 ? 0
+    : (purse[ri] ? Math.max(purse[ri].len, atLevel) : c.levels[ri].len);
   $("p-spinD").textContent = ri >= 0
-    ? num(atLevel) + " of " + num(c.levels[ri].len) + " on this level"
+    ? num(atLevel) + " of " + num(levelLen) + " on this level"
     : r.won            ? "the hit landed here"
     : r.why === "broke" ? "out of money"
     : r.why === "quit"  ? "stopped here"
     : "ladder finished";
   $("p-level").textContent = ri < 0 ? "—" : (ri+1);
   $("p-level").className = "v amber";
-  var funded = fundedLevels(c, S.balance + (r.over ? 0 : r.net) + r.staked).length;
-  $("p-levelD").textContent = "of " + num(Math.max(funded, ri + 1)) + " before you bail";
+  $("p-levelD").textContent = "of " + num(Math.max(purse.length, ri + 1)) +
+    (c.mode === "broke" ? " before you bankrupt" : " before you bail");
   $("p-bet").textContent = ri < 0 ? "—" : m2(bet);
   $("p-betD").textContent = "per " + c.noun;
   $("p-stk").textContent = money(r.staked);
@@ -1921,18 +1930,19 @@ function paintHistory(){
   $("histFirst").textContent = "round 1";
   $("histLast").textContent = "round " + H.length;
 
-  /* YOUR RUN AGAINST THE RUNS IT COULD HAVE BEEN. One line on its own says
-     nothing about whether it was ordinary; a hundred faint ones behind it turn
-     the same picture into a position. Same ladder, same number of rounds, and
-     a run that goes broke flatlines rather than vanishing, because that is what
-     it does.
+  /* YOUR RUN AGAINST THE RUNS IT COULD HAVE BEEN, on axes you can read. One
+     line on its own says nothing about whether it was ordinary; a thousand
+     faint ones behind it turn the picture into a position. Same ladder, same
+     number of rounds; a run that goes broke flatlines rather than vanishing,
+     because that is what it does.
 
-     Drawn at the real pixel size of the box - the old chart was a 480x95 viewBox
-     stretched to the card width, which squashes the markers into ovals. */
+     The scale starts at $0 and always shows it. A balance chart whose floor
+     floats with the data cannot be read at a glance, and "how close am I to
+     nothing" is the only question it exists to answer. */
   var base0c = S.cfg0 || S.cfg;
   var svg = $("histSpark");
-  var W = Math.max(240, Math.round(svg.clientWidth || 480)), Hh = 340;
-  var padL = 10, padR = 10, padT = 22, padB = 28;
+  var W = Math.max(300, Math.round(svg.clientWidth || 640)), Hh = 340;
+  var padL = 64, padR = 16, padT = 18, padB = 30;
   var mine = [S.startBank].concat(H.map(function(h){ return h.balance; }));
   var rounds = H.length;
 
@@ -1953,71 +1963,106 @@ function paintHistory(){
     }
   }
 
-  /* Scale to the middle of the crowd, not its extremes - one lucky path would
-     otherwise flatten everything else against the floor. */
   var all = [];
   others.forEach(function(pth){ all = all.concat(pth); });
   all.sort(function(a,b){ return a-b; });
+  var mineMax = Math.max.apply(null, mine);
+
+  var FLOOR = Math.max(1, S.startBank / 2000);
   var lo, hi;
   if (S.chartLog){
-    /* A log scale squashes the big winners enough that the whole field fits, so
-       nothing has to be trimmed and the outliers become the point rather than
-       the casualty. */
-    lo = all.length ? all[0] : Math.min.apply(null, mine);
-    hi = all.length ? all[all.length-1] : Math.max.apply(null, mine);
-  } else if (all.length){
-    /* Linear has to trim, or one path that ran to six figures presses every
-       other one flat against the floor. */
-    lo = all[Math.floor(all.length * 0.02)];
-    hi = all[Math.floor(all.length * 0.98)];
-  } else { lo = Math.min.apply(null, mine); hi = Math.max.apply(null, mine); }
-  lo = Math.min(lo, Math.min.apply(null, mine), S.startBank);
-  hi = Math.max(hi, Math.max.apply(null, mine), S.startBank);
-  if (hi - lo < 1) hi = lo + 1;
-  var padv = (hi - lo) * 0.08; lo -= padv; hi += padv;
-  var FLOOR = Math.max(0.5, S.startBank / 5000);
+    lo = FLOOR;
+    hi = Math.max(mineMax, all.length ? all[all.length-1] : mineMax, S.startBank);
+  } else {
+    /* Floor at zero, always. The top follows the crowd rather than its single
+       luckiest member - one path that ran to six figures flattens the rest. */
+    lo = 0;
+    var p98 = all.length ? all[Math.floor(all.length * 0.98)] : mineMax;
+    hi = Math.max(p98, mineMax, S.startBank) * 1.06;
+  }
+  if (hi <= lo) hi = lo + 1;
+
   var LG = function(v){ return Math.log10(Math.max(FLOOR, v)); };
-  var llo = LG(Math.max(FLOOR, lo)), lhi = LG(Math.max(FLOOR*2, hi));
+  var llo = LG(lo), lhi = LG(hi);
   if (lhi - llo < 0.05) lhi = llo + 0.05;
 
   var X = function(i){ return mine.length < 2 ? padL : padL + (W - padL - padR) * i / (mine.length - 1); };
-  var Y = function(v){
+  var Yraw = function(v){
     var f = S.chartLog ? (LG(v) - llo) / (lhi - llo) : (v - lo) / (hi - lo);
-    var y = padT + (Hh - padT - padB) * (1 - f);
-    return Math.max(padT - 6, Math.min(Hh - padB + 6, y));      /* clip strays to the edge */
+    return padT + (Hh - padT - padB) * (1 - f);
   };
-  /* say how many are pressed against the frame rather than pretending the
-     picture is complete */
-  var over = 0, under = 0;
-  if (!S.chartLog) all.forEach(function(v){ if (v > hi) over++; else if (v < lo) under++; });
-  var baseY = Y(S.startBank);
-  function poly(arr){ return arr.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join(" "); }
+  var Y = function(v){ return Math.max(padT - 4, Math.min(Hh - padB, Yraw(v))); };
+  var over = 0;
+  all.forEach(function(v){ if (v > hi) over++; });
 
-  /* A thousand <polyline> nodes is a thousand things for the browser to lay
-     out. They all share a stroke, so they can be one <path> with a thousand
-     subpaths instead - same picture, one element. The alpha is low enough that
-     overlap reads as density rather than a solid block. */
+  /* short money for an axis: $16k reads at a glance, $16,378 does not */
+  function tickMoney(v){
+    if (v >= 1e6) return "$" + (v/1e6).toFixed(v >= 1e7 ? 0 : 1) + "m";
+    if (v >= 1000) return "$" + (v/1000).toFixed(v >= 10000 ? 0 : 1) + "k";
+    return "$" + Math.round(v);
+  }
+  var ticks = [];
+  if (S.chartLog){
+    for (var d = Math.ceil(llo); d <= Math.floor(lhi); d++) ticks.push(Math.pow(10, d));
+    if (ticks.length < 2) ticks = [lo, hi];
+  } else {
+    for (var ti = 0; ti <= 4; ti++) ticks.push(lo + (hi - lo) * ti / 4);
+  }
+
+  var grid = ticks.map(function(v){
+    var y = Yraw(v);
+    if (y < padT - 1 || y > Hh - padB + 1) return "";
+    return '<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) +
+           '" stroke="#26262e" stroke-width="1"></line>' +
+           '<text x="' + (padL - 8) + '" y="' + (y + 3.5).toFixed(1) +
+           '" fill="#8b8b93" font-family="JetBrains Mono, monospace" font-size="10.5" text-anchor="end">' +
+           tickMoney(v) + '</text>';
+  }).join("");
+
+  /* $0 is the line the whole chart is about, so it is an axis and not a tick */
+  var zeroY = Yraw(0);
+  var zeroLine = (!S.chartLog && zeroY <= Hh - padB + 1)
+    ? '<line x1="' + padL + '" y1="' + zeroY.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + zeroY.toFixed(1) +
+      '" stroke="#e06c5a" stroke-width="1.5"></line>' +
+      '<text x="' + (W - padR) + '" y="' + (zeroY - 5).toFixed(1) +
+      '" fill="#e06c5a" font-family="JetBrains Mono, monospace" font-size="10.5" text-anchor="end">broke</text>'
+    : "";
+
+  var startY = Yraw(S.startBank);
+  var startLine =
+    '<line x1="' + padL + '" y1="' + startY.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + startY.toFixed(1) +
+      '" stroke="#e8e2c4" stroke-width="1" stroke-dasharray="5 4"></line>' +
+    '<text x="' + (W - padR) + '" y="' + (startY - 5).toFixed(1) +
+      '" fill="#e8e2c4" font-family="JetBrains Mono, monospace" font-size="10.5" text-anchor="end">started ' +
+      tickMoney(S.startBank) + '</text>';
+
+  function poly(arr){ return arr.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join(" "); }
   var ghostD = others.map(function(pth){
     return "M" + pth.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join("L");
   }).join("");
   var ghosts = ghostD
-    ? '<path d="' + ghostD + '" fill="none" stroke="#ffb454" stroke-opacity="0.045" stroke-width="1"></path>'
+    ? '<path d="' + ghostD + '" fill="none" stroke="#ffb454" stroke-opacity="0.05" stroke-width="1"></path>'
     : "";
 
-  var peakI = mine.indexOf(Math.max.apply(null, mine)), endI = mine.length - 1;
+  var axes =
+    '<text x="' + padL + '" y="' + (Hh - 10) + '" fill="#8b8b93" font-family="JetBrains Mono, monospace" ' +
+      'font-size="10.5">round 1</text>' +
+    '<text x="' + (W - padR) + '" y="' + (Hh - 10) + '" fill="#8b8b93" font-family="JetBrains Mono, monospace" ' +
+      'font-size="10.5" text-anchor="end">round ' + num(rounds) + '</text>' +
+    '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (Hh - padB) +
+      '" stroke="#3a3a42" stroke-width="1"></line>';
+
+  var peakI = mine.indexOf(mineMax), endI = mine.length - 1;
   var endColour = netAll >= 0 ? "#4ade80" : "#e06c5a";
   function label(i, txt, colour, above){
-    var x = X(i), y = Y(mine[i]) + (above ? -10 : 18);
-    return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" fill="' + colour +
-      '" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="' +
-      (i === 0 ? "start" : i === endI ? "end" : "middle") + '">' + txt + '</text>';
+    return '<text x="' + X(i).toFixed(1) + '" y="' + (Y(mine[i]) + (above ? -9 : 16)).toFixed(1) +
+      '" fill="' + colour + '" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="' +
+      (i === endI ? "end" : "middle") + '">' + txt + '</text>';
   }
 
   svg.setAttribute("viewBox", "0 0 " + W + " " + Hh);
   svg.innerHTML =
-    ghosts +
-    '<line x1="0" y1="' + baseY.toFixed(1) + '" x2="' + W + '" y2="' + baseY.toFixed(1) +
-      '" stroke="#6a6a76" stroke-width="1" stroke-dasharray="4 4"></line>' +
+    grid + zeroLine + ghosts + startLine + axes +
     '<polyline points="' + poly(mine) + '" fill="none" stroke="#0e0e11" stroke-width="5" ' +
       'stroke-linejoin="round" stroke-linecap="round"></polyline>' +
     '<polyline points="' + poly(mine) + '" fill="none" stroke="' + endColour + '" stroke-width="2.4" ' +
@@ -2032,10 +2077,10 @@ function paintHistory(){
     label(endI, money(mine[endI]), endColour, mine[endI] >= S.startBank);
 
   $("chartCaption").textContent = S.chartLog
-    ? "your run against " + num(PATHS) + " others, log scale, all of them in view"
-    : (over + under
-        ? "your run against " + num(PATHS) + " others " + DOT + " " + num(over + under) +
-          " readings sit outside the frame - switch to log to see them"
+    ? "your run against " + num(PATHS) + " others, log scale"
+    : (over
+        ? "your run against " + num(PATHS) + " others " + DOT + " " + num(over) +
+          " readings run off the top - switch to log to see them"
         : "your run against " + num(PATHS) + " others on the same ladder");
 
   /* Where this run's finish sits among runs of the same length on the same
