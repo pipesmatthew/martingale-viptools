@@ -185,6 +185,14 @@ button.primary:disabled:hover{background:var(--accent)}
 .cardhead .note{font-size:11.5px;color:var(--faint)}
 .cardbody{padding:10px 12px}
 .split{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:5px;align-items:start}
+/* The two columns hold different content, so left to themselves they end at
+   different heights. On the setup screen they sit side by side with nothing
+   below them, which makes a few pixels of mismatch the most visible thing on
+   the page. Stretch both to the taller one and let each column's last card
+   take up the slack, so the bottoms land on the same line. */
+#view-setup .split{align-items:stretch}
+#view-setup .split > div{display:flex;flex-direction:column;min-width:0}
+#view-setup .split > div > .card:last-child{flex:1 1 auto}
 @media (max-width:980px){.split{grid-template-columns:1fr}}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:5px}
 
