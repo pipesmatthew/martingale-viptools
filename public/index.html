@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The 350x Ladder</title>
+<title>Martingale Simulation</title>
 <meta name="description" content="Play BILLSKIE's 350x keno/limbo ladder with fake money, and read in plain English what it usually does to the people who play it.">
 <meta name="color-scheme" content="dark">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="VIP Tools">
-<meta property="og:title" content="The 350x Ladder">
+<meta property="og:title" content="Martingale Simulation">
 <meta property="og:description" content="Play the ladder with fake money before you play it with real money. Real odds, no account, nothing placed anywhere.">
 <meta property="og:url" content="https://martingale.viptools.gg/">
 <meta name="twitter:card" content="summary">
@@ -81,7 +81,10 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .tab:hover{background:var(--button-hover);color:var(--fg)}
 .tab.is-active{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 .live{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:12px;white-space:nowrap}
-.bal{color:var(--cream);font-weight:600}
+.balbig{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:30px;font-weight:700;
+  letter-spacing:-.03em;line-height:1.05;color:var(--cream)}
+.balsub{font-size:11.5px;color:var(--faint);margin-top:4px}
+.balsub b{font-family:var(--mono);font-weight:600}
 
 /* ──────────────────────────────────────────────────────────── buttons ── */
 button.ghost,button.primary{
@@ -283,14 +286,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 <body>
 
 <header class="top">
-  <span class="brand">VIP Tools<b>The 350x Ladder</b></span>
+  <span class="brand">VIP Tools<b>Martingale Simulation</b></span>
   <nav class="tabs" role="tablist" id="tabnav">
     <button class="tab is-active" role="tab" aria-selected="true" data-tab="dryrun">Dry run</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="stats">What usually happens</button>
   </nav>
   <div class="live">
-    <span class="pill amber">Practice money</span>
-    <span class="bal n" id="bal">$2,000.00</span>
+    <button class="ghost" id="hdrSettings" hidden>&#9881;&nbsp; Settings</button>
   </div>
 </header>
 
@@ -445,12 +447,19 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <button class="primary" id="btnSpin" style="min-width:104px">Spin</button>
           <button class="ghost" id="btnSpin25">Spin &times;25</button>
           <button class="ghost" id="btnAuto">Auto &#9654;</button>
-          <span style="flex:1"></span>
-          <button class="ghost" id="btnSettings">Change settings</button>
         </div></div>
       </div>
 
       <div>
+        <div class="card">
+          <div class="cardhead"><h2>Practice balance</h2><span class="grow"></span>
+            <span class="pill amber">Practice money</span></div>
+          <div class="cardbody">
+            <div class="balbig n" id="bal">$2,000.00</div>
+            <div class="balsub" id="balSub"></div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="cardhead"><h2>Where you stand</h2></div>
           <div class="cardbody stack">
@@ -1083,6 +1092,7 @@ function startRun(fresh){
 function showView(v){
   $("view-setup").hidden = v !== "setup";
   $("view-play").hidden  = v !== "play";
+  $("hdrSettings").hidden = v !== "play";
 }
 
 function paintBoard(){
@@ -1316,7 +1326,13 @@ function paintPlay(){
   $("p-netK").textContent = r.net >= 0 ? "Up" : "Down";
   $("p-net").textContent = signed(r.net);
   $("p-net").className = "v " + (r.net >= 0 ? "green" : "red");
-  $("bal").textContent = m2(S.balance + (r.over ? 0 : r.net));
+  var shown = S.balance + (r.over ? 0 : r.net);
+  var move = shown - S.startBank;
+  $("bal").textContent = m2(shown);
+  $("balSub").innerHTML = "started at <b>" + money(S.startBank) + "</b>" +
+    (Math.abs(move) < 0.005 ? ""
+      : ' &middot; <b style="color:' + (move > 0 ? "var(--green)" : "var(--danger)") + '">' +
+        signed(move) + "</b>");
 
   $("boardCard").hidden = c.game !== "keno";
   $("limboCard").hidden = c.game !== "limbo";
@@ -1544,7 +1560,7 @@ $("btnSpin25").addEventListener("click", function(){
   paintPlay();
 });
 $("btnAuto").addEventListener("click", toggleAuto);
-$("btnSettings").addEventListener("click", function(){ stopAuto(); showView("setup"); paintSetup(); });
+$("hdrSettings").addEventListener("click", function(){ stopAuto(); showView("setup"); paintSetup(); });
 $("clearHist").addEventListener("click", function(){
   S.history = []; S.balance = S.startBank; saveState(); paintPlay();
 });

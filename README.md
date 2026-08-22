@@ -1,6 +1,6 @@
 # martingale.viptools.gg
 
-A place to play BILLSKIE's 350x ladder before you play it with real money, and
+A place to play BILLSKIE's martingale ladder before you play it with real money, and
 to read in plain English what it usually does to the people who play it.
 
 One file: `public/index.html`. No build step, no dependencies, no server, no
