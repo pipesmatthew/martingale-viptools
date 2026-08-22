@@ -1454,8 +1454,12 @@ function paintPlay(){
 
   $("kSpin").textContent = c.noun.charAt(0).toUpperCase() + c.noun.slice(1);
   $("p-spin").textContent = num(r.done);
+  /* the big figure is the nonce, which is what the odds are computed on; the
+     sub-line is where you are inside THIS level, which is a different count.
+     They were the same number on level 1 and nonsense after it ("400 of 175"). */
+  var atLevel = ri < 0 ? 0 : r.done - (ri > 0 ? c.ends[ri-1] : 0);
   $("p-spinD").textContent = ri < 0 ? "ladder finished"
-    : "of " + num(c.levels[ri].len) + " on this level";
+    : num(atLevel) + " of " + num(c.levels[ri].len) + " on this level";
   $("p-level").textContent = ri < 0 ? "—" : (ri+1);
   $("p-level").className = "v " + (c.game === "limbo" ? "tealc" : "amber");
   $("p-levelD").textContent = "of " + c.count + " before you bail";
