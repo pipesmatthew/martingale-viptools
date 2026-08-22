@@ -215,18 +215,18 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .limbotape i.big{background:var(--teal)}
 .limbotape i.win{background:var(--green)}
 
-/* ───────────────────────────────────────────────────────────── rungs ── */
-.rungs{display:flex;gap:3px;align-items:stretch;flex-wrap:wrap}
-.rung{flex:1 1 90px;border:1px solid var(--border);background:var(--bg-deep);padding:7px 9px;min-width:0}
-.rung.here{border-color:var(--accent);background:#221b0f}
-.rung.here.teal{border-color:var(--teal);background:#12292a}
-.rung.spent{opacity:.45}
-.rung .rk{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+/* ───────────────────────────────────────────────────────────── levels ── */
+.levels{display:flex;gap:3px;align-items:stretch;flex-wrap:wrap}
+.level{flex:1 1 90px;border:1px solid var(--border);background:var(--bg-deep);padding:7px 9px;min-width:0}
+.level.here{border-color:var(--accent);background:#221b0f}
+.level.here.teal{border-color:var(--teal);background:#12292a}
+.level.spent{opacity:.45}
+.level .rk{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--faint);font-weight:700}
-.rung.here .rk{color:var(--accent)}
-.rung.here.teal .rk{color:var(--teal)}
-.rung .rv{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
-.rung .rd{font-size:10.5px;color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.level.here .rk{color:var(--accent)}
+.level.here.teal .rk{color:var(--teal)}
+.level .rv{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.level .rd{font-size:10.5px;color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ─────────────────────────────────────────────────────────────── log ── */
 .loglines{font-family:var(--mono);font-size:11.5px;padding:8px 12px;height:190px;
@@ -241,7 +241,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .logline.good .msg{color:var(--green)}
 .logline.bad .msg{color:var(--danger)}
 .tag-HIT{color:var(--green)} .tag-11X{color:var(--accent)} .tag-NEAR{color:var(--teal)}
-.tag-RUNG{color:#ffd88a} .tag-SYS{color:#6fae9a} .tag-BUST{color:var(--danger)}
+.tag-LEVEL{color:#ffd88a} .tag-SYS{color:#6fae9a} .tag-BUST{color:var(--danger)}
 .tag-BROKE{color:var(--danger)} .tag-CASH{color:var(--green)}
 
 /* ─────────────────────────────────────────── plain-english statistic ── */
@@ -334,13 +334,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
                 <input type="number" id="stepx" value="2" min="1" max="10" step="0.25"></label>
             </div>
             <div class="grid2" style="margin-bottom:11px">
-              <label class="f"><span>First rung, spins</span>
+              <label class="f"><span>First level, spins</span>
                 <input type="number" id="len1" value="350" min="1" max="20000" step="25"></label>
-              <label class="f"><span>Every rung after</span>
+              <label class="f"><span>Every level after</span>
                 <input type="number" id="lenN" value="175" min="1" max="20000" step="25"></label>
             </div>
-            <label class="f"><span>Give up after rung <b id="rungsV">3</b></span>
-              <input type="range" id="rungs" min="1" max="8" step="1" value="3"></label>
+            <label class="f"><span>Give up after level <b id="levelsV">3</b></span>
+              <input type="range" id="levels" min="1" max="8" step="1" value="3"></label>
           </div>
         </div>
 
@@ -361,7 +361,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="card">
           <div class="cardhead"><h2>Before you start</h2></div>
           <div class="cardbody">
-            <div class="rungs" id="setupRungs" style="margin-bottom:10px"></div>
+            <div class="levels" id="setupLevels" style="margin-bottom:10px"></div>
           </div>
         </div>
 
@@ -375,7 +375,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="tile"><div class="k">Runs that get the hit</div>
             <div class="v green" id="tWin">75.8%</div><div class="d" id="tWinD">about 3 in 4</div></div>
           <div class="tile"><div class="k">Break even on spin</div>
-            <div class="v amber" id="tBreak">350</div><div class="d">of the first rung</div></div>
+            <div class="v amber" id="tBreak">350</div><div class="d">of the first level</div></div>
         </div>
 
         <div class="card" id="setupWarnCard">
@@ -396,9 +396,9 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
     <div class="tiles six">
       <div class="tile"><div class="k" id="kSpin">Spin</div><div class="v" id="p-spin">0</div>
-        <div class="d" id="p-spinD">of 350 on this rung</div></div>
-      <div class="tile"><div class="k">Rung</div><div class="v amber" id="p-rung">1</div>
-        <div class="d" id="p-rungD">of 3 before you bail</div></div>
+        <div class="d" id="p-spinD">of 350 on this level</div></div>
+      <div class="tile"><div class="k">Level</div><div class="v amber" id="p-level">1</div>
+        <div class="d" id="p-levelD">of 3 before you bail</div></div>
       <div class="tile"><div class="k">Bet</div><div class="v" id="p-bet">$1.00</div>
         <div class="d" id="p-betD">per spin</div></div>
       <div class="tile"><div class="k">Put in</div><div class="v" id="p-stk">$0</div>
@@ -440,7 +440,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="card">
           <div class="cardhead"><h2>The ladder</h2><span class="grow"></span>
             <span class="note" id="ladNote"></span></div>
-          <div class="cardbody"><div class="rungs" id="playRungs"></div></div>
+          <div class="cardbody"><div class="levels" id="playLevels"></div></div>
         </div>
 
         <div class="card"><div class="cardbody" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
@@ -530,7 +530,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   <div class="card">
     <div class="cardhead"><h2>If you play BILLSKIE's ladder on keno at $1 a spin</h2>
       <span class="grow"></span>
-      <span class="pill dry">$1 bets &middot; 3 rungs &middot; $2,000 &middot; no walk-away</span></div>
+      <span class="pill dry">$1 bets &middot; 3 levels &middot; $2,000 &middot; no walk-away</span></div>
 
     <div class="plain">
       <div class="big green">3 in 4</div>
@@ -602,7 +602,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   <!-- ── if you keep playing ─────────────────────────────────────── -->
   <div class="card">
     <div class="cardhead"><h2>A hundred people start with $2,000 and play forty runs</h2>
-      <span class="grow"></span><span class="note">keno, $1 bets, 3 rungs, no walk-away target</span></div>
+      <span class="grow"></span><span class="note">keno, $1 bets, 3 levels, no walk-away target</span></div>
     <div class="cardbody">
       <div class="stackbar">
         <div style="width:61%;background:#3a1a16"><b style="color:var(--danger)">61</b></div>
@@ -735,7 +735,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   board with 10 drawn; limbo's from a 99% return. The win rates, typical wins and lifetime figures come from
   Monte&nbsp;Carlo runs of the same ladder.
   <br><br>
-  Both games return 99% of everything staked in the long run, so no bet size, seed rotation or rung schedule
+  Both games return 99% of everything staked in the long run, so no bet size, seed rotation or level schedule
   makes either profitable &mdash; a ladder moves probability between outcomes, it does not create any.
   Simulated results are not predictions, and a strategy that is right three times in four gives you many
   chances to raise the stakes before the fourth one arrives. If gambling has stopped being entertainment for
@@ -789,7 +789,7 @@ var KENO_SIX_GIVEN_STOP = KP[6]/KENO_STOP;
 
 /* ═══════════════════════════════ session ══════════════════════════════ */
 var S = {
-  cfg: null, rungs: [], ends: [], total: 0,
+  cfg: null, levels: [], ends: [], total: 0,
   startBank: 2000, balance: 2000,
   history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null
 };
@@ -824,7 +824,7 @@ function readForm(){
     stepx: +$("stepx").value || 2,
     len1:  Math.round(+$("len1").value) || 350,
     lenN:  Math.round(+$("lenN").value) || 175,
-    count: +$("rungs").value || 3,
+    count: +$("levels").value || 3,
     bank:  +$("bank").value  || 2000,
     walk:  +$("walk").value  || 0
   };
@@ -832,7 +832,7 @@ function readForm(){
 function writeForm(f){
   setGame(f.game === "limbo" ? "limbo" : "keno");
   $("lmult").value = f.lmult; $("base").value = f.base; $("stepx").value = f.stepx;
-  $("len1").value  = f.len1;  $("lenN").value = f.lenN; $("rungs").value = f.count;
+  $("len1").value  = f.len1;  $("lenN").value = f.lenN; $("levels").value = f.count;
   $("bank").value  = f.bank;  $("walk").value = f.walk;
 }
 
@@ -853,22 +853,22 @@ function derive(f){
     stop: f.game === "limbo" ? 0.99/lmult : KENO_STOP,
     pay:  f.game === "limbo" ? lmult : 350
   };
-  c.rungs = [];
+  c.levels = [];
   var cum = 0;
   for (var i=0; i<c.count; i++){
     var bet = c.base * Math.pow(c.stepx, i);
     var len = i ? c.lenN : c.len1;
     cum += bet * len;
-    c.rungs.push({ bet: bet, len: len, cum: cum, payout: c.pay * bet });
+    c.levels.push({ bet: bet, len: len, cum: cum, payout: c.pay * bet });
   }
   c.ends = []; var e = 0;
-  for (var j=0; j<c.rungs.length; j++){ e += c.rungs[j].len; c.ends.push(e); }
+  for (var j=0; j<c.levels.length; j++){ e += c.levels[j].len; c.ends.push(e); }
   c.total = e;
-  c.cost  = cum;                                   /* a full ladder, every rung */
+  c.cost  = cum;                                   /* a full ladder, every level */
   c.reach = 1 - Math.pow(1 - c.stop, c.total);     /* chance it lands before you bail */
   return c;
 }
-function rungAt(c, done){
+function levelAt(c, done){
   for (var i=0;i<c.ends.length;i++) if (done < c.ends[i]) return i;
   return -1;
 }
@@ -882,7 +882,7 @@ function ladderAt(c, n){
     var take = Math.min(len, n - seen);
     spent += take * bet; seen += take; if (take === len) i++;
   }
-  return { rung: i + 1, bet: c.base * Math.pow(c.stepx, i), staked: spent };
+  return { level: i + 1, bet: c.base * Math.pow(c.stepx, i), staked: spent };
 }
 
 /* ═══════════════════════════════ the games ════════════════════════════ */
@@ -930,9 +930,9 @@ function say(kind, msg){
 function step(){
   var c = S.cfg, r = S.run;
   if (!r || r.over) return;
-  var ri = rungAt(c, r.done);
+  var ri = levelAt(c, r.done);
   if (ri < 0){ finish("bail"); return; }
-  var bet = c.rungs[ri].bet;
+  var bet = c.levels[ri].bet;
 
   if (S.balance + r.net < bet - 1e-9){ finish("broke"); return; }
 
@@ -960,11 +960,11 @@ function step(){
     say("11X", "4 of 6 paid " + money(bet*out.pay) + " " + DOT + " still " + money(r.net) + " down");
   }
 
-  var after = rungAt(c, r.done);
+  var after = levelAt(c, r.done);
   if (after !== ri){
     if (after < 0){ finish("bail"); }
     else {
-      say("RUNG", "Rung " + (after+1) + " " + DOT + " bet goes to " + m2(c.rungs[after].bet) +
+      say("LEVEL", "Level " + (after+1) + " " + DOT + " bet goes to " + m2(c.levels[after].bet) +
                   " " + DOT + " " + money(r.staked) + " in so far");
     }
   }
@@ -1005,17 +1005,17 @@ function paintSetup(){
   var c = derive(readForm());
   S.cfg = c;
 
-  $("rungsV").textContent = c.count;
+  $("levelsV").textContent = c.count;
   $("lchance").value = pct(0.99/c.lmult, 3);
 
   var html = "";
-  for (var i=0;i<c.rungs.length;i++){
-    var R = c.rungs[i];
-    html += '<div class="rung"><div class="rk">Rung ' + (i+1) + '</div>' +
+  for (var i=0;i<c.levels.length;i++){
+    var R = c.levels[i];
+    html += '<div class="level"><div class="rk">Level ' + (i+1) + '</div>' +
             '<div class="rv">' + m2(R.bet) + '</div>' +
             '<div class="rd">' + num(R.len) + ' ' + c.noun + 's ' + DOT + ' ' + money(R.cum) + '</div></div>';
   }
-  $("setupRungs").innerHTML = html;
+  $("setupLevels").innerHTML = html;
 
   $("tMaxLoss").textContent = money(c.cost);
   var share = c.cost / c.bank;
@@ -1027,10 +1027,10 @@ function paintSetup(){
   $("tWin").textContent = pct(c.reach);
   $("tWinD").textContent = plainOdds(c.reach);
   // Break-even is where staked equals the payout: n * bet = pay * bet, so n = pay.
-  // It does not depend on how long you made rung 1 - only on whether rung 1 reaches it.
+  // It does not depend on how long you made level 1 - only on whether level 1 reaches it.
   $("tBreak").textContent = num(c.pay);
   $("tBreak").nextElementSibling.textContent =
-    c.pay <= c.len1 ? "hit sooner than that and you profit" : "rung 1 ends before that";
+    c.pay <= c.len1 ? "hit sooner than that and you profit" : "level 1 ends before that";
 
   var over = c.cost > c.bank;
   var warn = $("setupWarn");
@@ -1038,15 +1038,15 @@ function paintSetup(){
   if (over){
     warn.innerHTML = "<b>You cannot afford this ladder.</b> A full run costs " + money(c.cost) +
       " and you are starting with " + money(c.bank) + ", so you would run out of money partway up " +
-      "rung " + ladderAt(c, spinsAffordable(c)).rung + " and lose the lot without ever reaching the top.";
+      "level " + ladderAt(c, spinsAffordable(c)).level + " and lose the lot without ever reaching the top.";
   } else {
     warn.innerHTML = "<b>You are risking " + money(c.cost) + " for a win worth " +
-      money(c.rungs[0].payout - c.rungs[0].bet) + " at the very best.</b> " +
-      "A hit on your first " + c.noun + " pays " + money(c.rungs[0].payout) + " against " +
-      m2(c.rungs[0].bet) + " staked" +
+      money(c.levels[0].payout - c.levels[0].bet) + " at the very best.</b> " +
+      "A hit on your first " + c.noun + " pays " + money(c.levels[0].payout) + " against " +
+      m2(c.levels[0].bet) + " staked" +
       (c.pay <= c.len1
         ? "; a hit on " + c.noun + " " + num(c.pay) + " breaks exactly even, and later than that loses"
-        : "; rung 1 ends before you could ever reach break-even, so every rung-1 hit profits") +
+        : "; level 1 ends before you could ever reach break-even, so every level-1 hit profits") +
       ". " + pct(c.reach) + " of runs land somewhere before you bail. The rest cost you the full " +
       money(c.cost) + ".";
   }
@@ -1067,10 +1067,10 @@ function plainOdds(p){
 }
 function spinsAffordable(c){
   var bal = c.bank, n = 0;
-  for (var i=0;i<c.rungs.length;i++){
-    var can = Math.floor(bal / c.rungs[i].bet);
-    if (can <= c.rungs[i].len){ return n + can; }
-    n += c.rungs[i].len; bal -= c.rungs[i].bet * c.rungs[i].len;
+  for (var i=0;i<c.levels.length;i++){
+    var can = Math.floor(bal / c.levels[i].bet);
+    if (can <= c.levels[i].len){ return n + can; }
+    n += c.levels[i].len; bal -= c.levels[i].bet * c.levels[i].len;
   }
   return n;
 }
@@ -1084,7 +1084,7 @@ function startRun(fresh){
   }
   S.ended = null;
   S.run = newRun();
-  say("SYS", "New run " + DOT + " " + m2(S.cfg.rungs[0].bet) + " a " + S.cfg.noun +
+  say("SYS", "New run " + DOT + " " + m2(S.cfg.levels[0].bet) + " a " + S.cfg.noun +
              ", giving up after " + num(S.cfg.total));
   showView("play");
   paintPlay();
@@ -1117,17 +1117,17 @@ function paintTape(){
   }
   $("l-tape").innerHTML = html;
 }
-function paintRungs(){
-  var c = S.cfg, here = S.run.over ? -1 : rungAt(c, S.run.done), html = "";
-  for (var i=0;i<c.rungs.length;i++){
-    var R = c.rungs[i];
-    var cls = "rung" + (i === here ? " here" + (c.game === "limbo" ? " teal" : "")
+function paintLevels(){
+  var c = S.cfg, here = S.run.over ? -1 : levelAt(c, S.run.done), html = "";
+  for (var i=0;i<c.levels.length;i++){
+    var R = c.levels[i];
+    var cls = "level" + (i === here ? " here" + (c.game === "limbo" ? " teal" : "")
                                    : (here < 0 || i < here ? " spent" : ""));
-    html += '<div class="' + cls + '"><div class="rk">Rung ' + (i+1) + '</div>' +
+    html += '<div class="' + cls + '"><div class="rk">Level ' + (i+1) + '</div>' +
             '<div class="rv">' + m2(R.bet) + '</div>' +
             '<div class="rd">' + num(R.len) + ' ' + c.noun + 's ' + DOT + ' ' + money(R.cum) + '</div></div>';
   }
-  $("playRungs").innerHTML = html;
+  $("playLevels").innerHTML = html;
 }
 function paintOdds(){
   var c = S.cfg, r = S.run, q = c.stop, done = r.done;
@@ -1198,7 +1198,7 @@ function paintResult(){
     head = "Out of money on " + c.noun + " " + num(r.done);
     tone = "var(--danger)";
     right = '<div class="prose" style="font-size:12.5px;margin:0">Your balance could no longer cover the ' +
-      'next bet, so the ladder stopped partway up rung ' + (rungAt(c, Math.max(0, r.done-1))+1) + '. This is the failure ' +
+      'next bet, so the ladder stopped partway up level ' + (levelAt(c, Math.max(0, r.done-1))+1) + '. This is the failure ' +
       'the ladder is designed around and the one people plan for least: it is not that the hit never came, ' +
       'it is that you could not afford to keep waiting for it.</div>';
   } else {
@@ -1215,13 +1215,13 @@ function paintResult(){
 
   var rows = "";
   if (c.game === "keno"){
-    rows += row("You put in, at " + m2(c.rungs[0].bet) + " a spin to start", num(r.done), MINUS + money(r.staked), "var(--danger)");
+    rows += row("You put in, at " + m2(c.levels[0].bet) + " a spin to start", num(r.done), MINUS + money(r.staked), "var(--danger)");
     if (r.n4) rows += row("4 of 6 paid you 11x along the way", num(r.n4),
                           "+" + money(r.recovered - r.payout), "var(--accent)");
     if (ok) rows += row(r.last.label + " paid " + (r.last.pay) + "x and ended it", "1",
                         "+" + money(r.payout), "var(--green)");
   } else {
-    rows += row("You put in, at " + m2(c.rungs[0].bet) + " a roll to start", num(r.done), MINUS + money(r.staked), "var(--danger)");
+    rows += row("You put in, at " + m2(c.levels[0].bet) + " a roll to start", num(r.done), MINUS + money(r.staked), "var(--danger)");
     if (ok) rows += row(r.last.label + " cleared " + c.lmult + "x and ended it", "1",
                         "+" + money(r.payout), "var(--green)");
   }
@@ -1238,7 +1238,7 @@ function paintResult(){
   } else {
     var wins = S.history.filter(function(h){ return h.why === "hit"; })
                         .map(function(h){ return h.net; }).sort(function(a,b){ return a-b; });
-    var typical = wins.length ? wins[Math.floor(wins.length/2)] : c.rungs[0].payout * 0.67;
+    var typical = wins.length ? wins[Math.floor(wins.length/2)] : c.levels[0].payout * 0.67;
     if (typical < 1) typical = 1;
     tail = '<b>To get back to ' + money(S.startBank) + ' you need about ' +
       (Math.abs(r.net)/typical).toFixed(1).replace(".0","") + ' more winning runs.</b> ' +
@@ -1284,7 +1284,7 @@ function paintResult(){
     '</div>';
 
   $("btnAgain").addEventListener("click", function(){
-    if (S.balance < S.cfg.rungs[0].bet){ showView("setup"); paintSetup(); return; }
+    if (S.balance < S.cfg.levels[0].bet){ showView("setup"); paintSetup(); return; }
     startRun(false);
   });
   $("btnStop").addEventListener("click", function(){ showView("setup"); paintSetup(); });
@@ -1297,16 +1297,16 @@ function paintResult(){
 
 function paintPlay(){
   var c = S.cfg, r = S.run;
-  var ri = r.over ? -1 : rungAt(c, r.done);
-  var bet = ri < 0 ? 0 : c.rungs[ri].bet;
+  var ri = r.over ? -1 : levelAt(c, r.done);
+  var bet = ri < 0 ? 0 : c.levels[ri].bet;
 
   $("kSpin").textContent = c.noun.charAt(0).toUpperCase() + c.noun.slice(1);
   $("p-spin").textContent = num(r.done);
   $("p-spinD").textContent = ri < 0 ? "ladder finished"
-    : "of " + num(c.rungs[ri].len) + " on this rung";
-  $("p-rung").textContent = ri < 0 ? "—" : (ri+1);
-  $("p-rung").className = "v " + (c.game === "limbo" ? "tealc" : "amber");
-  $("p-rungD").textContent = "of " + c.count + " before you bail";
+    : "of " + num(c.levels[ri].len) + " on this level";
+  $("p-level").textContent = ri < 0 ? "—" : (ri+1);
+  $("p-level").className = "v " + (c.game === "limbo" ? "tealc" : "amber");
+  $("p-levelD").textContent = "of " + c.count + " before you bail";
   $("p-bet").textContent = ri < 0 ? "—" : m2(bet);
   $("p-betD").textContent = "per " + c.noun;
   $("p-stk").textContent = money(r.staked);
@@ -1361,7 +1361,7 @@ function paintPlay(){
     : "a hit right now finishes you <b style=\"color:var(--green)\">" +
       signed(r.net - bet + c.pay*bet) + "</b>";
 
-  paintRungs(); paintOdds(); paintLog(); paintResult(); paintHistory();
+  paintLevels(); paintOdds(); paintLog(); paintResult(); paintHistory();
 
   var dead = r.over;
   $("btnSpin").disabled = dead; $("btnSpin25").disabled = dead; $("btnAuto").disabled = dead;
@@ -1485,7 +1485,7 @@ function paintStats(){
     "<b style=\"color:var(--danger)\">" + money(at.staked) + "</b> in.";
   $("tailNote").innerHTML =
     "<b>This is the run everybody has heard about and nobody plans for.</b> One person in ten is in it right " +
-    "now. With " + c.count + (c.count === 1 ? " rung" : " rungs") + " you never meet them, because you gave " +
+    "now. With " + c.count + (c.count === 1 ? " level" : " levels") + " you never meet them, because you gave " +
     "up at " + c.noun + " " + num(c.total) + " &mdash; which is the point of having a bail-out.";
 
   function tile(k, v, d, cls){
@@ -1532,16 +1532,16 @@ $("lmult").addEventListener("input", function(){
 ["base","stepx","len1","lenN","bank","walk"].forEach(function(id){
   $(id).addEventListener("input", paintSetup);
 });
-$("rungs").addEventListener("input", paintSetup);
+$("levels").addEventListener("input", paintSetup);
 $("resetLadder").addEventListener("click", function(){
   setGame("keno");
   $("base").value = 1; $("stepx").value = 2; $("len1").value = 350; $("lenN").value = 175;
-  $("rungs").value = 3; $("lmult").value = 350;
+  $("levels").value = 3; $("lmult").value = 350;
   paintSetup();
 });
 $("startBtn").addEventListener("click", function(){
   var c = derive(readForm());
-  if (c.rungs[0].bet > c.bank){
+  if (c.levels[0].bet > c.bank){
     $("setupErr").textContent = "Your opening bet is bigger than your balance. Lower one or raise the other.";
     $("setupErr").hidden = false;
     return;
@@ -1551,7 +1551,7 @@ $("startBtn").addEventListener("click", function(){
 function needsFreshSession(c){
   if (!S.history.length) return true;              /* nothing to keep */
   if (c.bank !== S.startBank) return true;         /* they changed the stake */
-  if (S.balance < c.rungs[0].bet) return true;     /* cannot cover the opening bet */
+  if (S.balance < c.levels[0].bet) return true;     /* cannot cover the opening bet */
   return false;
 }
 $("btnSpin").addEventListener("click", function(){ step(); paintPlay(); });

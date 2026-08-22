@@ -63,10 +63,10 @@ does not create any.
 
 ### The one that is easy to get wrong
 
-Break-even on a rung is where staked equals the payout: `n × bet = pay × bet`,
-so `n = pay`. **It does not depend on how long you made the rung** — only on
-whether the rung is long enough to reach it. That is why the default ladder is
-350 then 175: doubling the bet doubles the payout, so each new rung needs only
+Break-even on a level is where staked equals the payout: `n × bet = pay × bet`,
+so `n = pay`. **It does not depend on how long you made the level** — only on
+whether the level is long enough to reach it. That is why the default ladder is
+350 then 175: doubling the bet doubles the payout, so each new level needs only
 half the spins for a hit to still cover everything staked from the first spin.
 
 ---
