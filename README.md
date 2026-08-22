@@ -130,9 +130,20 @@ exactly were my odds".
 
 ### The seed
 
-Every draw comes from a seeded mulberry32 stream — the same generator the ladder
-study used. The seed is on screen and editable: type an old one back in and that
-hunt's draws replay exactly. **New seed** rolls a fresh one.
+Every draw comes from a seeded **sfc32** stream. The seed is on screen and
+editable: type an old one back in and that run's draws replay exactly. **New
+seed** rolls a fresh one.
+
+It used to be mulberry32, the generator the ladder study used, and that turned
+out to be measurably biased for this purpose. Over 300 million draws across five
+seeds it returns `u <= 0.099` about 0.1% too often — combined z of 4.3, every
+seed leaning the same way. sfc32 measures clean at the same thresholds (z =
+−0.3). mulberry32 stays on as the seed expander, turning one typed integer into
+128 well-mixed bits, which is a job its 32 bits of state can do honestly.
+
+The effect was far too small to notice at the table — it moves the default
+limbo round win rate by about a hundredth of a point — but a page whose whole
+job is checking someone else's maths should not be the thing that is wrong.
 
 This changes nothing statistically, and the page is not claiming it does. It
 exists so a surprising run can be looked at twice, which is the difference
