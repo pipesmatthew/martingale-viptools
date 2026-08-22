@@ -665,10 +665,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
     <div class="card" id="histCard">
       <div class="cardhead"><h2>This run, round by round</h2><span class="grow"></span>
         <span class="note" id="histNote"></span>
-        <div class="seg" id="scaleSeg" role="group" aria-label="Balance scale">
-          <button data-sc="linear" class="on">Linear</button>
-          <button data-sc="log">Log</button>
-        </div>
         <button class="ghost" id="clearHist" style="font-size:11.5px;padding:2px 9px">Clear</button></div>
       <div class="cardbody" id="histSparkWrap">
         <svg id="histSpark" style="display:block;width:100%;height:340px"
@@ -975,7 +971,7 @@ var S = {
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
   speed: "normal", seed: 0, nonce: 0, rand: Math.random, hideDraw: false,
-  pop: null, popSounded: false, chartLog: false
+  pop: null, popSounded: false
 };
 
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
@@ -1964,28 +1960,16 @@ function paintHistory(){
   all.sort(function(a,b){ return a-b; });
   var mineMax = Math.max.apply(null, mine);
 
-  var FLOOR = Math.max(1, S.startBank / 2000);
-  var lo, hi;
-  if (S.chartLog){
-    lo = FLOOR;
-    hi = Math.max(mineMax, all.length ? all[all.length-1] : mineMax, S.startBank);
-  } else {
-    /* Floor at zero, always. The top follows the crowd rather than its single
-       luckiest member - one path that ran to six figures flattens the rest. */
-    lo = 0;
-    var p98 = all.length ? all[Math.floor(all.length * 0.98)] : mineMax;
-    hi = Math.max(p98, mineMax, S.startBank) * 1.06;
-  }
+  /* Floor at zero, always. The top follows the crowd rather than its single
+     luckiest member - one path that ran to six figures flattens the rest. */
+  var lo = 0;
+  var p98 = all.length ? all[Math.floor(all.length * 0.98)] : mineMax;
+  var hi = Math.max(p98, mineMax, S.startBank) * 1.06;
   if (hi <= lo) hi = lo + 1;
-
-  var LG = function(v){ return Math.log10(Math.max(FLOOR, v)); };
-  var llo = LG(lo), lhi = LG(hi);
-  if (lhi - llo < 0.05) lhi = llo + 0.05;
 
   var X = function(i){ return mine.length < 2 ? padL : padL + (W - padL - padR) * i / (mine.length - 1); };
   var Yraw = function(v){
-    var f = S.chartLog ? (LG(v) - llo) / (lhi - llo) : (v - lo) / (hi - lo);
-    return padT + (Hh - padT - padB) * (1 - f);
+    return padT + (Hh - padT - padB) * (1 - (v - lo) / (hi - lo));
   };
   var Y = function(v){ return Math.max(padT - 4, Math.min(Hh - padB, Yraw(v))); };
   var over = 0;
@@ -1998,12 +1982,7 @@ function paintHistory(){
     return "$" + Math.round(v);
   }
   var ticks = [];
-  if (S.chartLog){
-    for (var d = Math.ceil(llo); d <= Math.floor(lhi); d++) ticks.push(Math.pow(10, d));
-    if (ticks.length < 2) ticks = [lo, hi];
-  } else {
-    for (var ti = 0; ti <= 4; ti++) ticks.push(lo + (hi - lo) * ti / 4);
-  }
+  for (var ti = 0; ti <= 4; ti++) ticks.push(lo + (hi - lo) * ti / 4);
 
   var grid = ticks.map(function(v){
     var y = Yraw(v);
@@ -2017,7 +1996,7 @@ function paintHistory(){
 
   /* $0 is the line the whole chart is about, so it is an axis and not a tick */
   var zeroY = Yraw(0);
-  var zeroLine = (!S.chartLog && zeroY <= Hh - padB + 1)
+  var zeroLine = (zeroY <= Hh - padB + 1)
     ? '<line x1="' + padL + '" y1="' + zeroY.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + zeroY.toFixed(1) +
       '" stroke="#e06c5a" stroke-width="1.5"></line>' +
       '<text x="' + (W - padR) + '" y="' + (zeroY - 5).toFixed(1) +
@@ -2072,12 +2051,10 @@ function paintHistory(){
       '" r="4" fill="' + endColour + '" stroke="#0e0e11" stroke-width="1.5"></circle>' +
     label(endI, money(mine[endI]), endColour, mine[endI] >= S.startBank);
 
-  $("chartCaption").textContent = S.chartLog
-    ? "your run against " + num(PATHS) + " others, log scale"
-    : (over
-        ? "your run against " + num(PATHS) + " others " + DOT + " " + num(over) +
-          " readings run off the top - switch to log to see them"
-        : "your run against " + num(PATHS) + " others on the same ladder");
+  $("chartCaption").textContent = over
+    ? "your run against " + num(PATHS) + " others " + DOT + " " + num(over) +
+      " readings run off the top of the frame"
+    : "your run against " + num(PATHS) + " others on the same ladder";
 
   /* Where this run's finish sits among runs of the same length on the same
      ladder. An approximation on purpose: it holds the opening ladder fixed, so
@@ -2302,13 +2279,6 @@ $("seedVal").addEventListener("change", function(){
   /* typing a seed back in replays that hunt's draws exactly */
   var v = Math.max(1, Math.round(+$("seedVal").value || 0));
   reseed(v); saveState();
-});
-$$("#scaleSeg button").forEach(function(b){
-  b.addEventListener("click", function(){
-    S.chartLog = b.getAttribute("data-sc") === "log";
-    $$("#scaleSeg button").forEach(function(o){ o.classList.toggle("on", o === b); });
-    paintHistory();
-  });
 });
 $("clearHist").addEventListener("click", function(){
   S.history = []; S.balance = S.startBank; saveState(); paintPlay();
