@@ -1,0 +1,44 @@
+# martingale.viptools.gg
+#
+# A STATIC SITE, NOT A SERVICE. Everything this page does happens in the
+# visitor's browser: the keno draw, the limbo roll, the ladder arithmetic, the
+# practice balance and the run history. There is no database to keep, no
+# session to expire, and nothing to authenticate — so there is nothing here
+# worth paying for a web service to hold.
+#
+# ITS OWN REPOSITORY, AND ITS OWN SERVICE. The predictions app is deployed
+# from `pipesmatthew/viptools`, which is private because it carries the hunt
+# archive every recommendation is fitted to. This is public marketing content
+# with no secrets in it, and keeping the two apart means a bad deploy here
+# cannot reach the board.
+
+services:
+  - type: web
+    name: martingale
+    runtime: static
+    # Nothing to build. The page is one file with no dependencies, which is
+    # deliberate: a build step is a thing that can break between you writing
+    # the page and somebody reading it.
+    buildCommand: ""
+    staticPublishPath: ./public
+
+    # Anything that is not a file we published still gets the page rather than
+    # a 404, so a mistyped or shared-with-a-path link lands somewhere useful.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      # The page is self-contained apart from Google Fonts, so it can afford to
+      # say so. If a future version pulls in anything else, this is the line
+      # that will stop it — which is the point of writing it down now.
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"

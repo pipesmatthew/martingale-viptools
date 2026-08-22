@@ -1,0 +1,1603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The 350x Ladder</title>
+<meta name="description" content="Play BILLSKIE's 350x keno/limbo ladder with fake money, and read in plain English what it usually does to the people who play it.">
+<meta name="color-scheme" content="dark">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="VIP Tools">
+<meta property="og:title" content="The 350x Ladder">
+<meta property="og:description" content="Play the ladder with fake money before you play it with real money. Real odds, no account, nothing placed anywhere.">
+<meta property="og:url" content="https://martingale.viptools.gg/">
+<meta name="twitter:card" content="summary">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23131316'/%3E%3Crect x='7' y='5' width='4' height='22' fill='%23ffb454'/%3E%3Crect x='21' y='5' width='4' height='22' fill='%23ffb454'/%3E%3Crect x='7' y='9' width='18' height='3' fill='%23ffb454'/%3E%3Crect x='7' y='15' width='18' height='3' fill='%23ffb454'/%3E%3Crect x='7' y='21' width='18' height='3' fill='%23ffb454'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   THE PALETTE IS THE HOUSE PALETTE. Every token here is lifted from
+   vipzone.css, the stylesheet predictions.viptools.gg ships, so this page
+   and that one are recognisably the same suite.
+
+   SQUARE CORNERS THROUGHOUT, which is that stylesheet's own rule: the only
+   radii left are on things that are round because the SHAPE is round.
+
+   DARK ONLY, deliberately - same reason as the dashboard. No light
+   palette is defined, so every colour below is stated outright rather
+   than inherited from whatever ground the browser would otherwise paint.
+
+   A COLOUR IS A STATEMENT, NOT DECORATION, and the same colour never
+   means two things on one screen:
+       amber   the house colour - active, and the keno game
+       teal    the limbo game
+       green   it landed / you are up
+       red     it did not / you are down
+       cream   this one is yours (your balance, your row)
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  color-scheme: dark;
+  --bg:#131316; --bg-deep:#131316; --card:#1b1b1f; --border:#2c2c32;
+  --button:#242429; --button-hover:#2f2f37; --track:#3a3a42;
+  --fg:#f0f0f2; --fg-2:#e6e6ea; --muted:#a4a4ad; --faint:#8b8b93;
+  --accent:#ffb454; --live:#e53935; --cream:#e8e2c4; --teal:#3d9a9a;
+  --green:#4ade80; --danger:#e06c5a;
+  --gold:#ffc94a; --silver:#aab3c0; --bronze:#b0703a; --tick:#9a9086;
+  --sans:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Code",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--sans); font-size:13px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+h1{font-size:18px;margin:0;font-weight:700;letter-spacing:-.01em}
+h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;margin:0 0 8px}
+.n,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1320px;margin:0 auto}
+
+/* ───────────────────────────────────────────────────────────── header ── */
+.top{display:flex;align-items:center;gap:16px;padding:0 14px;height:42px;
+  background:var(--card);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:20;overflow-x:auto;scrollbar-width:none}
+.top::-webkit-scrollbar{display:none}
+.brand{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;white-space:nowrap}
+.brand b{color:var(--fg);font-size:13px;letter-spacing:0;text-transform:none;margin-left:8px;font-weight:700}
+.tabs{display:flex;gap:3px}
+.tab{appearance:none;cursor:pointer;font:inherit;background:var(--button);color:var(--muted);
+  border:1px solid var(--border);border-radius:0;padding:4px 13px;white-space:nowrap}
+.tab:hover{background:var(--button-hover);color:var(--fg)}
+.tab.is-active{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+.live{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:12px;white-space:nowrap}
+.bal{color:var(--cream);font-weight:600}
+
+/* ──────────────────────────────────────────────────────────── buttons ── */
+button.ghost,button.primary{
+  font:inherit;cursor:pointer;border-radius:0;padding:4px 12px;
+  border:1px solid var(--border);background:var(--button);color:var(--muted)}
+button.ghost:hover{background:var(--button-hover);color:var(--fg)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+button.primary:hover{filter:brightness(1.07)}
+button.primary.teal{background:var(--teal);border-color:var(--teal);color:#08191a}
+button:disabled{opacity:.35;cursor:default}
+button:disabled:hover{background:var(--button);color:var(--muted);filter:none}
+button.primary:disabled:hover{background:var(--accent)}
+.seg{display:flex;gap:3px;flex-wrap:wrap}
+.seg button{appearance:none;cursor:pointer;font:inherit;font-size:12px;background:var(--button);
+  color:var(--muted);border:1px solid var(--border);border-radius:0;padding:3px 14px;white-space:nowrap}
+.seg button:hover{background:var(--button-hover);color:var(--fg)}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+.seg button.on.teal{background:var(--teal);border-color:var(--teal);color:#08191a}
+
+/* ───────────────────────────────────────────────────── panels & cards ── */
+.panel{display:none;padding:10px 12px 40px}
+.panel.is-active{display:block}
+.card{background:var(--card);border:1px solid var(--border);border-radius:0;margin-bottom:5px}
+.card:last-child{margin-bottom:0}
+.cardhead{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.cardhead h2{margin:0}
+.cardhead .grow{flex:1}
+.cardhead .note{font-size:11.5px;color:var(--faint)}
+.cardbody{padding:10px 12px}
+.split{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:5px;align-items:start}
+@media (max-width:980px){.split{grid-template-columns:1fr}}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:5px}
+
+/* ───────────────────────────────────────────────────────────── tiles ── */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;grid-auto-rows:1fr;
+  background:var(--border);border:1px solid var(--border);overflow:hidden;margin-bottom:5px}
+.tiles.six{grid-template-columns:repeat(6,1fr)}
+.tiles.five{grid-template-columns:repeat(5,1fr)}
+.tiles.three{grid-template-columns:repeat(3,1fr)}
+.tiles.two{grid-template-columns:repeat(2,1fr)}
+@media (max-width:820px){
+  .tiles,.tiles.six,.tiles.five,.tiles.three{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:560px){
+  .tiles,.tiles.six,.tiles.five,.tiles.three,.tiles.two{grid-template-columns:repeat(2,1fr)}
+}
+.tile{background:var(--card);padding:5px 10px;text-align:center;min-width:0}
+.tile .k{font-size:10.5px;letter-spacing:.07em;color:var(--muted);font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .v{font-size:17px;font-weight:700;margin-top:1px;font-variant-numeric:tabular-nums;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .v.amber{color:var(--accent)} .tile .v.green{color:var(--green)}
+.tile .v.red{color:var(--danger)}   .tile .v.tealc{color:var(--teal)}
+.tile .v.cream{color:var(--cream)}
+.tile .d{font-size:10.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ───────────────────────────────────────────────────────────── table ── */
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{text-align:left;padding:5px 12px;border-bottom:1px solid var(--border)}
+thead th{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
+  background:var(--bg-deep);font-weight:700;white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:#202026}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+tr.is-mine td{background:#23211a}
+tr.is-mine td:first-child{box-shadow:inset 2px 0 0 var(--cream)}
+td.empty{color:var(--faint);text-align:center;padding:20px}
+
+/* ───────────────────────────────────────────────────────────── pills ── */
+.pill{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;
+  padding:1px 6px;border-radius:0;font-weight:700;display:inline-block}
+.pill.hit{background:#16301f;color:var(--green)}
+.pill.dry{background:var(--button);color:var(--faint)}
+.pill.bust{background:#2a1714;color:var(--danger)}
+.pill.amber{background:#2e2313;color:var(--accent)}
+.pill.tealp{background:#12292a;color:var(--teal)}
+
+/* ─────────────────────────────────────────────────────────── controls ── */
+label.f{display:block}
+label.f>span{display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);font-weight:700;margin-bottom:4px}
+label.f>span b{color:var(--accent);font-family:var(--mono);letter-spacing:0}
+input[type=number],input[type=text],select{
+  width:100%;font:inherit;font-family:var(--mono);font-size:12.5px;padding:4px 8px;
+  border:1px solid var(--border);border-radius:0;background:var(--bg-deep);color:var(--fg);
+  font-variant-numeric:tabular-nums}
+input[readonly]{color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.stack{display:flex;flex-direction:column;gap:10px}
+.hint{font-size:11.5px;color:var(--faint);margin:6px 0 0;line-height:1.45}
+.err{font-size:11.5px;color:var(--danger);margin:6px 0 0}
+
+/* ───────────────────────────────────────────────────────────── meter ── */
+.meter{height:7px;background:var(--bg-deep);border:1px solid var(--border);overflow:hidden;display:block}
+.meter i{display:block;height:100%;background:var(--accent)}
+.meter i.tealb{background:var(--teal)} .meter i.greenb{background:var(--green)}
+.meter i.redb{background:var(--danger)} .meter i.faintb{background:var(--track)}
+.meterrow{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);
+  font-size:10px;color:var(--faint);margin-top:4px;letter-spacing:.03em}
+.oddsrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.oddsrow span{font-size:12.5px;color:var(--fg-2)}
+.oddsrow b{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums}
+
+/* ──────────────────────────────────────────────────────── keno board ── */
+.board{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}
+.kt{aspect-ratio:1/1;background:var(--button);border:1px solid var(--border);
+  display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:600;
+  color:var(--faint);cursor:pointer;user-select:none;min-height:28px}
+.kt:hover{background:var(--button-hover);color:var(--fg)}
+.kt.pick{border-color:var(--cream);color:var(--cream);background:#23211a}
+.kt.drawn{background:var(--track);color:var(--fg-2);border-color:var(--track)}
+.kt.pick.drawn{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+
+/* ───────────────────────────────────────────────────────────── limbo ── */
+.limbonum{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;
+  letter-spacing:-.03em;line-height:1;text-align:center;padding:16px 0 8px;
+  font-size:clamp(38px,9vw,64px);color:var(--danger)}
+.limbonum.win{color:var(--green)}
+.limbometa{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;font-family:var(--mono);
+  font-size:11px;color:var(--faint);letter-spacing:.06em;margin-bottom:12px}
+.limbotape{display:flex;gap:2px;align-items:flex-end;height:44px;overflow:hidden}
+.limbotape i{flex:1 1 0;min-width:2px;background:var(--track);display:block}
+.limbotape i.big{background:var(--teal)}
+.limbotape i.win{background:var(--green)}
+
+/* ───────────────────────────────────────────────────────────── rungs ── */
+.rungs{display:flex;gap:3px;align-items:stretch;flex-wrap:wrap}
+.rung{flex:1 1 90px;border:1px solid var(--border);background:var(--bg-deep);padding:7px 9px;min-width:0}
+.rung.here{border-color:var(--accent);background:#221b0f}
+.rung.here.teal{border-color:var(--teal);background:#12292a}
+.rung.spent{opacity:.45}
+.rung .rk{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);font-weight:700}
+.rung.here .rk{color:var(--accent)}
+.rung.here.teal .rk{color:var(--teal)}
+.rung .rv{font-family:var(--mono);font-size:15px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums}
+.rung .rd{font-size:10.5px;color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ─────────────────────────────────────────────────────────────── log ── */
+.loglines{font-family:var(--mono);font-size:11.5px;padding:8px 12px;height:190px;
+  overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--track) transparent}
+.loglines::-webkit-scrollbar{width:10px}
+.loglines::-webkit-scrollbar-track{background:transparent}
+.loglines::-webkit-scrollbar-thumb{background:var(--track);border:3px solid var(--card);background-clip:padding-box}
+.logline{display:flex;gap:8px;margin-bottom:2px}
+.logline .ts{color:#4f7e86;flex:none}
+.logline .tag{flex:none;font-weight:700;min-width:36px}
+.logline .msg{color:var(--fg-2);word-break:break-word}
+.logline.good .msg{color:var(--green)}
+.logline.bad .msg{color:var(--danger)}
+.tag-HIT{color:var(--green)} .tag-11X{color:var(--accent)} .tag-NEAR{color:var(--teal)}
+.tag-RUNG{color:#ffd88a} .tag-SYS{color:#6fae9a} .tag-BUST{color:var(--danger)}
+.tag-BROKE{color:var(--danger)} .tag-CASH{color:var(--green)}
+
+/* ─────────────────────────────────────────── plain-english statistic ── */
+.plain{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;gap:16px;align-items:baseline}
+.plain:last-child{border-bottom:0}
+.plain .big{font-family:var(--mono);font-size:29px;font-weight:700;letter-spacing:-.03em;
+  line-height:1;flex:none;min-width:104px;font-variant-numeric:tabular-nums}
+.plain .big.amber{color:var(--accent)} .plain .big.green{color:var(--green)}
+.plain .big.red{color:var(--danger)}   .plain .big.tealc{color:var(--teal)}
+.plain .txt{min-width:0}
+.plain .txt .h{font-size:14px;font-weight:600;color:var(--fg);margin-bottom:2px}
+.plain .txt .s{font-size:12.5px;color:var(--muted);max-width:64ch}
+@media (max-width:600px){.plain{flex-direction:column;gap:6px}.plain .big{min-width:0}}
+
+.callout{margin:0;padding:11px 14px;background:#2e2313;border-left:2px solid var(--accent);
+  font-size:12.5px;color:var(--fg-2)}
+.callout.warn{background:#2a1714;border-left-color:var(--danger)}
+.callout.tealc{background:#12292a;border-left-color:var(--teal)}
+.callout b{color:var(--fg);font-weight:700}
+.prose{margin:0 0 11px;color:var(--fg-2);font-size:13.5px;max-width:74ch}
+.prose:last-child{margin-bottom:0}
+.prose b{color:var(--fg);font-weight:700}
+
+.bars{display:flex;flex-direction:column;gap:7px}
+.barrow{display:grid;grid-template-columns:190px minmax(0,1fr) 62px;gap:10px;align-items:center;font-size:12px}
+.barrow .lab{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barrow .amt{font-family:var(--mono);font-size:11.5px;text-align:right;font-variant-numeric:tabular-nums}
+.barrow.off .lab,.barrow.off .amt{color:var(--faint)}
+@media (max-width:600px){.barrow{grid-template-columns:120px minmax(0,1fr) 50px}}
+
+.stackbar{display:flex;height:38px;border:1px solid var(--border);overflow:hidden}
+.stackbar div{display:grid;place-items:center;min-width:0;border-right:1px solid var(--border)}
+.stackbar div:last-child{border-right:0}
+.stackbar b{font-family:var(--mono);font-weight:700;font-size:15px}
+
+.foot{padding:14px;border-top:1px solid var(--border);color:var(--faint);font-size:11.5px;
+  max-width:84ch;margin-top:6px}
+.foot a{color:var(--muted)}
+.foot b{color:var(--muted);font-weight:600}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <span class="brand">VIP Tools<b>The 350x Ladder</b></span>
+  <nav class="tabs" role="tablist">
+    <button class="tab is-active" role="tab" aria-selected="true" data-tab="dryrun">Dry run</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="stats">What usually happens</button>
+  </nav>
+  <div class="live">
+    <span class="pill amber">Practice money</span>
+    <span class="bal n" id="bal">$2,000.00</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════ DRY RUN ══ -->
+<main class="panel is-active" id="panel-dryrun" role="tabpanel">
+<div class="wrap">
+
+  <!-- ── set up your run ─────────────────────────────────────────── -->
+  <div id="view-setup">
+    <div class="split">
+      <div>
+        <div class="card">
+          <div class="cardhead"><h2>Which game</h2><span class="grow"></span>
+            <span class="note">both return 99% in the long run</span></div>
+          <div class="cardbody">
+            <div class="seg" id="gameSeg" style="margin-bottom:11px">
+              <button data-g="keno" class="on">Keno &middot; 6 picks, high risk</button>
+              <button data-g="limbo">Limbo</button>
+            </div>
+
+            <div id="kenoOpts">
+              <div class="grid3">
+                <label class="f"><span>4 of 6 pays</span><input type="number" value="11" readonly tabindex="-1"></label>
+                <label class="f"><span>5 of 6 pays</span><input type="number" value="350" readonly tabindex="-1"></label>
+                <label class="f"><span>6 of 6 pays</span><input type="number" value="710" readonly tabindex="-1"></label>
+              </div>
+              <p class="hint">A run ends the moment 5 or 6 land &mdash; once every 494 spins. Four-of-six
+              pays 11x and the run keeps going, about every 42 spins. That drip is what funds the long waits.</p>
+            </div>
+
+            <div id="limboOpts" hidden>
+              <div class="grid2">
+                <label class="f"><span>Target multiplier</span>
+                  <input type="number" id="lmult" value="350" min="1.02" max="1000000" step="10"></label>
+                <label class="f"><span>Chance per roll</span>
+                  <input type="text" id="lchance" value="0.283%" readonly tabindex="-1"></label>
+              </div>
+              <p class="hint" id="limboHint">One number a roll, and it either clears the target or it doesn't.
+              No consolation tier &mdash; when limbo fails it fails for the whole ladder.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardhead"><h2>The ladder</h2><span class="grow"></span>
+            <button class="ghost" id="resetLadder" style="font-size:11.5px;padding:2px 9px">Reset to BILLSKIE's</button></div>
+          <div class="cardbody">
+            <div class="grid2" style="margin-bottom:9px">
+              <label class="f"><span>Opening bet</span>
+                <input type="number" id="base" value="1" min="0.01" step="0.5"></label>
+              <label class="f"><span>Multiply by</span>
+                <input type="number" id="stepx" value="2" min="1" max="10" step="0.25"></label>
+            </div>
+            <div class="grid2" style="margin-bottom:11px">
+              <label class="f"><span>First rung, spins</span>
+                <input type="number" id="len1" value="350" min="1" max="20000" step="25"></label>
+              <label class="f"><span>Every rung after</span>
+                <input type="number" id="lenN" value="175" min="1" max="20000" step="25"></label>
+            </div>
+            <label class="f"><span>Give up after rung <b id="rungsV">3</b></span>
+              <input type="range" id="rungs" min="1" max="8" step="1" value="3"></label>
+            <p class="hint">Each rung after the first is half as long, because doubling the bet doubles the
+            payout. That's the whole trick: a hit on the last spin of any rung gets you back to exactly even.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardhead"><h2>Practice balance</h2></div>
+          <div class="cardbody">
+            <div class="grid2">
+              <label class="f"><span>Start with</span>
+                <input type="number" id="bank" value="2000" min="1" step="100"></label>
+              <label class="f"><span>Walk away at</span>
+                <input type="number" id="walk" value="0" min="0" step="500"></label>
+            </div>
+            <p class="hint">Fake money, so pick the number you'd actually sit down with. Leave the walk-away
+            at 0 for no target &mdash; but setting one is the only choice on this page that changes your odds.</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="cardhead"><h2>Before you start</h2></div>
+          <div class="cardbody">
+            <div class="rungs" id="setupRungs" style="margin-bottom:10px"></div>
+            <p class="hint" style="margin-top:0">Bet size, spins on that rung, and the running total you'd
+            have staked by the end of it.</p>
+          </div>
+        </div>
+
+        <div class="tiles two">
+          <div class="tile"><div class="k">Most you can lose</div>
+            <div class="v red" id="tMaxLoss">$1,400</div><div class="d" id="tMaxLossD">70% of your balance</div></div>
+          <div class="tile"><div class="k">Longest you'd ride</div>
+            <div class="v" id="tSpins">700</div><div class="d">spins before you bail</div></div>
+        </div>
+        <div class="tiles two">
+          <div class="tile"><div class="k">Runs that get the hit</div>
+            <div class="v green" id="tWin">75.8%</div><div class="d" id="tWinD">about 3 in 4</div></div>
+          <div class="tile"><div class="k">Break even on spin</div>
+            <div class="v amber" id="tBreak">350</div><div class="d">of the first rung</div></div>
+        </div>
+
+        <div class="card">
+          <p class="callout warn" id="setupWarn" style="margin:0"></p>
+        </div>
+
+        <div class="card"><div class="cardbody">
+          <button class="primary" id="startBtn" style="width:100%;padding:8px">Start the dry run</button>
+          <p class="err" id="setupErr" hidden></p>
+          <p class="hint" style="text-align:center">No money, no account, nothing placed anywhere.</p>
+        </div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── play it ─────────────────────────────────────────────────── -->
+  <div id="view-play" hidden>
+
+    <div class="tiles six">
+      <div class="tile"><div class="k" id="kSpin">Spin</div><div class="v" id="p-spin">0</div>
+        <div class="d" id="p-spinD">of 350 on this rung</div></div>
+      <div class="tile"><div class="k">Rung</div><div class="v amber" id="p-rung">1</div>
+        <div class="d" id="p-rungD">of 3 before you bail</div></div>
+      <div class="tile"><div class="k">Bet</div><div class="v" id="p-bet">$1.00</div>
+        <div class="d" id="p-betD">per spin</div></div>
+      <div class="tile"><div class="k">Put in</div><div class="v" id="p-stk">$0</div>
+        <div class="d">this run</div></div>
+      <div class="tile"><div class="k" id="p-sideK">11x paid back</div><div class="v amber" id="p-side">$0</div>
+        <div class="d" id="p-sideD">0 four-hits</div></div>
+      <div class="tile"><div class="k" id="p-netK">Down</div><div class="v red" id="p-net">$0</div>
+        <div class="d">right now</div></div>
+    </div>
+
+    <div id="resultSlot"></div>
+
+    <div class="split">
+      <div>
+        <!-- keno -->
+        <div class="card" id="boardCard">
+          <div class="cardhead"><h2>Keno &middot; your six</h2><span class="grow"></span>
+            <span class="note" id="lastNote">pick your numbers, then spin</span></div>
+          <div class="cardbody">
+            <div class="board" id="board"></div>
+            <p class="hint">Cream border is a number you picked. Filled grey is a tile the game drew. Amber is
+            both &mdash; a match. Click any tile to change your picks; it makes no difference to the odds,
+            which is itself worth finding out.</p>
+          </div>
+        </div>
+
+        <!-- limbo -->
+        <div class="card" id="limboCard" hidden>
+          <div class="cardhead"><h2>Limbo</h2><span class="grow"></span>
+            <span class="note" id="limboTargetNote">target 350.00x</span></div>
+          <div class="cardbody">
+            <div class="limbonum" id="l-num">1.00<span style="font-size:.5em">x</span></div>
+            <div class="limbometa">
+              <span id="l-target">TARGET 350.00x</span>
+              <span id="l-chance">WIN CHANCE 0.283%</span>
+              <span id="l-verdict" style="color:var(--faint)">READY</span>
+            </div>
+            <div class="limbotape" id="l-tape"></div>
+            <p class="hint">Last forty rolls, tallest is biggest. The bar you're waiting for would go clean
+            off the top of this strip &mdash; that's the honest picture of a 1-in-353.5.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardhead"><h2>The ladder</h2><span class="grow"></span>
+            <span class="note" id="ladNote"></span></div>
+          <div class="cardbody"><div class="rungs" id="playRungs"></div></div>
+        </div>
+
+        <div class="card"><div class="cardbody" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+          <button class="primary" id="btnSpin" style="min-width:104px">Spin</button>
+          <button class="ghost" id="btnSpin25">Spin &times;25</button>
+          <button class="ghost" id="btnAuto">Auto &#9654;</button>
+          <span style="flex:1"></span>
+          <button class="ghost" id="btnSettings">Change settings</button>
+        </div></div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="cardhead"><h2>Where you stand</h2><span class="grow"></span>
+            <span class="note">out of everyone who tries this</span></div>
+          <div class="cardbody stack">
+            <div>
+              <div class="oddsrow"><span>Already got their hit by now</span>
+                <b id="oAlready" style="color:var(--green)">0.0%</b></div>
+              <div class="meter" style="margin-top:5px"><i class="greenb" id="bAlready" style="width:0%"></i></div>
+              <div class="meterrow"><span>you are in the slower <b id="oSlower">100%</b></span>
+                <span id="oSpinLab">spin <b id="oSpin">0</b></span></div>
+            </div>
+            <div>
+              <div class="oddsrow"><span id="oNowLab">Chance it lands on this spin</span>
+                <b id="oNow" style="color:var(--accent)">0.20%</b></div>
+              <div class="meter" style="margin-top:5px"><i id="bNow" style="width:2%"></i></div>
+              <div class="meterrow"><span id="oNowSub">1 in 494</span><span>same as it was on spin 1</span></div>
+            </div>
+            <div>
+              <div class="oddsrow"><span id="o100Lab">Chance in your next 100 spins</span>
+                <b id="o100" style="color:var(--accent)">18.3%</b></div>
+              <div class="meter" style="margin-top:5px"><i id="b100" style="width:18.3%"></i></div>
+              <div class="meterrow"><span id="o100Sub">about 2 minutes of autobet</span><span>&nbsp;</span></div>
+            </div>
+            <div>
+              <div class="oddsrow"><span>Chance before you'd give up</span>
+                <b id="oEnd" style="color:var(--green)">75.8%</b></div>
+              <div class="meter" style="margin-top:5px"><i class="greenb" id="bEnd" style="width:75.8%"></i></div>
+              <div class="meterrow"><span><b id="oLeft">700</b> <span id="oLeftLab">spins left in the ladder</span></span>
+                <span>fails <b id="oFail" style="color:var(--danger)">24.2%</b></span></div>
+            </div>
+          </div>
+          <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="oddsNote">
+            <b>It is never due.</b> Every one of these spins is a fresh 1-in-494. The only thing a dry spell
+            changes is how much you have already put in.</p>
+        </div>
+
+        <div class="card">
+          <div class="cardhead"><h2>This run</h2><span class="grow"></span>
+            <span class="note" id="logCount">0 events</span></div>
+          <div class="loglines" id="log"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="histCard" hidden>
+      <div class="cardhead"><h2>Your dry-run record</h2><span class="grow"></span>
+        <span class="note" id="histNote"></span>
+        <button class="ghost" id="clearHist" style="font-size:11.5px;padding:2px 9px">Clear</button></div>
+      <div class="cardbody" id="histSparkWrap">
+        <svg id="histSpark" viewBox="0 0 480 95" preserveAspectRatio="none"
+             style="display:block;width:100%;height:112px" role="img" aria-label="Practice balance across your runs"></svg>
+        <div class="meterrow" style="margin-top:2px"><span id="histFirst">run 1</span>
+          <span style="color:var(--muted)">dashed line is where you started</span><span id="histLast">run 1</span></div>
+      </div>
+      <div class="tablewrap"><table>
+        <thead><tr><th class="n">#</th><th>Game</th><th>How it ended</th><th class="n">Spin</th>
+          <th class="n">Put in</th><th class="n">Back</th><th class="n">Result</th><th class="n">Balance</th></tr></thead>
+        <tbody id="histBody"></tbody>
+      </table></div>
+      <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="histSummary"></p>
+    </div>
+
+  </div>
+</div>
+</main>
+
+<!-- ═════════════════════════════════════════ WHAT USUALLY HAPPENS ══ -->
+<main class="panel" id="panel-stats" role="tabpanel">
+<div class="wrap">
+
+  <div class="card">
+    <div class="cardhead"><h2>If you play BILLSKIE's ladder on keno at $1 a spin</h2>
+      <span class="grow"></span>
+      <span class="pill dry">$1 bets &middot; 3 rungs &middot; $2,000 &middot; no walk-away</span></div>
+
+    <div class="plain">
+      <div class="big green">3 in 4</div>
+      <div class="txt"><div class="h">Most runs end well.</div>
+        <div class="s">About three quarters of the time the 350x turns up before you'd give up, and you walk
+        away from that run with more than you started it with.</div></div>
+    </div>
+    <div class="plain">
+      <div class="big amber">+$236</div>
+      <div class="txt"><div class="h">A typical win is small.</div>
+        <div class="s">Not $350 &mdash; that's the payout, not the profit. By the time it lands you've usually
+        paid a couple of hundred dollars in to get there. The middle win is $236.</div></div>
+    </div>
+    <div class="plain">
+      <div class="big red">1 in 4</div>
+      <div class="txt"><div class="h">The other quarter costs about $1,100.</div>
+        <div class="s">When the hit never comes you've ridden the whole ladder and it's gone. One of those
+        wipes out four and a half typical wins.</div></div>
+    </div>
+    <div class="plain">
+      <div class="big red">&minus;$6</div>
+      <div class="txt"><div class="h">Every run costs you six dollars, on average.</div>
+        <div class="s">Wins and losses averaged together. Play a hundred runs and you're about $600 down &mdash;
+        not because you played it badly, but because that's what it costs to play.</div></div>
+    </div>
+    <div class="plain">
+      <div class="big red">61%</div>
+      <div class="txt"><div class="h">Play forty runs off $2,000 and you're probably broke.</div>
+        <div class="s">Sixty-one out of a hundred people who keep going that long end with nothing. Thirty-five
+        finish ahead. The middle person finishes at zero.</div></div>
+    </div>
+    <div class="plain">
+      <div class="big amber">$3,981</div>
+      <div class="txt"><div class="h">You'll see a big number before you see zero.</div>
+        <div class="s">The typical bankroll that ends at nothing goes past $3,981 first. That peak is the most
+        dangerous screen in the whole strategy, because it's the one that feels like proof.</div></div>
+    </div>
+
+    <p class="callout warn" style="margin:0;border-top:1px solid var(--border)">
+      <b>All six of those are true at once.</b> It wins most of the time, and it takes your money. Those aren't
+      in conflict &mdash; a run that wins 75% of the time and loses five times as much when it loses is exactly
+      break-even before the house's cut, and slightly worse after it.</p>
+  </div>
+
+  <!-- ── how long you'll be waiting ──────────────────────────────── -->
+  <div class="card">
+    <div class="cardhead"><h2>How long you'll be waiting</h2><span class="grow"></span>
+      <span class="note" id="waitNote">keno &middot; 6 picks</span></div>
+  </div>
+  <div class="tiles" id="waitTiles"></div>
+
+  <div class="card">
+    <div class="cardhead"><h2>Out of 100 people all starting a fresh run right now&hellip;</h2>
+      <span class="grow"></span><span class="note" id="waitBarNote">how many have got their hit by spin</span></div>
+    <div class="cardbody">
+      <div class="bars" id="waitBars"></div>
+      <p class="hint" id="waitHint"></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead"><h2 id="tailHead">The ten people still waiting at spin 1,150</h2></div>
+    <div class="cardbody">
+      <p class="prose" id="tailProse"></p>
+      <p class="callout warn" style="margin:0" id="tailNote"></p>
+    </div>
+  </div>
+
+  <!-- ── if you keep playing ─────────────────────────────────────── -->
+  <div class="card">
+    <div class="cardhead"><h2>A hundred people start with $2,000 and play forty runs</h2>
+      <span class="grow"></span><span class="note">keno, $1 bets, 3 rungs, no walk-away target</span></div>
+    <div class="cardbody">
+      <div class="stackbar">
+        <div style="width:61%;background:#3a1a16"><b style="color:var(--danger)">61</b></div>
+        <div style="width:35%;background:#16301f"><b style="color:var(--green)">35</b></div>
+        <div style="width:4%;background:var(--button)"></div>
+      </div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:9px;font-size:12.5px">
+        <span style="color:var(--danger)"><b>61 are broke.</b> <span style="color:var(--muted)">Nothing left.</span></span>
+        <span style="color:var(--green)"><b>35 finish ahead.</b> <span style="color:var(--muted)">Some of them well ahead.</span></span>
+        <span style="color:var(--muted)"><b>4 are still playing,</b> down on where they started.</span>
+      </div>
+      <p class="hint">The middle person out of the hundred finishes at exactly zero. That is what
+      &ldquo;the average player&rdquo; means here &mdash; not somebody who lost a bit, somebody with nothing.</p>
+    </div>
+  </div>
+
+  <div class="tiles three">
+    <div class="tile"><div class="k">The run that ends it usually arrives at</div>
+      <div class="v red">session 10</div><div class="d">of the forty you planned</div></div>
+    <div class="tile"><div class="k">Before that, the balance peaks near</div>
+      <div class="v amber">$3,981</div><div class="d">almost double what you sat down with</div></div>
+    <div class="tile"><div class="k">Where the middle person finishes</div>
+      <div class="v red">$0</div><div class="d">35 in 100 finish ahead</div></div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead"><h2>Why it goes up first</h2></div>
+    <div class="cardbody">
+      <p class="prose">Three runs in four end in profit, so early on you are almost certainly winning. Ten
+      sessions of +$236 is +$2,360, and $2,000 becomes $4,360 without anything unusual happening. Nothing has
+      gone right for you; that is just the ordinary run of the strategy.</p>
+      <p class="prose">Then one run doesn't hit. That's $1,048 off. Then another. By session ten the arithmetic
+      has caught up, and the balance you'd got used to is gone &mdash; usually while you're betting bigger than
+      you were at the start, because the number on screen said you could afford it.</p>
+      <p class="callout warn" style="margin:0"><b>The peak is the trap, not the crash.</b> Almost everybody who
+      ends at zero sees $3,981 first. If you have no rule for when to stop, that screen is the only one that
+      would have told you to &mdash; and it looks exactly like the strategy working.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead"><h2>The one thing that changes the answer</h2></div>
+    <div class="cardbody">
+      <p class="prose">Pick a number before you start, and stop when you reach it. That's it &mdash; it's the
+      only choice on this whole site that moves the odds rather than reshuffling them.</p>
+      <div class="bars">
+        <div class="barrow"><span class="lab">Double your $2,000</span>
+          <span class="meter"><i class="greenb" style="width:47%"></i></span><span class="amt">47%</span></div>
+        <div class="barrow"><span class="lab">Triple it</span>
+          <span class="meter"><i class="greenb" style="width:30.8%"></i></span><span class="amt">31%</span></div>
+        <div class="barrow"><span class="lab">Five times it</span>
+          <span class="meter"><i class="greenb" style="width:18.6%"></i></span><span class="amt">19%</span></div>
+        <div class="barrow"><span class="lab">Ten times it</span>
+          <span class="meter"><i class="greenb" style="width:9.1%"></i></span><span class="amt">9%</span></div>
+        <div class="barrow"><span class="lab">Keep playing forever</span>
+          <span class="meter"><i class="redb" style="width:0.4%"></i></span><span class="amt">0%</span></div>
+      </div>
+      <p class="hint">Chance of getting there before going broke, if you actually stop when you do &mdash;
+      measured on limbo at 350x with the bet size that suits each target. Keno lands within a point or two of
+      each row. The bottom row isn't a joke: with no stopping rule, everybody ends at zero eventually. It only
+      takes long enough that most people never see it happen.</p>
+    </div>
+  </div>
+
+  <!-- ── keno or limbo ───────────────────────────────────────────── -->
+  <div class="card">
+    <div class="cardhead"><h2>Keno or limbo</h2><span class="grow"></span>
+      <span class="note">same ladder, same $2,000, same $1 opening bet</span></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th></th>
+        <th class="n" style="color:var(--accent)">Keno &middot; 6 picks</th>
+        <th class="n" style="color:var(--teal)">Limbo at 350x</th>
+        <th>What that means</th></tr></thead>
+      <tbody>
+        <tr><td>Runs that win</td><td class="n">75.8%</td>
+          <td class="n" style="color:var(--green)"><b>86.1%</b></td>
+          <td style="color:var(--muted)">Limbo wins more often &mdash; nearly 9 times in 10</td></tr>
+        <tr><td>A typical win</td><td class="n" style="color:var(--green)"><b>+$236</b></td>
+          <td class="n">+$193</td>
+          <td style="color:var(--muted)">but keno pays better when it does win</td></tr>
+        <tr><td>A bad day (worst 1 in 20)</td><td class="n" style="color:var(--danger)"><b>&minus;$1,125</b></td>
+          <td class="n" style="color:var(--danger)">&minus;$1,400</td>
+          <td style="color:var(--muted)">keno's 11x drip softens the fall; limbo has nothing</td></tr>
+        <tr><td>Spins in a typical run</td><td class="n">374</td><td class="n">304</td>
+          <td style="color:var(--muted)">limbo gets it over with sooner</td></tr>
+        <tr><td>What you bet in a typical run</td><td class="n">$598</td><td class="n">$450</td>
+          <td style="color:var(--muted)">less through the machine means less taken</td></tr>
+        <tr class="is-mine"><td><b>What the run costs you</b></td>
+          <td class="n" style="color:var(--danger)">&minus;$6.00</td>
+          <td class="n" style="color:var(--danger)">&minus;$4.49</td>
+          <td style="color:var(--muted)">a penny on every dollar, both games</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="cols">
+    <div class="card" style="margin:0;border-color:#4a3a1a">
+      <div class="cardhead" style="border-bottom-color:#4a3a1a"><h2 style="color:var(--accent)">Pick keno if&hellip;</h2></div>
+      <div class="cardbody">
+        <p class="prose">you'd rather the losing runs hurt less. Four-of-six turns up every 42 spins and pays
+        11x, so even the runs that never hit hand back about a quarter of what you put in. A keno bust costs
+        about <b>$1,050</b>; the same bust on limbo costs the full <b>$1,400</b>. You also have something
+        happening on screen while you wait.</p>
+      </div>
+    </div>
+    <div class="card" style="margin:0;border-color:#1e4142">
+      <div class="cardhead" style="border-bottom-color:#1e4142"><h2 style="color:var(--teal)">Pick limbo if&hellip;</h2></div>
+      <div class="cardbody">
+        <p class="prose">you'd rather win more often and be done sooner. 350x comes up every 353 rolls instead
+        of every 494, so nearly nine runs in ten end well and a typical run is 70 rolls shorter. The price is
+        that when it fails there's no consolation &mdash; it takes the whole ladder.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="callout" style="margin:0"><b>Neither is better. They cost the same.</b> Keno spends part of its
+    payback on the 11x tier and part on the 350x; limbo spends all of it on the 350x. That's why limbo's big
+    win comes round sooner &mdash; it isn't paying for anything else. Both hand the house about a penny per
+    dollar, and no choice between them changes that.</p>
+  </div>
+
+</div>
+</main>
+
+<footer class="foot">
+  <b>Nothing here places a bet.</b> This is a simulator: no account, no casino, no money, and nothing is sent
+  anywhere &mdash; your practice balance and run history live in this browser tab and nowhere else. The odds
+  are the real ones. Keno's exact figures come from the hypergeometric distribution for 6 picks on a 40-tile
+  board with 10 drawn; limbo's from a 99% return. The win rates, typical wins and lifetime figures come from
+  Monte&nbsp;Carlo runs of the same ladder.
+  <br><br>
+  Both games return 99% of everything staked in the long run, so no bet size, seed rotation or rung schedule
+  makes either profitable &mdash; a ladder moves probability between outcomes, it does not create any.
+  Simulated results are not predictions, and a strategy that is right three times in four gives you many
+  chances to raise the stakes before the fourth one arrives. If gambling has stopped being entertainment for
+  you or someone you know, the US helpline is <b>1-800-522-4700</b> &mdash; call or text, free and confidential.
+</footer>
+
+<script>
+(function(){
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Nothing here talks to a server. The practice balance and the run history
+   live in localStorage under one key and go nowhere else.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+var $  = function(id){ return document.getElementById(id); };
+var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
+var MINUS = "−", DOT = "·";
+var STORE = "martingale.dryrun.v1";
+
+function m0(v){ return (v < 0 ? MINUS : "") + "$" + Math.round(Math.abs(v)).toLocaleString("en-US"); }
+function m2(v){ return (v < 0 ? MINUS : "") + "$" + Math.abs(v).toLocaleString("en-US",
+                 {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function money(v){ return Math.abs(v) >= 100 ? m0(v) : m2(v); }
+function pct(v,d){ return (100*v).toFixed(d === undefined ? 1 : d) + "%"; }
+function num(v){ return Math.round(v).toLocaleString("en-US"); }
+function signed(v){ return (v >= 0 ? "+" : "") + money(v); }
+function clamp(v,lo,hi){ return Math.min(hi, Math.max(lo, v)); }
+function minutes(spins){
+  var m = spins/60;
+  if (m < 1.5) return Math.round(spins) + " seconds";
+  if (m < 90)  return Math.round(m) + " minutes";
+  return (m/60).toFixed(1) + " hours";
+}
+
+/* ── exact keno: C(10,k)C(30,6-k)/C(40,6), 40 tiles, 10 drawn, 6 picked ── */
+function C(n,k){ var r=1; for (var i=0;i<k;i++) r = r*(n-i)/(i+1); return r; }
+var KP = []; for (var kk=0; kk<7; kk++) KP.push(C(10,kk)*C(30,6-kk)/C(40,6));
+var KENO_STOP = KP[5] + KP[6];          /* 0.002024291 - 1 in 494 */
+var KENO_FOUR = KP[4];                  /* 0.023799103 - 1 in 42  */
+var KENO_SIX_GIVEN_STOP = KP[6]/KENO_STOP;
+
+/* ═══════════════════════════════ session ══════════════════════════════ */
+var S = {
+  cfg: null, rungs: [], ends: [], total: 0,
+  startBank: 2000, balance: 2000,
+  history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null
+};
+
+function saveState(){
+  try {
+    localStorage.setItem(STORE, JSON.stringify({
+      form: readForm(), startBank: S.startBank, balance: S.balance,
+      history: S.history, picks: S.picks
+    }));
+  } catch (e) { /* private mode, quota - the page works without it */ }
+}
+function loadState(){
+  try {
+    var raw = localStorage.getItem(STORE);
+    if (!raw) return;
+    var d = JSON.parse(raw);
+    if (d.form) writeForm(d.form);
+    if (Array.isArray(d.picks) && d.picks.length === 6) S.picks = d.picks;
+    if (Array.isArray(d.history)) S.history = d.history;
+    if (typeof d.balance === "number") S.balance = d.balance;
+    if (typeof d.startBank === "number") S.startBank = d.startBank;
+  } catch (e) { /* corrupt or unavailable - start fresh */ }
+}
+
+/* ═══════════════════════════════ the config ═══════════════════════════ */
+function readForm(){
+  return {
+    game:  $("gameSeg").querySelector("button.on").getAttribute("data-g"),
+    lmult: +$("lmult").value || 350,
+    base:  +$("base").value  || 1,
+    stepx: +$("stepx").value || 2,
+    len1:  Math.round(+$("len1").value) || 350,
+    lenN:  Math.round(+$("lenN").value) || 175,
+    count: +$("rungs").value || 3,
+    bank:  +$("bank").value  || 2000,
+    walk:  +$("walk").value  || 0
+  };
+}
+function writeForm(f){
+  setGame(f.game === "limbo" ? "limbo" : "keno");
+  $("lmult").value = f.lmult; $("base").value = f.base; $("stepx").value = f.stepx;
+  $("len1").value  = f.len1;  $("lenN").value = f.lenN; $("rungs").value = f.count;
+  $("bank").value  = f.bank;  $("walk").value = f.walk;
+}
+
+/* the numbers a config implies, with everything named */
+function derive(f){
+  var lmult = clamp(f.lmult, 1.02, 1e6);
+  var c = {
+    game: f.game, lmult: lmult,
+    noun: f.game === "limbo" ? "roll" : "spin",
+    base: clamp(f.base, 0.01, 1e6),
+    stepx: clamp(f.stepx, 1, 10),
+    len1: clamp(f.len1, 1, 20000),
+    lenN: clamp(f.lenN, 1, 20000),
+    count: clamp(f.count, 1, 8),
+    bank: clamp(f.bank, 1, 1e9),
+    walk: Math.max(0, f.walk),
+    /* the payout that ends a run, and how often it comes */
+    stop: f.game === "limbo" ? 0.99/lmult : KENO_STOP,
+    pay:  f.game === "limbo" ? lmult : 350
+  };
+  c.rungs = [];
+  var cum = 0;
+  for (var i=0; i<c.count; i++){
+    var bet = c.base * Math.pow(c.stepx, i);
+    var len = i ? c.lenN : c.len1;
+    cum += bet * len;
+    c.rungs.push({ bet: bet, len: len, cum: cum, payout: c.pay * bet });
+  }
+  c.ends = []; var e = 0;
+  for (var j=0; j<c.rungs.length; j++){ e += c.rungs[j].len; c.ends.push(e); }
+  c.total = e;
+  c.cost  = cum;                                   /* a full ladder, every rung */
+  c.reach = 1 - Math.pow(1 - c.stop, c.total);     /* chance it lands before you bail */
+  return c;
+}
+function rungAt(c, done){
+  for (var i=0;i<c.ends.length;i++) if (done < c.ends[i]) return i;
+  return -1;
+}
+/* the same ladder, extended past where you would actually stop - used only
+   to describe the tail on the statistics tab */
+function ladderAt(c, n){
+  var i = 0, spent = 0, seen = 0;
+  while (seen < n){
+    var bet = c.base * Math.pow(c.stepx, i);
+    var len = i ? c.lenN : c.len1;
+    var take = Math.min(len, n - seen);
+    spent += take * bet; seen += take; if (take === len) i++;
+  }
+  return { rung: i + 1, bet: c.base * Math.pow(c.stepx, i), staked: spent };
+}
+
+/* ═══════════════════════════════ the games ════════════════════════════ */
+var POOL = []; for (var t=1; t<=40; t++) POOL.push(t);
+function draw10(){
+  var a = POOL.slice();
+  for (var i=0;i<10;i++){
+    var j = i + Math.floor(Math.random()*(40-i));
+    var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a.slice(0,10);
+}
+function kenoDraw(){
+  var d = draw10(), hits = 0;
+  for (var i=0;i<d.length;i++) if (S.picks.indexOf(d[i]) !== -1) hits++;
+  return {
+    drawn: d, hits: hits, mult: 0,
+    stop: hits >= 5, consol: hits === 4,
+    pay: hits === 6 ? 710 : hits === 5 ? 350 : hits === 4 ? 11 : 0,
+    label: hits === 6 ? "6 of 6" : "5 of 6"
+  };
+}
+function limboDraw(c){
+  var u = Math.random();
+  if (u <= 0) u = 1e-12;
+  var r = Math.floor((0.99/u)*100)/100;
+  if (r < 1 || !isFinite(r)) r = 1;
+  if (r > 1e7) r = 1e7;
+  return {
+    mult: r, tape: r, stop: r >= c.lmult, consol: false,
+    pay: c.pay, label: r.toFixed(2) + "x"
+  };
+}
+
+/* ═══════════════════════════════ one run ══════════════════════════════ */
+function newRun(){
+  return { done:0, staked:0, recovered:0, n4:0, best:0, payout:0, net:0,
+           over:false, won:false, why:null, log:[], tape:[], last:null };
+}
+function say(kind, msg){
+  S.run.log.unshift({ n: S.run.done, kind: kind, msg: msg });
+  if (S.run.log.length > 80) S.run.log.pop();
+}
+
+function step(){
+  var c = S.cfg, r = S.run;
+  if (!r || r.over) return;
+  var ri = rungAt(c, r.done);
+  if (ri < 0){ finish("bail"); return; }
+  var bet = c.rungs[ri].bet;
+
+  if (S.balance + r.net < bet - 1e-9){ finish("broke"); return; }
+
+  r.staked += bet; r.done += 1; r.net = r.recovered - r.staked;
+  var out = c.game === "limbo" ? limboDraw(c) : kenoDraw();
+  r.last = out;
+  if (out.tape !== undefined){ r.tape.push(out.tape); if (r.tape.length > 40) r.tape.shift(); }
+  if (out.mult > r.best) r.best = out.mult;
+
+  if (c.game === "limbo" && out.mult >= c.lmult*0.07 && !out.stop){
+    say("NEAR", "Rolled " + out.label + " " + DOT + " still " +
+                num(c.lmult - out.mult) + "x short");
+  }
+
+  if (out.stop){
+    var paid = bet * out.pay;
+    r.recovered += paid; r.payout = paid; r.net = r.recovered - r.staked;
+    say("HIT", out.label + " paid " + money(paid) + " on " + c.noun + " " + r.done +
+               " " + DOT + " run ends " + signed(r.net));
+    finish("hit", out);
+    return;
+  }
+  if (out.consol){
+    r.n4 += 1; r.recovered += bet * out.pay; r.net = r.recovered - r.staked;
+    say("11X", "4 of 6 paid " + money(bet*out.pay) + " " + DOT + " still " + money(r.net) + " down");
+  }
+
+  var after = rungAt(c, r.done);
+  if (after !== ri){
+    if (after < 0){ finish("bail"); }
+    else {
+      say("RUNG", "Rung " + (after+1) + " " + DOT + " bet goes to " + m2(c.rungs[after].bet) +
+                  " " + DOT + " " + money(r.staked) + " in so far");
+    }
+  }
+}
+
+function finish(why, out){
+  var c = S.cfg, r = S.run;
+  r.net = r.recovered - r.staked;
+  r.over = true; r.why = why; r.won = (why === "hit");
+  if (why === "bail") say("BUST", c.total + " " + c.noun + "s, no hit. Gave up " + money(r.net) + ".");
+  if (why === "broke") say("BROKE", "Out of money on " + c.noun + " " + r.done + ". Lost " + money(r.net) + ".");
+  if (why === "hit" && out && out.hits === 6) say("SYS", "That was the 710x - it turns up once in 18,278.");
+
+  S.balance += r.net;
+  S.history.push({
+    game: c.game, why: why, spin: r.done, staked: r.staked,
+    back: r.recovered - (why === "hit" ? r.payout : 0),
+    payout: r.payout, net: r.net, balance: S.balance,
+    label: r.last && r.last.label ? r.last.label : ""
+  });
+  S.ended = r;
+  if (c.walk > 0 && S.balance >= c.walk) say("CASH", "You hit your walk-away number. " + money(S.balance) + ".");
+  stopAuto();
+  saveState();
+}
+
+/* ═══════════════════════════════ setup view ═══════════════════════════ */
+function setGame(g){
+  $$("#gameSeg button").forEach(function(b){
+    var on = b.getAttribute("data-g") === g;
+    b.classList.toggle("on", on);
+    b.classList.toggle("teal", on && g === "limbo");
+  });
+  $("kenoOpts").hidden  = g !== "keno";
+  $("limboOpts").hidden = g !== "limbo";
+}
+
+function paintSetup(){
+  var c = derive(readForm());
+  S.cfg = c;
+
+  $("rungsV").textContent = c.count;
+  $("lchance").value = pct(0.99/c.lmult, 3);
+
+  var html = "";
+  for (var i=0;i<c.rungs.length;i++){
+    var R = c.rungs[i];
+    html += '<div class="rung"><div class="rk">Rung ' + (i+1) + '</div>' +
+            '<div class="rv">' + m2(R.bet) + '</div>' +
+            '<div class="rd">' + num(R.len) + ' ' + c.noun + 's ' + DOT + ' ' + money(R.cum) + '</div></div>';
+  }
+  $("setupRungs").innerHTML = html;
+
+  $("tMaxLoss").textContent = money(c.cost);
+  var share = c.cost / c.bank;
+  $("tMaxLossD").textContent = share >= 1
+    ? "more than your whole balance"
+    : Math.round(100*share) + "% of your balance";
+  $("tSpins").textContent = num(c.total);
+  $("tSpins").nextElementSibling.textContent = c.noun + "s before you bail";
+  $("tWin").textContent = pct(c.reach);
+  $("tWinD").textContent = plainOdds(c.reach);
+  // Break-even is where staked equals the payout: n * bet = pay * bet, so n = pay.
+  // It does not depend on how long you made rung 1 - only on whether rung 1 reaches it.
+  $("tBreak").textContent = num(c.pay);
+  $("tBreak").nextElementSibling.textContent =
+    c.pay <= c.len1 ? "hit sooner than that and you profit" : "rung 1 ends before that";
+
+  var over = c.cost > c.bank;
+  var warn = $("setupWarn");
+  warn.classList.toggle("warn", true);
+  if (over){
+    warn.innerHTML = "<b>You cannot afford this ladder.</b> A full run costs " + money(c.cost) +
+      " and you are starting with " + money(c.bank) + ", so you would run out of money partway up " +
+      "rung " + ladderAt(c, spinsAffordable(c)).rung + " and lose the lot without ever reaching the top.";
+  } else {
+    warn.innerHTML = "<b>You are risking " + money(c.cost) + " for a win worth " +
+      money(c.rungs[0].payout - c.rungs[0].bet) + " at the very best.</b> " +
+      "A hit on your first " + c.noun + " pays " + money(c.rungs[0].payout) + " against " +
+      m2(c.rungs[0].bet) + " staked" +
+      (c.pay <= c.len1
+        ? "; a hit on " + c.noun + " " + num(c.pay) + " breaks exactly even, and later than that loses"
+        : "; rung 1 ends before you could ever reach break-even, so every rung-1 hit profits") +
+      ". " + pct(c.reach) + " of runs land somewhere before you bail. The rest cost you the full " +
+      money(c.cost) + ".";
+  }
+
+  $("startBtn").textContent = needsFreshSession(c) ? "Start the dry run" : "Back to the table";
+  $("startBtn").nextElementSibling.nextElementSibling.textContent = needsFreshSession(c)
+    ? "No money, no account, nothing placed anywhere."
+    : "Keeping your " + S.history.length + "-run record and " + money(S.balance) + " balance.";
+  $("startBtn").disabled = false;
+  $("setupErr").hidden = true;
+  paintStats();
+  saveState();
+}
+function plainOdds(p){
+  if (p >= 0.995) return "almost every run";
+  if (p <= 0.005) return "almost no runs";
+  var k = p >= 0.5 ? Math.round(1/(1-p)) : Math.round(1/p);
+  return p >= 0.5 ? "about " + (k-1) + " runs in " + k : "about 1 run in " + k;
+}
+function spinsAffordable(c){
+  var bal = c.bank, n = 0;
+  for (var i=0;i<c.rungs.length;i++){
+    var can = Math.floor(bal / c.rungs[i].bet);
+    if (can <= c.rungs[i].len){ return n + can; }
+    n += c.rungs[i].len; bal -= c.rungs[i].bet * c.rungs[i].len;
+  }
+  return n;
+}
+
+/* ═══════════════════════════════ play view ════════════════════════════ */
+function startRun(fresh){
+  if (fresh){
+    var c = derive(readForm());
+    S.cfg = c; S.startBank = c.bank; S.balance = c.bank;
+    S.history = [];
+  }
+  S.ended = null;
+  S.run = newRun();
+  say("SYS", "New run " + DOT + " " + m2(S.cfg.rungs[0].bet) + " a " + S.cfg.noun +
+             ", giving up after " + num(S.cfg.total));
+  showView("play");
+  paintPlay();
+}
+function showView(v){
+  $("view-setup").hidden = v !== "setup";
+  $("view-play").hidden  = v !== "play";
+}
+
+function paintBoard(){
+  var drawn = (S.run && S.run.last && S.run.last.drawn) ? S.run.last.drawn : [];
+  var html = "";
+  for (var t=1;t<=40;t++){
+    var isPick = S.picks.indexOf(t) !== -1, isDrawn = drawn.indexOf(t) !== -1;
+    html += '<div class="kt' + (isPick ? " pick" : "") + (isDrawn ? " drawn" : "") + '"' +
+            ' data-t="' + t + '" role="button" tabindex="0" aria-pressed="' + isPick + '"' +
+            ' aria-label="Tile ' + t + (isPick ? ", picked" : "") + '">' + t + '</div>';
+  }
+  $("board").innerHTML = html;
+}
+function paintTape(){
+  var c = S.cfg, r = S.run, html = "", top = Math.log10(Math.max(2, c.lmult));
+  for (var i=0;i<40;i++){
+    var v = r.tape[r.tape.length - 40 + i];
+    if (v === undefined){ html += '<i style="height:2px"></i>'; continue; }
+    var h = Math.max(2, Math.min(1, Math.log10(Math.max(1,v))/top) * 44);
+    var cls = v >= c.lmult ? ' class="win"' : (v >= c.lmult*0.03 ? ' class="big"' : '');
+    html += '<i' + cls + ' style="height:' + h.toFixed(1) + 'px"></i>';
+  }
+  $("l-tape").innerHTML = html;
+}
+function paintRungs(){
+  var c = S.cfg, here = S.run.over ? -1 : rungAt(c, S.run.done), html = "";
+  for (var i=0;i<c.rungs.length;i++){
+    var R = c.rungs[i];
+    var cls = "rung" + (i === here ? " here" + (c.game === "limbo" ? " teal" : "")
+                                   : (here < 0 || i < here ? " spent" : ""));
+    html += '<div class="' + cls + '"><div class="rk">Rung ' + (i+1) + '</div>' +
+            '<div class="rv">' + m2(R.bet) + '</div>' +
+            '<div class="rd">' + num(R.len) + ' ' + c.noun + 's ' + DOT + ' ' + money(R.cum) + '</div></div>';
+  }
+  $("playRungs").innerHTML = html;
+}
+function paintOdds(){
+  var c = S.cfg, r = S.run, q = c.stop, done = r.done;
+  var left = Math.max(0, c.total - done);
+  var already = 1 - Math.pow(1-q, done);
+  var next100 = 1 - Math.pow(1-q, 100);
+  var end = 1 - Math.pow(1-q, left);
+  var dp = q < 0.0025 ? 2 : (q < 0.02 ? 3 : 2);
+
+  $("oAlready").textContent = pct(already);
+  $("bAlready").style.width = (100*already) + "%";
+  $("oSlower").textContent = pct(1-already);
+  $("oSpinLab").innerHTML = c.noun + ' <b id="oSpin">' + num(done) + '</b>';
+  $("oNowLab").textContent = "Chance it lands on this " + c.noun;
+  $("oNow").textContent = (100*q).toFixed(dp) + "%";
+  $("bNow").style.width = Math.max(1.4, Math.min(100, 100*q*10)) + "%";
+  $("oNowSub").textContent = "1 in " + (1/q).toFixed(1);
+  $("o100Lab").textContent = "Chance in your next 100 " + c.noun + "s";
+  $("o100").textContent = pct(next100);
+  $("b100").style.width = (100*next100) + "%";
+  $("o100Sub").textContent = "about " + minutes(100) + " of autobet";
+  $("oEnd").textContent = pct(end);
+  $("bEnd").style.width = (100*end) + "%";
+  $("bEnd").className = end < 0.25 ? "redb" : "greenb";
+  $("oEnd").style.color = end < 0.25 ? "var(--danger)" : "var(--green)";
+  $("oLeft").textContent = num(left);
+  $("oLeftLab").textContent = c.noun + "s left in the ladder";
+  $("oFail").textContent = pct(1-end);
+  $("oddsNote").innerHTML = "<b>It is never due.</b> Every one of these " + c.noun + "s is a fresh 1-in-" +
+    (1/q).toFixed(0) + ". The only thing a dry spell changes is how much you have already put in.";
+}
+function paintLog(){
+  var r = S.run, html = "";
+  for (var i=0;i<r.log.length;i++){
+    var L = r.log[i];
+    var row = L.kind === "HIT" || L.kind === "CASH" ? " good"
+            : (L.kind === "BUST" || L.kind === "BROKE" ? " bad" : "");
+    html += '<div class="logline' + row + '"><span class="ts">#' + L.n + '</span>' +
+            '<span class="tag tag-' + L.kind + '">' + L.kind + '</span>' +
+            '<span class="msg">' + L.msg + '</span></div>';
+  }
+  $("log").innerHTML = html;
+  $("logCount").textContent = r.log.length + (r.log.length === 1 ? " event" : " events");
+}
+
+function paintResult(){
+  var slot = $("resultSlot");
+  if (!S.run.over){ slot.innerHTML = ""; return; }
+  var c = S.cfg, r = S.run, ok = r.won;
+  var q = c.stop;
+  var faster = Math.pow(1-q, r.done);           /* share of runs still dry at this point */
+  var head, tone, right;
+
+  if (ok){
+    head = (r.last.label || "The target") + " " + DOT + " the run is over";
+    tone = "var(--green)";
+    right =
+      '<div class="oddsrow"><span>You were faster than</span>' +
+        '<b style="color:var(--green)">' + pct(faster) + ' of runs</b></div>' +
+      '<div class="meter" style="margin-top:5px;height:9px"><i class="greenb" style="width:' +
+        (100*faster).toFixed(1) + '%"></i></div>' +
+      '<div class="meterrow"><span>' + c.noun + ' ' + num(r.done) + '</span>' +
+        '<span>typical is ' + c.noun + ' ' + num(Math.log(0.5)/Math.log(1-q)) + '</span></div>';
+  } else if (r.why === "broke"){
+    head = "Out of money on " + c.noun + " " + num(r.done);
+    tone = "var(--danger)";
+    right = '<div class="prose" style="font-size:12.5px;margin:0">Your balance could no longer cover the ' +
+      'next bet, so the ladder stopped partway up rung ' + (rungAt(c, Math.max(0, r.done-1))+1) + '. This is the failure ' +
+      'the ladder is designed around and the one people plan for least: it is not that the hit never came, ' +
+      'it is that you could not afford to keep waiting for it.</div>';
+  } else {
+    head = num(c.total) + " " + c.noun + "s, no hit " + DOT + " the run is over";
+    tone = "var(--danger)";
+    right =
+      '<div class="oddsrow"><span>Runs that end this way</span>' +
+        '<b style="color:var(--danger)">' + plainOdds(1-c.reach) + '</b></div>' +
+      '<div class="meter" style="margin-top:5px;height:9px"><i class="redb" style="width:' +
+        (100*(1-c.reach)).toFixed(1) + '%"></i></div>' +
+      '<div class="meterrow"><span>' + pct(1-c.reach) + ' never get the hit</span>' +
+        '<span>' + pct(c.reach) + ' do</span></div>';
+  }
+
+  var rows = "";
+  if (c.game === "keno"){
+    rows += row("You put in, at " + m2(c.rungs[0].bet) + " a spin to start", num(r.done), MINUS + money(r.staked), "var(--danger)");
+    if (r.n4) rows += row("4 of 6 paid you 11x along the way", num(r.n4),
+                          "+" + money(r.recovered - r.payout), "var(--accent)");
+    if (ok) rows += row(r.last.label + " paid " + (r.last.pay) + "x and ended it", "1",
+                        "+" + money(r.payout), "var(--green)");
+  } else {
+    rows += row("You put in, at " + m2(c.rungs[0].bet) + " a roll to start", num(r.done), MINUS + money(r.staked), "var(--danger)");
+    if (ok) rows += row(r.last.label + " cleared " + c.lmult + "x and ended it", "1",
+                        "+" + money(r.payout), "var(--green)");
+  }
+  rows += '<tr class="is-mine"><td><b>' + (r.net >= 0 ? "Kept" : "Lost") + '</b></td>' +
+          '<td class="n">' + num(r.done) + '</td>' +
+          '<td class="n" style="color:' + tone + '"><b>' + signed(r.net) + '</b></td></tr>';
+
+  var tail;
+  if (ok){
+    var take = 0.01 * r.staked;
+    tail = '<b>The house took about ' + m2(take) + ' of that.</b> It takes roughly a penny out of every ' +
+      'dollar you bet, win or lose, and you bet ' + money(r.staked) + '. That is the whole business ' +
+      '&mdash; it never needs you to lose a run, only to keep betting.';
+  } else {
+    var wins = S.history.filter(function(h){ return h.why === "hit"; })
+                        .map(function(h){ return h.net; }).sort(function(a,b){ return a-b; });
+    var typical = wins.length ? wins[Math.floor(wins.length/2)] : c.rungs[0].payout * 0.67;
+    if (typical < 1) typical = 1;
+    tail = '<b>To get back to ' + money(S.startBank) + ' you need about ' +
+      (Math.abs(r.net)/typical).toFixed(1).replace(".0","") + ' more winning runs.</b> ' +
+      (wins.length
+        ? 'Your typical win so far is ' + money(typical)
+        : 'A typical win is worth around ' + money(typical)) +
+      ' and you have just lost ' + money(Math.abs(r.net)) +
+      '. Each of those wins carries its own ' + pct(1-c.reach) + ' chance of landing you back here.';
+  }
+
+  var cashed = c.walk > 0 && S.balance >= c.walk;
+  slot.innerHTML =
+    '<div class="card" style="border-color:' + (ok ? "#234a30" : "#3d211c") + '">' +
+      '<div class="cardhead" style="border-bottom-color:' + (ok ? "#234a30" : "#3d211c") + '">' +
+        '<h2 style="color:' + tone + '">' + head + '</h2><span class="grow"></span>' +
+        '<span class="pill ' + (ok ? "hit" : "bust") + '">Run over ' + DOT + ' ' +
+          (ok ? "won" : (r.why === "broke" ? "out of money" : "gave up")) + '</span></div>' +
+      '<div class="cardbody">' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:18px;align-items:center">' +
+          '<div><div class="n" style="font-size:46px;font-weight:700;letter-spacing:-.035em;line-height:1;color:' +
+            tone + '">' + signed(r.net) + '</div>' +
+            '<div style="color:var(--muted);font-size:13px;margin-top:6px">Practice balance ' +
+              '<b class="n" style="color:var(--cream)">' + money(S.balance - r.net) + '</b> ' +
+              '&rarr; <b class="n" style="color:var(--cream)">' + money(S.balance) + '</b></div></div>' +
+          '<div>' + right + '</div>' +
+        '</div></div>' +
+      '<div class="tablewrap"><table><thead><tr><th>Where the money went</th>' +
+        '<th class="n">' + (c.noun.charAt(0).toUpperCase()+c.noun.slice(1)) + 's</th>' +
+        '<th class="n">Amount</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<p class="callout ' + (ok ? "" : "warn") + '" style="margin:0;border-top:1px solid var(--border)">' + tail + '</p>' +
+      (cashed ? '<p class="callout" style="margin:0;border-top:1px solid var(--border)"><b>You hit your ' +
+        'walk-away number.</b> ' + money(S.balance) + ' against the ' + money(c.walk) + ' you set. ' +
+        'Stopping here is the only decision on this site that improves your odds - the run-it-back button ' +
+        'gives it straight back.</p>' : "") +
+      '<div class="cardbody" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border)">' +
+        '<button class="primary' + (c.game === "limbo" ? " teal" : "") + '" id="btnAgain">Run it back</button>' +
+        '<button class="ghost" id="btnStop">Change settings</button>' +
+        '<span style="flex:1"></span>' +
+        '<span style="font-size:11.5px;color:var(--faint)">Run ' + S.history.length + ' ' + DOT + ' ' +
+          S.history.filter(function(h){return h.why === "hit";}).length + ' won, ' +
+          S.history.filter(function(h){return h.why !== "hit";}).length + ' lost</span>' +
+      '</div>' +
+    '</div>';
+
+  $("btnAgain").addEventListener("click", function(){
+    if (S.balance < S.cfg.rungs[0].bet){ showView("setup"); paintSetup(); return; }
+    startRun(false);
+  });
+  $("btnStop").addEventListener("click", function(){ showView("setup"); paintSetup(); });
+
+  function row(label, n, amt, colour){
+    return '<tr><td>' + label + '</td><td class="n">' + n + '</td>' +
+           '<td class="n" style="color:' + colour + '">' + amt + '</td></tr>';
+  }
+}
+
+function paintPlay(){
+  var c = S.cfg, r = S.run;
+  var ri = r.over ? -1 : rungAt(c, r.done);
+  var bet = ri < 0 ? 0 : c.rungs[ri].bet;
+
+  $("kSpin").textContent = c.noun.charAt(0).toUpperCase() + c.noun.slice(1);
+  $("p-spin").textContent = num(r.done);
+  $("p-spinD").textContent = ri < 0 ? "ladder finished"
+    : "of " + num(c.rungs[ri].len) + " on this rung";
+  $("p-rung").textContent = ri < 0 ? "—" : (ri+1);
+  $("p-rung").className = "v " + (c.game === "limbo" ? "tealc" : "amber");
+  $("p-rungD").textContent = "of " + c.count + " before you bail";
+  $("p-bet").textContent = ri < 0 ? "—" : m2(bet);
+  $("p-betD").textContent = "per " + c.noun;
+  $("p-stk").textContent = money(r.staked);
+
+  if (c.game === "keno"){
+    $("p-sideK").textContent = "11x paid back";
+    $("p-side").textContent = money(r.recovered - (r.won ? r.payout : 0));
+    $("p-side").className = "v amber";
+    $("p-sideD").textContent = r.n4 + (r.n4 === 1 ? " four-hit" : " four-hits");
+  } else {
+    $("p-sideK").textContent = "Best so far";
+    $("p-side").textContent = r.best ? r.best.toFixed(2) + "x" : "—";
+    $("p-side").className = "v tealc";
+    $("p-sideD").textContent = "needed " + c.lmult.toFixed(2) + "x";
+  }
+
+  $("p-netK").textContent = r.net >= 0 ? "Up" : "Down";
+  $("p-net").textContent = signed(r.net);
+  $("p-net").className = "v " + (r.net >= 0 ? "green" : "red");
+  $("bal").textContent = m2(S.balance + (r.over ? 0 : r.net));
+
+  $("boardCard").hidden = c.game !== "keno";
+  $("limboCard").hidden = c.game !== "limbo";
+
+  if (c.game === "keno"){
+    paintBoard();
+    $("lastNote").textContent = r.last
+      ? "last draw " + DOT + " " + r.last.hits + " of your 6"
+      : "pick your numbers, then spin";
+    $("lastNote").style.color = (r.last && r.last.hits >= 4) ? "var(--accent)" : "var(--faint)";
+  } else {
+    paintTape();
+    var last = r.last ? r.last.mult : 1;
+    var win = last >= c.lmult;
+    $("l-num").innerHTML = last.toFixed(2) + '<span style="font-size:.5em">x</span>';
+    $("l-num").className = "limbonum" + (win ? " win" : "");
+    $("l-target").textContent = "TARGET " + c.lmult.toFixed(2) + "x";
+    $("l-chance").textContent = "WIN CHANCE " + pct(c.stop, 3);
+    $("l-verdict").textContent = r.last ? (win ? "CLEARED" : "UNDER") : "READY";
+    $("l-verdict").style.color = r.last ? (win ? "var(--green)" : "var(--danger)") : "var(--faint)";
+    $("limboTargetNote").textContent = "target " + c.lmult.toFixed(2) + "x";
+  }
+
+  $("ladNote").innerHTML = r.over
+    ? "run finished on " + c.noun + " " + num(r.done)
+    : "a hit right now finishes you <b style=\"color:var(--green)\">" +
+      signed(r.net - bet + c.pay*bet) + "</b>";
+
+  paintRungs(); paintOdds(); paintLog(); paintResult(); paintHistory();
+
+  var dead = r.over;
+  $("btnSpin").disabled = dead; $("btnSpin25").disabled = dead; $("btnAuto").disabled = dead;
+  $("btnSpin").textContent = c.game === "limbo" ? "Roll" : "Spin";
+  $("btnSpin25").innerHTML = (c.game === "limbo" ? "Roll" : "Spin") + " &times;25";
+  $("btnSpin").className = "primary" + (c.game === "limbo" ? " teal" : "");
+}
+
+/* ═══════════════════════════════ history ══════════════════════════════ */
+function paintHistory(){
+  var H = S.history;
+  $("histCard").hidden = H.length === 0;
+  if (!H.length){ $("histBody").innerHTML = ""; return; }
+
+  var won = H.filter(function(h){ return h.why === "hit"; }).length;
+  var staked = H.reduce(function(a,h){ return a + h.staked; }, 0);
+  var netAll = S.balance - S.startBank;
+  var best = H.reduce(function(a,h){ return Math.max(a, h.net); }, -Infinity);
+  var worst = H.reduce(function(a,h){ return Math.min(a, h.net); }, Infinity);
+  var peak = H.reduce(function(a,h){ return Math.max(a, h.balance); }, S.startBank);
+
+  $("histNote").textContent = H.length + " runs " + DOT + " " + won + " won " + DOT +
+    " peaked at " + money(peak);
+
+  var rows = "";
+  for (var i=0;i<H.length;i++){
+    var h = H[i];
+    var how = h.why === "hit" ? ("Hit " + (h.label || "the target"))
+            : h.why === "broke" ? "Out of money" : "Gave up";
+    var mine = (h.net === best && h.why === "hit") ? ' class="is-mine"' : "";
+    rows += '<tr' + mine + '><td class="n">' + (i+1) + '</td>' +
+      '<td><span class="pill ' + (h.game === "limbo" ? "tealp" : "amber") + '">' +
+        (h.game === "limbo" ? "Limbo" : "Keno") + '</span></td>' +
+      '<td>' + how + '</td><td class="n">' + num(h.spin) + '</td>' +
+      '<td class="n">' + money(h.staked) + '</td>' +
+      '<td class="n">' + (h.back > 0 ? money(h.back) : "—") + '</td>' +
+      '<td class="n" style="color:' + (h.net >= 0 ? "var(--green)" : "var(--danger)") + '">' +
+        signed(h.net) + '</td>' +
+      '<td class="n">' + money(h.balance) + '</td></tr>';
+  }
+  $("histBody").innerHTML = rows;
+  $("histFirst").textContent = "run 1";
+  $("histLast").textContent = "run " + H.length;
+
+  /* the balance line */
+  var pts = [S.startBank].concat(H.map(function(h){ return h.balance; }));
+  var lo = Math.min.apply(null, pts), hi = Math.max.apply(null, pts);
+  if (hi - lo < 1){ hi = lo + 1; }
+  var pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+  var X = function(i){ return pts.length < 2 ? 0 : (480 * i / (pts.length-1)); };
+  var Y = function(v){ return 88 - ((v - lo)/(hi - lo)) * 81; };
+  var poly = pts.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(2); }).join(" ");
+  var peakI = pts.indexOf(Math.max.apply(null, pts));
+  $("histSpark").innerHTML =
+    '<line x1="0" y1="' + Y(S.startBank).toFixed(2) + '" x2="480" y2="' + Y(S.startBank).toFixed(2) +
+      '" stroke="#8b8b93" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"></line>' +
+    '<polyline points="' + poly + '" fill="none" stroke="#ffb454" stroke-width="2" ' +
+      'vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></polyline>' +
+    '<circle cx="' + X(peakI).toFixed(1) + '" cy="' + Y(pts[peakI]).toFixed(2) +
+      '" r="3" fill="#4ade80" vector-effect="non-scaling-stroke"></circle>' +
+    '<circle cx="480" cy="' + Y(pts[pts.length-1]).toFixed(2) + '" r="3" fill="' +
+      (netAll >= 0 ? "#4ade80" : "#e06c5a") + '" vector-effect="non-scaling-stroke"></circle>';
+
+  var edge = 0.01 * staked;
+  var luck = Math.abs(netAll) - edge;
+  $("histSummary").innerHTML = "<b>You bet " + money(staked) + " across those " + H.length +
+    (H.length === 1 ? " run and finished " : " runs and finished ") +
+    (netAll >= 0 ? money(netAll) + " up" : money(Math.abs(netAll)) + " down") + ".</b> About " +
+    money(edge) + " of that was the house's cut &mdash; a penny on every dollar, exactly as advertised. " +
+    (luck > 0
+      ? "The other " + money(luck) + " was luck, and over a long enough session luck averages out while the " +
+        money(edge) + " does not."
+      : "You are currently ahead of the house's cut, which is what the first few runs usually look like.");
+}
+
+/* ═════════════════════════════ statistics tab ═════════════════════════ */
+function paintStats(){
+  var c = S.cfg || derive(readForm());
+  var q = c.stop, isKeno = c.game === "keno";
+  var median = Math.log(0.5)/Math.log(1-q);
+  var mean = 1/q;
+  var p90 = Math.log(0.10)/Math.log(1-q);
+
+  $("waitNote").textContent = isKeno ? "keno " + DOT + " 6 picks"
+                                     : "limbo " + DOT + " " + c.lmult.toFixed(2) + "x";
+  $("waitBarNote").textContent = "how many have got their hit by " + c.noun;
+
+  $("waitTiles").innerHTML =
+    tile("Turns up about every", num(mean), c.noun + "s", "amber") +
+    tile("Half of runs get it by", num(median), c.noun + "s " + DOT + " " + minutes(median), "") +
+    tile("1 run in 10 is still dry at", num(p90), c.noun + "s " + DOT + " " + minutes(p90), "red") +
+    (isKeno
+      ? tile("4 of 6 pays 11x every", num(1/KENO_FOUR), "spins, to keep you there", "amber")
+      : tile("Consolation prizes", "None", "every losing roll is a total loss", "tealc"));
+
+  var marks = [50, 100, 200, Math.round(median), Math.round(mean), c.total, Math.round(p90)]
+    .filter(function(v){ return v >= 20; });
+  marks = marks.filter(function(v,i){ return marks.indexOf(v) === i; }).sort(function(a,b){ return a-b; });
+  var bars = "";
+  for (var i=0;i<marks.length;i++){
+    var n = marks[i], p = 1 - Math.pow(1-q, n), beyond = n > c.total;
+    var lab = "by " + c.noun + " " + num(n) + (n === c.total ? " &mdash; you'd give up here" : "");
+    var fill = beyond ? "faintb" : (n === Math.round(median) ? "greenb" : "");
+    bars += '<div class="barrow' + (beyond ? " off" : "") + '"><span class="lab">' + lab + '</span>' +
+            '<span class="meter"><i class="' + fill + '" style="width:' + (100*p).toFixed(1) + '%"></i></span>' +
+            '<span class="amt">' + Math.round(100*p) + '</span></div>';
+  }
+  $("waitBars").innerHTML = bars;
+  $("waitHint").innerHTML = marks[marks.length-1] > c.total
+    ? "The greyed rows are past where you'd be &mdash; your ladder stops at " + c.noun + " " + num(c.total) +
+      ". They're shown so you can see what you'd be walking away from."
+    : "Your ladder runs to " + c.noun + " " + num(c.total) + ", so every row here is one you'd actually sit through.";
+
+  var at = ladderAt(c, Math.round(p90));
+  $("tailHead").textContent = "The ten people still waiting at " + c.noun + " " + num(p90);
+  $("tailProse").innerHTML =
+    "They didn't do anything wrong. They aren't cursed, and their seed isn't cold. They're the ordinary far " +
+    "end of a wait that averages " + num(mean) + " " + c.noun + "s &mdash; and if they've been doubling the " +
+    "whole way, they are now betting <b style=\"color:var(--danger)\">" + m2(at.bet) + " a " + c.noun +
+    "</b> on a ladder they opened at " + m2(c.base) + ", having already put " +
+    "<b style=\"color:var(--danger)\">" + money(at.staked) + "</b> in.";
+  $("tailNote").innerHTML =
+    "<b>This is the run everybody has heard about and nobody plans for.</b> One person in ten is in it right " +
+    "now. With " + c.count + (c.count === 1 ? " rung" : " rungs") + " you never meet them, because you gave " +
+    "up at " + c.noun + " " + num(c.total) + " &mdash; which is the point of having a bail-out.";
+
+  function tile(k, v, d, cls){
+    return '<div class="tile"><div class="k">' + k + '</div><div class="v ' + cls + '">' + v + '</div>' +
+           '<div class="d">' + d + '</div></div>';
+  }
+}
+
+/* ═══════════════════════════════ auto-play ════════════════════════════ */
+function stopAuto(){
+  if (S.timer){ clearInterval(S.timer); S.timer = null; }
+  $("btnAuto").innerHTML = "Auto &#9654;";
+}
+function toggleAuto(){
+  if (S.timer){ stopAuto(); return; }
+  $("btnAuto").innerHTML = "Stop &#9632;";
+  S.timer = setInterval(function(){
+    if (!S.run || S.run.over){ stopAuto(); paintPlay(); return; }
+    step(); paintPlay();
+  }, 55);
+}
+
+/* ═══════════════════════════════ wiring ═══════════════════════════════ */
+$$("#gameSeg button").forEach(function(b){
+  b.addEventListener("click", function(){
+    var g = b.getAttribute("data-g");
+    setGame(g);
+    if (g === "limbo"){                       /* the break-even ladder for this target */
+      var M = clamp(+$("lmult").value || 350, 1.02, 1e6);
+      $("len1").value = Math.max(1, Math.round(M));
+      $("lenN").value = Math.max(1, Math.round(M/2));
+    } else {
+      $("len1").value = 350; $("lenN").value = 175;
+    }
+    paintSetup();
+  });
+});
+$("lmult").addEventListener("input", function(){
+  var M = clamp(+$("lmult").value || 350, 1.02, 1e6);
+  $("len1").value = Math.max(1, Math.round(M));
+  $("lenN").value = Math.max(1, Math.round(M/2));
+  paintSetup();
+});
+["base","stepx","len1","lenN","bank","walk"].forEach(function(id){
+  $(id).addEventListener("input", paintSetup);
+});
+$("rungs").addEventListener("input", paintSetup);
+$("resetLadder").addEventListener("click", function(){
+  setGame("keno");
+  $("base").value = 1; $("stepx").value = 2; $("len1").value = 350; $("lenN").value = 175;
+  $("rungs").value = 3; $("lmult").value = 350;
+  paintSetup();
+});
+$("startBtn").addEventListener("click", function(){
+  var c = derive(readForm());
+  if (c.rungs[0].bet > c.bank){
+    $("setupErr").textContent = "Your opening bet is bigger than your balance. Lower one or raise the other.";
+    $("setupErr").hidden = false;
+    return;
+  }
+  startRun(needsFreshSession(c));
+});
+function needsFreshSession(c){
+  if (!S.history.length) return true;              /* nothing to keep */
+  if (c.bank !== S.startBank) return true;         /* they changed the stake */
+  if (S.balance < c.rungs[0].bet) return true;     /* cannot cover the opening bet */
+  return false;
+}
+$("btnSpin").addEventListener("click", function(){ step(); paintPlay(); });
+$("btnSpin25").addEventListener("click", function(){
+  for (var i=0;i<25 && S.run && !S.run.over;i++) step();
+  paintPlay();
+});
+$("btnAuto").addEventListener("click", toggleAuto);
+$("btnSettings").addEventListener("click", function(){ stopAuto(); showView("setup"); paintSetup(); });
+$("clearHist").addEventListener("click", function(){
+  S.history = []; S.balance = S.startBank; saveState(); paintPlay();
+});
+
+$("board").addEventListener("click", function(e){
+  var t = e.target.closest(".kt"); if (!t) return;
+  var v = +t.getAttribute("data-t");
+  if (S.picks.indexOf(v) !== -1) return;      /* already yours */
+  S.picks.shift(); S.picks.push(v);           /* swap out the oldest */
+  saveState(); paintPlay();
+});
+$("board").addEventListener("keydown", function(e){
+  if (e.key !== "Enter" && e.key !== " ") return;
+  var t = e.target.closest(".kt"); if (!t) return;
+  e.preventDefault(); t.click();
+});
+
+$$(".tab").forEach(function(b){
+  b.addEventListener("click", function(){
+    var want = b.getAttribute("data-tab");
+    $$(".tab").forEach(function(o){
+      var on = o === b;
+      o.classList.toggle("is-active", on);
+      o.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    $("panel-dryrun").classList.toggle("is-active", want === "dryrun");
+    $("panel-stats").classList.toggle("is-active", want === "stats");
+    if (want === "stats") paintStats();
+    window.scrollTo(0,0);
+  });
+});
+
+/* ═══════════════════════════════ boot ═════════════════════════════════ */
+loadState();
+paintSetup();
+$("bal").textContent = m2(S.balance);
+showView("setup");
+})();
+</script>
+</body>
+</html>
