@@ -441,7 +441,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         </div>
 
         <div class="card">
-          <div class="cardhead"><h2>The ladder</h2><span class="grow"></span>
+          <div class="cardhead"><h2>The Martingaler</h2><span class="grow"></span>
             <button class="ghost" id="resetLadder" style="font-size:11.5px;padding:2px 9px">Reset to BILLSKIE's</button></div>
           <div class="cardbody">
             <div class="grid2" style="margin-bottom:9px">
@@ -562,7 +562,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         </div>
 
         <div class="card">
-          <div class="cardhead"><h2>The ladder</h2><span class="grow"></span>
+          <div class="cardhead"><h2>The Martingaler</h2><span class="grow"></span>
             <span class="note" id="ladNote"></span></div>
           <div class="cardbody"><div class="levels" id="playLevels"></div></div>
         </div>
@@ -1629,7 +1629,7 @@ function paintUpBet(){
   var ok = v >= 0.01 && v <= S.balance + 1e-9;
   $("roDoubleAmt").textContent = ok ? m2(v) + " a " + c.noun : "more than you have";
   $("roDouble").disabled = !ok;
-  document.querySelector(".upgrid").hidden = S.balance < 0.01;
+  document.querySelector(".upgrid").hidden = !!(S.run && S.run.over && S.run.why === "broke");
 }
 function paintResult(){
   var box = $("runover");
@@ -1681,7 +1681,11 @@ function paintResult(){
   $("roStatBar").style.background = tone;
 
   var base = c.base, up = c.base * c.stepx;
-  $("roNext").hidden = S.balance < base;
+  /* A round that stopped because the money would not cover its next bet ends
+     the run. A few dollars can technically open another round; offering that is
+     offering to grind the last of it away a dollar at a time. */
+  var out = r.why === "broke";
+  $("roNext").hidden = out || S.balance < base;
   $("roNext").className = "btn primary wide" + (ok ? " green" : "");
   $("roNextAmt").textContent = m2(base) + " a " + c.noun;
   /* Doubling the opening bet is the martingale applied across runs rather than
@@ -1853,7 +1857,11 @@ function sampleRound(c, rnd, bal){
     }
     net += drip;
   }
-  return [net, g];
+  /* In "broke" mode the affordable ladder IS the balance, so a round that does
+     not hit has spent essentially everything - that is the end of the run, not
+     a setback. Without this the simulation kept "playing" $15, then $8, then $3
+     rounds and reported a median of 19 rounds when the real answer is nearer 3. */
+  return [net, g, !hit && c.mode === "broke"];
 }
 /* Knuth. Binomial(n, 0.0238) is Poisson(np) to well inside the noise here, and
    unlike rounding a normal it keeps the right mean when the count is small. */
@@ -1880,6 +1888,7 @@ function survivalSpread(c, trials){
     while (nr < SURVIVAL_CAP && bal >= open){
       var o = sampleRound(c, rnd, bal);
       bal += o[0]; ns += o[1]; nr += 1;
+      if (o[2]) break;                      /* the money ran out - the run is over */
     }
     rounds[t] = nr; spins[t] = ns;
   }
@@ -1902,6 +1911,7 @@ function outcomeSpread(c, rounds, trials){
       if (bal < c.levels[0].bet) break;
       var out2 = sampleRound(c, rnd, bal);
       sum += out2[0]; bal += out2[0];
+      if (out2[2]) break;
     }
     out[t] = sum;
   }
