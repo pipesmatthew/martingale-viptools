@@ -535,16 +535,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <div class="meter" style="margin-top:5px"><i class="redb" id="bFailed" style="width:100%"></i></div>
             </div>
             <div>
-              <div class="oddsrow"><span id="oNowLab">Chance it lands on this spin</span>
-                <b id="oNow" style="color:var(--accent)">0.20%</b></div>
-              <div class="meter" style="margin-top:5px"><i id="bNow" style="width:2%"></i></div>
-            </div>
-            <div>
-              <div class="oddsrow"><span id="o100Lab">Chance in your next 100 spins</span>
-                <b id="o100" style="color:var(--accent)">18.3%</b></div>
-              <div class="meter" style="margin-top:5px"><i id="b100" style="width:18.3%"></i></div>
-            </div>
-            <div>
               <div class="oddsrow"><span>Chance before you'd give up</span>
                 <b id="oEnd" style="color:var(--green)">75.8%</b></div>
               <div class="meter" style="margin-top:5px"><i class="greenb" id="bEnd" style="width:75.8%"></i></div>
@@ -553,11 +543,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="oddsNote"></p>
         </div>
 
-        <div class="card">
-          <div class="cardhead"><h2>This run</h2><span class="grow"></span>
-            <span class="note" id="logCount">0 events</span></div>
-          <div class="loglines" id="log"></div>
-        </div>
       </div>
     </div>
 
@@ -1326,20 +1311,12 @@ function paintOdds(){
   var c = S.cfg, r = S.run, q = c.stop, done = r.done;
   var left = Math.max(0, c.total - done);
   var already = 1 - Math.pow(1-q, done);
-  var next100 = 1 - Math.pow(1-q, 100);
   var end = 1 - Math.pow(1-q, left);
-  var dp = q < 0.0025 ? 2 : (q < 0.02 ? 3 : 2);
 
   $("oAlready").textContent = pct(already);
   $("bAlready").style.width = (100*already) + "%";
   $("oFailed").textContent = pct(1-already);
   $("bFailed").style.width = (100*(1-already)) + "%";
-  $("oNowLab").textContent = "Chance it lands on this " + c.noun;
-  $("oNow").textContent = (100*q).toFixed(dp) + "%";
-  $("bNow").style.width = Math.max(1.4, Math.min(100, 100*q*10)) + "%";
-  $("o100Lab").textContent = "Chance in your next 100 " + c.noun + "s";
-  $("o100").textContent = pct(next100);
-  $("b100").style.width = (100*next100) + "%";
   $("oEnd").textContent = pct(end);
   $("bEnd").style.width = (100*end) + "%";
   $("bEnd").className = end < 0.25 ? "redb" : "greenb";
@@ -1349,19 +1326,6 @@ function paintOdds(){
       ". The only thing a dry spell changes is how much you have already put in."
     : "";
   $("oddsNote").hidden = !SHOW_NOTES;
-}
-function paintLog(){
-  var r = S.run, html = "";
-  for (var i=0;i<r.log.length;i++){
-    var L = r.log[i];
-    var row = L.kind === "HIT" || L.kind === "CASH" ? " good"
-            : (L.kind === "BUST" || L.kind === "BROKE" ? " bad" : "");
-    html += '<div class="logline' + row + '"><span class="ts">#' + L.n + '</span>' +
-            '<span class="tag tag-' + L.kind + '">' + L.kind + '</span>' +
-            '<span class="msg">' + L.msg + '</span></div>';
-  }
-  $("log").innerHTML = html;
-  $("logCount").textContent = r.log.length + (r.log.length === 1 ? " event" : " events");
 }
 
 function paintResult(){
@@ -1565,7 +1529,7 @@ function paintPlay(){
     pop.hidden = true;
   }
 
-  paintLevels(); paintOdds(); paintLog(); paintResult(); paintHistory();
+  paintLevels(); paintOdds(); paintResult(); paintHistory();
 
   /* the paytable is a 6-pick paytable, so 6 is not a preference */
   var short = c.game === "keno" && S.picks.length < 6;
@@ -1764,6 +1728,7 @@ $("startBtn").addEventListener("click", function(){
 });
 $("btnSpin").addEventListener("click", function(){
   if (S.animating) return;
+  $("pop").hidden = true;        /* clears on the press, not at the end of the reveal */
   step();
   if (S.cfg.game === "keno" && !REDUCED && S.speed !== "instant" && S.run.last && S.run.last.drawn) revealDraw(paintPlay);
   else paintPlay();
@@ -1782,6 +1747,7 @@ $("batch").addEventListener("input", function(){
                             " &times;" + num(batchSize());
 });
 $("btnSpinN").addEventListener("click", function(){
+  $("pop").hidden = true;
   var k = batchSize();
   for (var i=0;i<k && S.run && !S.run.over;i++) step();
   paintPlay();
