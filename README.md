@@ -128,6 +128,33 @@ opening ladder fixed, so it does not model changing the bet mid-run or the
 ladder shrinking as the balance does. It answers "was I lucky", not "what
 exactly were my odds".
 
+### Limbo, checked against the real thing
+
+Stake publishes its limbo algorithm, and it is:
+
+```js
+const floatPoint = 1e8 / (float * 1e8) * houseEdge;   // houseEdge = 0.99
+const crashPoint = Math.floor(floatPoint * 100) / 100;
+const result     = Math.max(crashPoint, 1);
+```
+
+`1e8 / (float * 1e8)` is `1 / float`, so that is `max(1, floor(0.99 / u * 100) / 100)`
+— which is what this page rolls, character for character. It gives
+`P(result >= M) = 0.99 / M` exactly, and an RTP of `M x 0.99/M = 99%` at every
+target.
+
+Measured on the shipped code, 200,000 rounds at 350x:
+
+| hit within | measured | theory |
+|---|---|---|
+| 50 rolls | 13.20% | 13.21% |
+| 175 rolls | 39.12% | 39.09% |
+| **350 rolls** | **62.89%** | **62.89%** |
+| 700 rolls | 86.24% | 86.23% |
+
+Median roll 245, mean 354. **About 37% of rounds do not hit inside the first
+350**, which is the whole reason the ladder has a second level.
+
 ### The seed
 
 Every draw comes from a seeded **sfc32** stream. The seed is on screen and
@@ -192,6 +219,7 @@ Exact where the maths is exact, measured where it is not.
 | keno outcome probabilities | `C(10,k)·C(30,6−k) / C(40,6)` — 40 tiles, 10 drawn, 6 picked, computed in the page |
 | keno stop rate | `P(5) + P(6)` = 0.2024% per spin, **1 in 494** |
 | limbo hit rate | `0.99 / M` — at 350x that is **1 in 353.5** |
+| limbo roll | `max(1, floor((0.99 / u) * 100) / 100)` — Stake's published formula |
 | how long you wait | geometric, computed live from whichever game is selected |
 | ladder cost, break-even spin | algebra, computed live from your settings |
 | win rates, typical wins, lifetime figures | Monte Carlo over the same ladder — see the ladder study |
