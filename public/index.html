@@ -85,6 +85,49 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
   letter-spacing:-.03em;line-height:1.05;color:var(--cream)}
 .balsub{font-size:11.5px;color:var(--faint);margin-top:4px}
 .balsub b{font-family:var(--mono);font-weight:600}
+
+.runover{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:20px}
+.roscrim{position:absolute;inset:0;background:rgba(10,10,12,.66)}
+.runover .pop{position:relative;z-index:2;background:var(--card);border:1px solid var(--border);
+  box-shadow:0 18px 50px rgba(0,0,0,.6);width:100%;max-width:400px;
+  animation:winin .18s ease-out}
+.runover .pop.win{border-color:#2f6b46}
+.runover .pop.bad{border-color:#5a2b25}
+.runover .head{padding:9px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:10px}
+.runover .head .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;font-weight:700}
+.runover .pop.win .head{background:#12241a;border-bottom-color:#2f6b46}
+.runover .pop.bad .head{background:#241412;border-bottom-color:#5a2b25}
+.runover .pop.win .head .k{color:var(--green)}
+.runover .pop.bad .head .k{color:var(--danger)}
+.runover .head .spin{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.runover .hero{padding:22px 16px 18px;text-align:center}
+.runover .mult{font-family:var(--mono);font-size:40px;font-weight:700;letter-spacing:-.03em;
+  line-height:1;font-variant-numeric:tabular-nums;text-wrap:balance}
+.runover .pop.win .mult{color:var(--green)}
+.runover .pop.bad .mult{color:var(--danger)}
+.runover .mult.gold{color:var(--gold)}
+.runover .delta{font-family:var(--mono);font-size:15px;font-weight:600;margin-top:7px;
+  font-variant-numeric:tabular-nums}
+.runover .pop.win .delta{color:var(--green)}
+.runover .pop.bad .delta{color:var(--danger)}
+.runover .bal{padding:11px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;background:#17171b}
+.runover .bal .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.runover .bal .v{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums;color:var(--cream)}
+.runover .bal .v i{color:var(--faint);font-style:normal;margin:0 5px}
+.runover .stat{padding:12px 16px}
+.runover .stat .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.runover .stat .row span{font-size:12.5px;color:var(--fg-2)}
+.runover .stat .row b{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums}
+.runover .meter{margin-top:6px}
+.runover .acts{padding:11px 16px;border-top:1px solid var(--border);display:flex;gap:5px;align-items:center}
+.runover .btn{font:inherit;cursor:pointer;border-radius:0;padding:6px 14px;
+  border:1px solid var(--border);background:var(--button);color:var(--muted)}
+.runover .btn:hover{background:var(--button-hover);color:var(--fg)}
+.runover .btn.primary{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+.runover .btn.primary.green{background:var(--green);border-color:var(--green);color:#0b2015}
 .playpad{display:flex;flex-direction:column;gap:5px}
 .playpad > button.primary{width:100%;padding:9px;font-size:14px}
 .playgrid{display:grid;grid-template-columns:82px minmax(0,1fr);gap:5px}
@@ -376,8 +419,16 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <label class="f"><span>Every level after</span>
                 <input type="number" id="lenN" value="175" min="1" max="20000" step="25"></label>
             </div>
-            <label class="f"><span>Give up after level <b id="levelsV">3</b></span>
-              <input type="range" id="levels" min="1" max="8" step="1" value="3"></label>
+            <div style="margin-bottom:9px">
+              <span style="display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+                           color:var(--faint);font-weight:700;margin-bottom:4px">Ride it until</span>
+              <div class="seg" id="bailSeg">
+                <button data-b="broke" class="on">The balance is gone</button>
+                <button data-b="fixed">A level I pick</button>
+              </div>
+            </div>
+            <label class="f" id="levelsWrap" hidden><span>Give up after level <b id="levelsV">3</b></span>
+              <input type="range" id="levels" min="1" max="12" step="1" value="3"></label>
           </div>
         </div>
 
@@ -411,8 +462,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="tiles two">
           <div class="tile"><div class="k">Runs that get the hit</div>
             <div class="v green" id="tWin">75.8%</div><div class="d" id="tWinD">about 3 in 4</div></div>
-          <div class="tile"><div class="k">Break even on spin</div>
-            <div class="v amber" id="tBreak">350</div><div class="d">of the first level</div></div>
+          <div class="tile"><div class="k">Levels you'd climb</div>
+            <div class="v amber" id="tLevels">7</div><div class="d">before the money runs out</div></div>
         </div>
 
         <div class="card" id="setupWarnCard">
@@ -446,7 +497,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="d">right now</div></div>
     </div>
 
-    <div id="resultSlot"></div>
 
     <div class="split">
       <div>
@@ -546,6 +596,29 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
       </div>
     </div>
 
+  </div>
+
+  <div class="runover" id="runover" hidden>
+    <div class="roscrim"></div>
+    <div class="pop win" id="roPop">
+      <div class="head"><span class="k" id="roHead">The run is over</span>
+        <span class="spin" id="roSpin">spin 273</span></div>
+      <div class="hero">
+        <div class="mult" id="roMult">350x hit</div>
+        <div class="delta" id="roDelta">+$165</div>
+      </div>
+      <div class="bal"><span class="k">Balance</span>
+        <span class="v"><span id="roFrom">$2,000</span> <i>&rarr;</i> <span id="roTo">$2,165</span></span></div>
+      <div class="stat">
+        <div class="row"><span id="roStatLab">Runs that get this far</span>
+          <b id="roStatVal">57.5%</b></div>
+        <div class="meter"><i id="roStatBar" style="width:57.5%"></i></div>
+      </div>
+      <div class="acts">
+        <button class="btn primary green" id="roNext">Next run</button>
+        <button class="btn" id="roEnd">End run</button>
+      </div>
+    </div>
   </div>
 
   <div id="view-stats" hidden>
@@ -947,6 +1020,7 @@ function loadState(){
 function readForm(){
   return {
     game:  $("gameSeg").querySelector("button.on").getAttribute("data-g"),
+    mode:  $("bailSeg").querySelector("button.on").getAttribute("data-b"),
     lmult: +$("lmult").value || 350,
     base:  +$("base").value  || 1,
     stepx: +$("stepx").value || 2,
@@ -959,6 +1033,7 @@ function readForm(){
 }
 function writeForm(f){
   setGame(f.game === "limbo" ? "limbo" : "keno");
+  setBail(f.mode === "fixed" ? "fixed" : "broke");
   $("lmult").value = f.lmult; $("base").value = f.base; $("stepx").value = f.stepx;
   $("len1").value  = f.len1;  $("lenN").value = f.lenN; $("levels").value = f.count;
   $("bank").value  = f.bank;  $("walk").value = f.walk;
@@ -974,21 +1049,35 @@ function derive(f){
     stepx: clamp(f.stepx, 1, 10),
     len1: clamp(f.len1, 1, 20000),
     lenN: clamp(f.lenN, 1, 20000),
-    count: clamp(f.count, 1, 8),
+    count: clamp(f.count, 1, 12),
+    mode: f.mode,
     bank: clamp(f.bank, 1, 1e9),
     walk: Math.max(0, f.walk),
     /* the payout that ends a run, and how often it comes */
     stop: f.game === "limbo" ? 0.99/lmult : KENO_STOP,
     pay:  f.game === "limbo" ? lmult : 350
   };
+  /* In "broke" mode the ladder has no level cap - it runs until the balance
+     cannot cover the next bet. The last level is truncated to the spins the
+     money actually buys, so ends/total/reach stay honest rather than describing
+     a ladder you could never finish. */
   c.levels = [];
-  var cum = 0;
-  for (var i=0; i<c.count; i++){
+  var cum = 0, left = c.bank, cap = c.mode === "broke" ? 40 : c.count;
+  for (var i=0; i<cap; i++){
     var bet = c.base * Math.pow(c.stepx, i);
     var len = i ? c.lenN : c.len1;
-    cum += bet * len;
+    if (c.mode === "broke"){
+      var can = Math.floor(left / bet + 1e-9);
+      if (can <= 0) break;
+      if (can < len) len = can;
+    }
+    cum += bet * len; left -= bet * len;
     c.levels.push({ bet: bet, len: len, cum: cum, payout: c.pay * bet });
   }
+  if (!c.levels.length){
+    c.levels.push({ bet: c.base, len: 1, cum: c.base, payout: c.pay * c.base });
+  }
+  c.count = c.levels.length;
   c.ends = []; var e = 0;
   for (var j=0; j<c.levels.length; j++){ e += c.levels[j].len; c.ends.push(e); }
   c.total = e;
@@ -1142,11 +1231,20 @@ function setGame(g){
   $("limboOpts").hidden = g !== "limbo";
 }
 
+function setBail(m){
+  $$("#bailSeg button").forEach(function(b){
+    b.classList.toggle("on", b.getAttribute("data-b") === m);
+  });
+  $("levelsWrap").hidden = m !== "fixed";
+}
 function paintSetup(){
   var c = derive(readForm());
   S.cfg = c;
 
-  $("levelsV").textContent = c.count;
+  $("levelsV").textContent = $("levels").value;
+  $("tLevels").textContent = c.count;
+  $("tLevels").nextElementSibling.textContent = c.mode === "broke"
+    ? "before the money runs out" : "you chose to ride";
   $("lchance").value = pct(0.99/c.lmult, 3);
 
   var html = "";
@@ -1167,11 +1265,6 @@ function paintSetup(){
   $("tSpins").nextElementSibling.textContent = c.noun + "s before you bail";
   $("tWin").textContent = pct(c.reach);
   $("tWinD").textContent = plainOdds(c.reach);
-  // Break-even is where staked equals the payout: n * bet = pay * bet, so n = pay.
-  // It does not depend on how long you made level 1 - only on whether level 1 reaches it.
-  $("tBreak").textContent = num(c.pay);
-  $("tBreak").nextElementSibling.textContent =
-    c.pay <= c.len1 ? "hit sooner than that and you profit" : "level 1 ends before that";
 
   var over = c.cost > c.bank;
   var warn = $("setupWarn");
@@ -1223,6 +1316,14 @@ function startRun(fresh){
     S.history = [];
     reseed();
   }
+  /* In "broke" mode the ladder is only as tall as the money, so it has to be
+     rebuilt from the CURRENT balance each run - otherwise a hunt that is nearly
+     out keeps describing the ladder it could afford on day one, and the odds
+     quote a bail-out point it can no longer reach. */
+  if (!fresh && S.cfg && S.cfg.mode === "broke"){
+    var f2 = readForm(); f2.bank = S.balance;
+    S.cfg = derive(f2);
+  }
   S.ended = null; S.pop = null; S.hideDraw = false;
   S.run = newRun();
   say("SYS", "New run " + DOT + " " + m2(S.cfg.levels[0].bet) + " a " + S.cfg.noun +
@@ -1241,6 +1342,7 @@ function showView(v){
    and the setup screen is not seen again until it is over. */
 function endHunt(){
   stopAuto();
+  $("runover").hidden = true;
   if (S.run && !S.run.over) finish("quit");
   showView("stats");
   paintHistory();
@@ -1329,122 +1431,48 @@ function paintOdds(){
 }
 
 function paintResult(){
-  var slot = $("resultSlot");
-  if (!S.run.over){ slot.innerHTML = ""; return; }
-  var c = S.cfg, r = S.run, ok = r.won;
-  var q = c.stop;
-  var faster = Math.pow(1-q, r.done);           /* share of runs still dry at this point */
-  var head, tone, right;
+  var box = $("runover");
+  if (!S.run.over || S.run.why === "quit"){ box.hidden = true; return; }
+  var c = S.cfg, r = S.run, q = c.stop, ok = r.won;
 
+  $("roPop").className = "pop " + (ok ? "win" : "bad");
+  $("roHead").textContent = "The run is over";
+  $("roSpin").textContent = c.noun + " " + num(r.done);
+
+  var mult = $("roMult");
+  mult.className = "mult" + (ok && r.last && r.last.pay === 710 ? " gold" : "");
+  mult.textContent = ok
+    ? (r.last && r.last.pay ? r.last.pay + "x hit" : "Hit")
+    : (r.why === "broke" ? "Out of money" : "No hit");
+  $("roDelta").textContent = signed(r.net);
+
+  $("roFrom").textContent = money(S.balance - r.net);
+  $("roTo").textContent   = money(S.balance);
+
+  /* Share of runs still going, without a hit, at the spin this one ended on -
+     so a late win reads as rarer than an early one, which is what it is. */
+  var share, lab, tone;
   if (ok){
-    head = (r.last.label || "The target") + " " + DOT + " the run is over";
-    tone = "var(--green)";
-    right =
-      '<div class="oddsrow"><span>You were faster than</span>' +
-        '<b style="color:var(--green)">' + pct(faster) + ' of runs</b></div>' +
-      '<div class="meter" style="margin-top:5px;height:9px"><i class="greenb" style="width:' +
-        (100*faster).toFixed(1) + '%"></i></div>' +
-      '<div class="meterrow"><span>' + c.noun + ' ' + num(r.done) + '</span>' +
-        '<span>typical is ' + c.noun + ' ' + num(Math.log(0.5)/Math.log(1-q)) + '</span></div>';
+    share = Math.pow(1-q, r.done);
+    lab = "Runs that get this far"; tone = "var(--green)";
   } else if (r.why === "broke"){
-    head = "Out of money on " + c.noun + " " + num(r.done);
+    share = Math.min(1, r.done / Math.max(1, c.total));
+    lab = "You reached level " + (levelAt(c, Math.max(0, r.done-1)) + 1) + " of " + c.count;
     tone = "var(--danger)";
-    right = '<div class="prose" style="font-size:12.5px;margin:0">Your balance could no longer cover the ' +
-      'next bet, so the ladder stopped partway up level ' + (levelAt(c, Math.max(0, r.done-1))+1) + '. This is the failure ' +
-      'the ladder is designed around and the one people plan for least: it is not that the hit never came, ' +
-      'it is that you could not afford to keep waiting for it.</div>';
   } else {
-    head = num(c.total) + " " + c.noun + "s, no hit " + DOT + " the run is over";
-    tone = "var(--danger)";
-    right =
-      '<div class="oddsrow"><span>Runs that end this way</span>' +
-        '<b style="color:var(--danger)">' + plainOdds(1-c.reach) + '</b></div>' +
-      '<div class="meter" style="margin-top:5px;height:9px"><i class="redb" style="width:' +
-        (100*(1-c.reach)).toFixed(1) + '%"></i></div>' +
-      '<div class="meterrow"><span>' + pct(1-c.reach) + ' never get the hit</span>' +
-        '<span>' + pct(c.reach) + ' do</span></div>';
+    share = 1 - c.reach;
+    lab = "Runs that end this way"; tone = "var(--danger)";
   }
+  $("roStatLab").textContent = lab;
+  $("roStatVal").textContent = pct(share);
+  $("roStatVal").style.color = tone;
+  $("roStatBar").style.width = (100*share) + "%";
+  $("roStatBar").style.background = tone;
 
-  var rows = "";
-  if (c.game === "keno"){
-    rows += row("You put in, at " + m2(c.levels[0].bet) + " a spin to start", num(r.done), MINUS + money(r.staked), "var(--danger)");
-    if (r.n4) rows += row("4 of 6 paid you 11x along the way", num(r.n4),
-                          "+" + money(r.recovered - r.payout), "var(--accent)");
-    if (ok) rows += row(r.last.label + " paid " + (r.last.pay) + "x and ended it", "1",
-                        "+" + money(r.payout), "var(--green)");
-  } else {
-    rows += row("You put in, at " + m2(c.levels[0].bet) + " a roll to start", num(r.done), MINUS + money(r.staked), "var(--danger)");
-    if (ok) rows += row(r.last.label + " cleared " + c.lmult + "x and ended it", "1",
-                        "+" + money(r.payout), "var(--green)");
-  }
-  rows += '<tr class="is-mine"><td><b>' + (r.net >= 0 ? "Kept" : "Lost") + '</b></td>' +
-          '<td class="n">' + num(r.done) + '</td>' +
-          '<td class="n" style="color:' + tone + '"><b>' + signed(r.net) + '</b></td></tr>';
-
-  var tail;
-  if (ok){
-    var take = 0.01 * r.staked;
-    tail = '<b>The house took about ' + m2(take) + ' of that.</b> It takes roughly a penny out of every ' +
-      'dollar you bet, win or lose, and you bet ' + money(r.staked) + '. That is the whole business ' +
-      '&mdash; it never needs you to lose a run, only to keep betting.';
-  } else {
-    var wins = S.history.filter(function(h){ return h.why === "hit"; })
-                        .map(function(h){ return h.net; }).sort(function(a,b){ return a-b; });
-    var typical = wins.length ? wins[Math.floor(wins.length/2)] : c.levels[0].payout * 0.67;
-    if (typical < 1) typical = 1;
-    tail = '<b>To get back to ' + money(S.startBank) + ' you need about ' +
-      (Math.abs(r.net)/typical).toFixed(1).replace(".0","") + ' more winning runs.</b> ' +
-      (wins.length
-        ? 'Your typical win so far is ' + money(typical)
-        : 'A typical win is worth around ' + money(typical)) +
-      ' and you have just lost ' + money(Math.abs(r.net)) +
-      '. Each of those wins carries its own ' + pct(1-c.reach) + ' chance of landing you back here.';
-  }
-
-  var cashed = c.walk > 0 && S.balance >= c.walk;
-  slot.innerHTML =
-    '<div class="card" style="border-color:' + (ok ? "#234a30" : "#3d211c") + '">' +
-      '<div class="cardhead" style="border-bottom-color:' + (ok ? "#234a30" : "#3d211c") + '">' +
-        '<h2 style="color:' + tone + '">' + head + '</h2><span class="grow"></span>' +
-        '<span class="pill ' + (ok ? "hit" : "bust") + '">Run over ' + DOT + ' ' +
-          (ok ? "won" : (r.why === "broke" ? "out of money" : "gave up")) + '</span></div>' +
-      '<div class="cardbody">' +
-        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:18px;align-items:center">' +
-          '<div><div class="n" style="font-size:46px;font-weight:700;letter-spacing:-.035em;line-height:1;color:' +
-            tone + '">' + signed(r.net) + '</div>' +
-            '<div style="color:var(--muted);font-size:13px;margin-top:6px">Balance ' +
-              '<b class="n" style="color:var(--cream)">' + money(S.balance - r.net) + '</b> ' +
-              '&rarr; <b class="n" style="color:var(--cream)">' + money(S.balance) + '</b></div></div>' +
-          '<div>' + right + '</div>' +
-        '</div></div>' +
-      '<div class="tablewrap"><table><thead><tr><th>Where the money went</th>' +
-        '<th class="n">' + (c.noun.charAt(0).toUpperCase()+c.noun.slice(1)) + 's</th>' +
-        '<th class="n">Amount</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      '<p class="callout ' + (ok ? "" : "warn") + '" style="margin:0;border-top:1px solid var(--border)">' + tail + '</p>' +
-      (cashed ? '<p class="callout" style="margin:0;border-top:1px solid var(--border)"><b>You hit your ' +
-        'walk-away number.</b> ' + money(S.balance) + ' against the ' + money(c.walk) + ' you set. ' +
-        'Stopping here is the only decision on this site that improves your odds - the run-it-back button ' +
-        'gives it straight back.</p>' : "") +
-      '<div class="cardbody" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border)">' +
-        '<button class="primary' + (c.game === "limbo" ? " teal" : "") + '" id="btnAgain">Next run</button>' +
-        '<button class="ghost" id="btnStop">End run</button>' +
-        '<span style="flex:1"></span>' +
-        '<span style="font-size:11.5px;color:var(--faint)">Run ' + S.history.length + ' ' + DOT + ' ' +
-          S.history.filter(function(h){return h.why === "hit";}).length + ' won, ' +
-          S.history.filter(function(h){return h.why !== "hit";}).length + ' lost</span>' +
-      '</div>' +
-    '</div>';
-
-  $("btnAgain").addEventListener("click", function(){
-    if (S.balance < S.cfg.levels[0].bet){ endHunt(); return; }
-    startRun(false);
-  });
-  $("btnStop").addEventListener("click", endHunt);
-
-  function row(label, n, amt, colour){
-    return '<tr><td>' + label + '</td><td class="n">' + n + '</td>' +
-           '<td class="n" style="color:' + colour + '">' + amt + '</td></tr>';
-  }
+  var canGoOn = S.balance >= c.levels[0].bet;
+  $("roNext").hidden = !canGoOn;
+  $("roNext").className = "btn primary" + (ok ? " green" : "");
+  box.hidden = false;
 }
 
 function paintPlay(){
@@ -1765,6 +1793,11 @@ $("hdrSound").addEventListener("click", function(){
   saveState();
 });
 $("hdrEnd").addEventListener("click", endHunt);
+$("roNext").addEventListener("click", function(){ $("runover").hidden = true; startRun(false); });
+$("roEnd").addEventListener("click", function(){ $("runover").hidden = true; endHunt(); });
+$$("#bailSeg button").forEach(function(b){
+  b.addEventListener("click", function(){ setBail(b.getAttribute("data-b")); paintSetup(); });
+});
 $("btnNewHunt").addEventListener("click", function(){ showView("setup"); paintSetup(); });
 $("btnResume").addEventListener("click", function(){
   if (S.run && S.run.over) startRun(false); else showView("play");

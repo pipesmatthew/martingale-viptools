@@ -62,6 +62,45 @@ a hunt is however many runs you play off one balance.
 5. From there, **Keep going** re-opens the table with your balance intact, or
    **Start over** returns to setup for a fresh hunt.
 
+### How the ladder ends
+
+By default there is **no level cap**: the bet doubles every M/2 spins and you
+ride until the balance cannot cover the next one. The levels are therefore
+derived from the money rather than chosen — $2,000 at a $1 opening bet buys
+exactly four:
+
+| level | bet | spins | staked by the end |
+|---|---|---|---|
+| 1 | $1 | 350 | $350 |
+| 2 | $2 | 175 | $700 |
+| 3 | $4 | 175 | $1,400 |
+| 4 | $8 | **75** | $2,000 |
+
+Level 4 is truncated to the 75 spins $600 actually buys, so the totals describe
+a ladder you can finish rather than one you could not. 775 spins, costing the
+whole balance, hitting 79.2% of the time.
+
+**The ladder is rebuilt from the live balance before every run.** Win and it
+grows a little; lose and it shrinks. Deriving it once from the opening bankroll
+would leave a nearly-broke hunt quoting the ladder it could afford on day one,
+and the "chance before you'd give up" figure would name a bail-out point it can
+no longer reach.
+
+"A level I pick" restores the old fixed cap.
+
+### The run-over popup
+
+A run ends on a hit, on riding out the affordable ladder, or on running out of
+money mid-level. All three land on the same popup: what hit, what the balance
+did, how far you got, and whether you carry on. The losing endings use the same
+frame as the winning one on purpose — a bust screen with its own shape is one
+people learn to click past.
+
+The "how far you got" figure is the share of runs **still going, without a hit,
+at the spin this one ended on**. It has a property worth knowing: a late win
+reads as rarer than an early one, because fewer runs last that long. Correct in
+the arithmetic, backwards from how a late win feels.
+
 ### The seed
 
 Every draw comes from a seeded mulberry32 stream — the same generator the ladder
