@@ -1437,7 +1437,7 @@ function paintBoard(){
 
 function revealLimbo(done){
   var target = S.run.last.mult, steps = 14, i = 0;
-  var every = Math.max(12, Math.round((SPEEDS[S.speed] || 78) * 7 / steps));
+  var every = Math.max(12, Math.round((SPEEDS[speedNow()] || 78) * 7 / steps));
   S.animating = true;
   $("btnSpin").disabled = true; $("btnSpinN").disabled = true; $("btnAuto").disabled = true;
   (function tick(){
@@ -1468,7 +1468,7 @@ function revealDraw(done){
     S.revealUpto += 1;
     paintBoard();
     if (S.picks.indexOf(v) !== -1){ hits += 1; ping(hits); }
-    setTimeout(next, SPEEDS[S.speed] || 78);
+    setTimeout(next, SPEEDS[speedNow()] || 78);
   })();
 }
 function paintTape(){
@@ -1628,8 +1628,12 @@ function paintPlay(){
      sub-line is where you are inside THIS level, which is a different count.
      They were the same number on level 1 and nonsense after it ("400 of 175"). */
   var atLevel = ri < 0 ? 0 : r.done - (ri > 0 ? c.ends[ri-1] : 0);
-  $("p-spinD").textContent = ri < 0 ? "ladder finished"
-    : num(atLevel) + " of " + num(c.levels[ri].len) + " on this level";
+  $("p-spinD").textContent = ri >= 0
+    ? num(atLevel) + " of " + num(c.levels[ri].len) + " on this level"
+    : r.won            ? "the hit landed here"
+    : r.why === "broke" ? "out of money"
+    : r.why === "quit"  ? "stopped here"
+    : "ladder finished";
   $("p-level").textContent = ri < 0 ? "—" : (ri+1);
   $("p-level").className = "v amber";
   $("p-levelD").textContent = "of " + c.count + " before you bail";
@@ -1722,6 +1726,7 @@ function paintPlay(){
   if (!batchRowAuto && $("btnAuto").parentNode !== $("extraRow")) $("extraRow").insertBefore($("btnAuto"), $("btnRandom"));
   $("batchRow").style.gridTemplateColumns = batchRowAuto ? "82px minmax(0,1fr) minmax(0,1fr)" : "";
   $("extraRow").hidden = batchRowAuto;
+  $("speedSeg").hidden = c.game === "limbo";
 }
 
 /* ═══════════════════════════════ history ══════════════════════════════ */
@@ -1982,7 +1987,7 @@ $("btnSpin").addEventListener("click", function(){
   if (S.animating) return;
   $("pop").hidden = true;        /* clears on the press, not at the end of the reveal */
   step();
-  var animate = !REDUCED && S.speed !== "instant" && S.run.last;
+  var animate = !REDUCED && speedNow() !== "instant" && S.run.last;
   if (animate && S.cfg.game === "keno" && S.run.last.drawn) revealDraw(paintPlay);
   else if (animate && S.cfg.game === "limbo") revealLimbo(paintPlay);
   else {
@@ -1990,6 +1995,9 @@ $("btnSpin").addEventListener("click", function(){
     paintPlay();
   }
 });
+/* Limbo has one number to climb, and it looks wrong at any pace but one, so
+   it does not get the choice. Keno keeps whatever the player picked. */
+function speedNow(){ return (S.cfg && S.cfg.game === "limbo") ? "normal" : S.speed; }
 function batchSize(){
   var typed = clamp(Math.round(+$("batch").value || 1), 1, 100000);
   if (!S.cfg || !S.run || S.run.over) return typed;
