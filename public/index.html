@@ -692,10 +692,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="meter" style="margin-top:6px;height:9px"><i id="lastBar" style="width:0%"></i></div>
         <div class="meterrow" style="margin-bottom:12px"><span id="lastSub"></span></div>
 
-        <div class="oddsrow"><span id="fwdLab">Chance of ever getting back</span>
-          <b id="fwdVal" style="font-size:15px">&mdash;</b></div>
-        <div class="meter" style="margin-top:6px;height:9px"><i id="fwdBar" style="width:0%"></i></div>
-        <div class="meterrow"><span id="fwdSub"></span></div>
       </div>
     </div>
 
@@ -2114,35 +2110,6 @@ function paintHistory(){
       num(midSpins) + " " + base0.noun + "s";
 
     $("luckBlock").hidden = false;
-    /* The other two rows say how this run compared with others. This one looks
-       forward instead: from the balance in hand, the chance of ever touching a
-       number that matters - the walk-away if one was set, otherwise getting back
-       to where the run started, otherwise doubling. Same first-passage maths as
-       the play screen, which is where the sting is: getting back to even from a
-       long way down is not a coin flip, it is 1/T. */
-    /* Only worth asking when there is a number worth reaching. Ahead of where
-       you started with no walk-away set, the only target left is an arbitrary
-       multiple of what you hold, and the answer to that is a constant - 47% to
-       double, whatever the balance - which is a row that says nothing. */
-    var here = Math.max(0.01, S.balance);
-    var goal = null, why = "";
-    if (base0.walk > 0 && S.balance < base0.walk){ goal = base0.walk; why = "your walk-away"; }
-    else if (S.balance < S.startBank){ goal = S.startBank; why = "where you started"; }
-
-    var fwdRow = $("fwdLab").parentNode;
-    var fwdBarRow = fwdRow.nextElementSibling, fwdSubRow = fwdBarRow.nextElementSibling;
-    fwdRow.hidden = fwdBarRow.hidden = fwdSubRow.hidden = (goal === null);
-    if (goal === null) return;
-
-    var fwd = reachOdds(goal / here);
-    $("fwdLab").textContent = "Chance of ever reaching " + money(goal);
-    /* getting back from a long way down rounds to 0.0%, which reads as
-       impossible when it is merely very unlikely */
-    $("fwdVal").textContent = fwd > 0 && fwd < 0.001 ? "under 0.1%" : pct(fwd);
-    $("fwdVal").style.color = fwd < 0.25 ? "var(--danger)" : fwd < 0.6 ? "var(--accent)" : "var(--green)";
-    $("fwdBar").style.width = (100 * fwd) + "%";
-    $("fwdBar").className = fwd < 0.25 ? "redb" : fwd < 0.6 ? "" : "greenb";
-    $("fwdSub").textContent = "from the " + money(S.balance) + " you hold, back to " + why;
   } else {
     $("luckBlock").hidden = true;
   }
