@@ -281,7 +281,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .kt.just{animation:ktpop .2s ease-out}
 .kt.pick.just{animation:kthit .34s ease-out}
 .board.revealing .kt{cursor:default}
-.boardwrap{position:relative}
+.gamewrap{position:relative}
 .pop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   padding:13px 26px;text-align:center;pointer-events:none;z-index:5;
   animation:winin .2s ease-out;box-shadow:0 12px 34px rgba(0,0,0,.55);min-width:190px}
@@ -309,8 +309,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   letter-spacing:-.03em;line-height:1;text-align:center;padding:16px 0 8px;
   font-size:clamp(38px,9vw,64px);color:var(--danger)}
 .limbonum.win{color:var(--green)}
-.limbometa{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;font-family:var(--mono);
-  font-size:11px;color:var(--faint);letter-spacing:.06em;margin-bottom:12px}
 .limbotape{display:flex;gap:2px;align-items:flex-end;height:44px;overflow:hidden}
 .limbotape i{flex:1 1 0;min-width:2px;background:var(--track);display:block}
 .limbotape i.big{background:var(--teal)}
@@ -524,16 +522,11 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
     <div class="split">
       <div>
+        <div class="gamewrap">
         <!-- keno -->
         <div class="card" id="boardCard">
           <div class="cardbody">
-            <div class="boardwrap">
-              <div class="board" id="board"></div>
-              <div class="pop win" id="pop" hidden aria-live="polite">
-                <div class="pmain" id="popMain">11x</div>
-                <div class="psub" id="popSub">+$11.00</div>
-              </div>
-            </div>
+            <div class="board" id="board"></div>
           </div>
         </div>
 
@@ -543,12 +536,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             <span class="note" id="limboTargetNote">target 350.00x</span></div>
           <div class="cardbody">
             <div class="limbonum" id="l-num">1.00<span style="font-size:.5em">x</span></div>
-            <div class="limbometa">
-              <span id="l-target">TARGET 350.00x</span>
-              <span id="l-chance">WIN CHANCE 0.283%</span>
-              <span id="l-verdict" style="color:var(--faint)">READY</span>
-            </div>
             <div class="limbotape" id="l-tape"></div>
+          </div>
+        </div>
+
+          <div class="pop win" id="pop" hidden aria-live="polite">
+            <div class="pmain" id="popMain">11x</div>
+            <div class="psub" id="popSub">+$11.00</div>
           </div>
         </div>
 
@@ -668,6 +662,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <th class="n">Put in</th><th class="n">Back</th><th class="n">Result</th><th class="n">Balance</th></tr></thead>
         <tbody id="histBody"></tbody>
       </table></div>
+      <div class="cardbody" id="luckBlock" style="border-top:1px solid var(--border)" hidden>
+        <div class="oddsrow"><span id="luckLab">Luckier than</span>
+          <b id="luckVal" style="font-size:15px">&mdash;</b></div>
+        <div class="meter" style="margin-top:6px;height:9px"><i id="luckBar" style="width:0%"></i></div>
+        <div class="meterrow"><span id="luckLo"></span><span id="luckMid"></span><span id="luckHi"></span></div>
+        <p class="hint" id="luckNote"></p>
+      </div>
       <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="histSummary"></p>
     </div>
 
@@ -999,6 +1000,16 @@ function ping(step){
   if (ac.state === "suspended") ac.resume();
   tone(523.25 * Math.pow(2, Math.min(step, 10) * 2 / 12), 0, 0.26, 0.16);
 }
+/* Limbo has one number and no board, so pitch is the only thing that can say
+   how close it came. Rises on a log scale with the roll, so a 200x that misses
+   still sounds like something happened. */
+function limboTick(mult, target){
+  if (S.muted) return;
+  var ac = audio(); if (!ac) return;
+  if (ac.state === "suspended") ac.resume();
+  var frac = Math.min(1, Math.log(Math.max(1, mult)) / Math.log(Math.max(2, target)));
+  tone(300 * Math.pow(2, frac * 2.1), 0, 0.09 + frac * 0.20, 0.05 + frac * 0.11, "triangle");
+}
 function chime(){
   if (S.muted) return;
   var ac = audio(); if (!ac) return;
@@ -1191,7 +1202,7 @@ function step(){
      next one in a single press */
   S.pop = null;
   if (out.tape !== undefined){ r.tape.push(out.tape); if (r.tape.length > 40) r.tape.shift(); }
-  if (out.mult > r.best) r.best = out.mult;
+  if (!out.stop && out.mult > r.best) r.best = out.mult;   /* the best MISS */
 
   if (c.game === "limbo" && out.mult >= c.lmult*0.07 && !out.stop){
     say("NEAR", "Rolled " + out.label + " " + DOT + " still " +
@@ -1346,6 +1357,7 @@ function startRun(fresh){
     var c = derive(readForm());
     S.cfg = c; S.startBank = c.bank; S.balance = c.bank;
     S.history = [];
+    S.cfg0 = c;                 /* the ladder this run opened on, for comparison */
     reseed();
   }
   /* In "broke" mode the ladder is only as tall as the money, so it has to be
@@ -1395,6 +1407,21 @@ function paintBoard(){
   }
   $("board").innerHTML = html;
   $("board").classList.toggle("revealing", S.animating);
+}
+
+function revealLimbo(done){
+  var target = S.run.last.mult, steps = 14, i = 0;
+  var every = Math.max(12, Math.round((SPEEDS[S.speed] || 78) * 7 / steps));
+  S.animating = true;
+  $("btnSpin").disabled = true; $("btnSpinN").disabled = true; $("btnAuto").disabled = true;
+  (function tick(){
+    i += 1;
+    var p = i / steps, eased = 1 - Math.pow(1 - p, 3);
+    var v = 1 + (target - 1) * eased;
+    $("l-num").innerHTML = v.toFixed(2) + '<span style="font-size:.5em">x</span>';
+    if (i < steps) setTimeout(tick, every);
+    else { S.animating = false; limboTick(target, S.cfg.lmult); done(); }
+  })();
 }
 
 /* Turns one draw over a tile at a time instead of all at once. Only on a
@@ -1519,12 +1546,17 @@ function paintResult(){
   $("roFrom").textContent = money(S.balance - r.net);
   $("roTo").textContent   = money(S.balance);
 
-  /* Share of runs still going, without a hit, at the spin this one ended on -
-     so a late win reads as rarer than an early one, which is what it is. */
   var share, lab, tone;
   if (ok){
-    share = Math.pow(1-q, r.done);
-    lab = "Rounds that get this far"; tone = "var(--green)";
+    /* A balance question, matching the line directly above it. Counting how
+       many rounds last as long as this one did read backwards on the screen
+       that matters most: hitting on spin 14 is lucky, but "97.2% of rounds get
+       this far" makes it look ordinary, because a short round is a common
+       round. How high the balance has climbed only goes one way. */
+    var T = S.startBank > 0 ? S.balance / S.startBank : 1;
+    share = T <= 1 ? 1 : Math.min(1, 0.93 / T);
+    lab = T <= 1 ? "Runs that ever get this high" : "Runs that ever reach " + money(S.balance);
+    tone = "var(--green)";
   } else if (r.why === "broke"){
     share = Math.min(1, r.done / Math.max(1, c.total));
     lab = "You reached level " + (levelAt(c, Math.max(0, r.done-1)) + 1) + " of " + c.count;
@@ -1573,7 +1605,7 @@ function paintPlay(){
   $("p-spinD").textContent = ri < 0 ? "ladder finished"
     : num(atLevel) + " of " + num(c.levels[ri].len) + " on this level";
   $("p-level").textContent = ri < 0 ? "—" : (ri+1);
-  $("p-level").className = "v " + (c.game === "limbo" ? "tealc" : "amber");
+  $("p-level").className = "v amber";
   $("p-levelD").textContent = "of " + c.count + " before you bail";
   $("p-bet").textContent = ri < 0 ? "—" : m2(bet);
   $("p-betD").textContent = "per " + c.noun;
@@ -1584,11 +1616,17 @@ function paintPlay(){
     $("p-side").textContent = money(r.recovered - (r.won ? r.payout : 0));
     $("p-side").className = "v amber";
     $("p-sideD").textContent = r.n4 + (r.n4 === 1 ? " four-hit" : " four-hits");
+  } else if (r.over && r.won && r.last){
+    /* Once it has landed, how close the misses got is no longer the question. */
+    $("p-sideK").textContent = "Landed on";
+    $("p-side").textContent = r.last.mult.toFixed(2) + "x";
+    $("p-side").className = "v green";
+    $("p-sideD").textContent = "target " + c.lmult.toFixed(2) + "x";
   } else {
-    $("p-sideK").textContent = "Best so far";
+    $("p-sideK").textContent = "Closest yet";
     $("p-side").textContent = r.best ? r.best.toFixed(2) + "x" : "—";
     $("p-side").className = "v tealc";
-    $("p-sideD").textContent = "needed " + c.lmult.toFixed(2) + "x";
+    $("p-sideD").textContent = "target " + c.lmult.toFixed(2) + "x";
   }
 
   $("p-netK").textContent = r.net >= 0 ? "Up" : "Down";
@@ -1613,10 +1651,6 @@ function paintPlay(){
     var win = last >= c.lmult;
     $("l-num").innerHTML = last.toFixed(2) + '<span style="font-size:.5em">x</span>';
     $("l-num").className = "limbonum" + (win ? " win" : "");
-    $("l-target").textContent = "TARGET " + c.lmult.toFixed(2) + "x";
-    $("l-chance").textContent = "WIN CHANCE " + pct(c.stop, 3);
-    $("l-verdict").textContent = r.last ? (win ? "CLEARED" : "UNDER") : "READY";
-    $("l-verdict").style.color = r.last ? (win ? "var(--green)" : "var(--danger)") : "var(--faint)";
     $("limboTargetNote").textContent = "target " + c.lmult.toFixed(2) + "x";
   }
 
@@ -1627,14 +1661,10 @@ function paintPlay(){
 
   var pop = $("pop");
   if (S.pop && !S.animating){
-    if (c.game === "keno"){
-      $("popMain").textContent = S.pop.main;
-      $("popSub").innerHTML = S.pop.sub;
-      pop.className = "pop " + S.pop.kind;
-      pop.hidden = false;
-    } else {
-      pop.hidden = true;
-    }
+    $("popMain").textContent = S.pop.main;
+    $("popSub").innerHTML = S.pop.sub;
+    pop.className = "pop " + S.pop.kind;
+    pop.hidden = false;
     if (!S.popSounded){
       S.popSounded = true;
       if (S.pop.levelUp) thud(S.pop.kind);
@@ -1661,6 +1691,61 @@ function paintPlay(){
 }
 
 /* ═══════════════════════════════ history ══════════════════════════════ */
+/* Sampling one round: the wait for a hit is geometric, so the spin it lands on
+   can be drawn directly instead of stepping through every spin. Keno's 11x drip
+   is added per level as a normal approximation to its binomial count - close
+   enough for a percentile, and thousands of times faster than replaying spins. */
+function sampleRound(c, rnd){
+  var q = c.stop;
+  var u = rnd(); if (u <= 0) u = 1e-12;
+  var g = 1 + Math.floor(Math.log(1 - u) / Math.log(1 - q));
+  var hit = g <= c.total, staked, net;
+  var last = hit ? (function(){ for (var i=0;i<c.ends.length;i++) if (g <= c.ends[i]) return i; return 0; })() : -1;
+  if (hit){
+    var prevEnd = last > 0 ? c.ends[last-1] : 0;
+    var prevCum = last > 0 ? c.levels[last-1].cum : 0;
+    staked = prevCum + (g - prevEnd) * c.levels[last].bet;
+    /* Not every stop pays 350x: about one in 37 is the 710x, and leaving it out
+       cost roughly ten bets a round - enough to fail the Wald check. */
+    var mult = (c.game === "keno" && rnd() < KENO_SIX_GIVEN_STOP) ? 710 : c.pay;
+    net = mult * c.levels[last].bet - staked;
+  } else {
+    g = c.total; staked = c.cost; net = -staked;
+  }
+  if (c.game === "keno"){
+    /* The spin that stopped the round cannot also have been a 4-hit. */
+    var dripSpins = hit ? g - 1 : c.total;
+    var p4 = KENO_FOUR / (1 - q), drip = 0, seen = 0;
+    for (var j=0; j<c.levels.length && seen < dripSpins; j++){
+      var played = Math.min(c.levels[j].len, dripSpins - seen); seen += played;
+      drip += poisson(played * p4, rnd) * 11 * c.levels[j].bet;
+    }
+    net += drip;
+  }
+  return net;
+}
+/* Knuth. Binomial(n, 0.0238) is Poisson(np) to well inside the noise here, and
+   unlike rounding a normal it keeps the right mean when the count is small. */
+function poisson(lam, rnd){
+  if (lam > 30){
+    var u = Math.max(1e-12, rnd()), v = rnd();
+    var z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    return Math.max(0, Math.round(lam + Math.sqrt(lam) * z));
+  }
+  var L = Math.exp(-lam), k = 0, pr = 1;
+  do { k++; pr *= rnd(); } while (pr > L);
+  return k - 1;
+}
+function outcomeSpread(c, rounds, trials){
+  var rnd = mulberry32(0x9E3779B9 ^ rounds), out = new Float64Array(trials);
+  for (var t=0; t<trials; t++){
+    var sum = 0;
+    for (var i=0; i<rounds; i++) sum += sampleRound(c, rnd);
+    out[t] = sum;
+  }
+  Array.prototype.sort.call(out, function(a,b){ return a-b; });
+  return out;
+}
 function paintHistory(){
   var H = S.history;
   $("histCard").hidden = H.length === 0;
@@ -1716,6 +1801,36 @@ function paintHistory(){
       '" r="3" fill="#4ade80" vector-effect="non-scaling-stroke"></circle>' +
     '<circle cx="480" cy="' + Y(pts[pts.length-1]).toFixed(2) + '" r="3" fill="' +
       (netAll >= 0 ? "#4ade80" : "#e06c5a") + '" vector-effect="non-scaling-stroke"></circle>';
+
+  /* Where this run's finish sits among runs of the same length on the same
+     ladder. An approximation on purpose: it holds the opening ladder fixed, so
+     it does not model changing the bet mid-run or the ladder shrinking with the
+     balance. It answers "was I lucky", not "what exactly were my odds". */
+  var base0 = S.cfg0 || S.cfg;
+  if (base0 && H.length){
+    var trials = Math.max(3000, Math.min(20000, Math.round(160000 / H.length)));
+    var spread = outcomeSpread(base0, H.length, trials);
+    var lo = 0, hi = spread.length;
+    while (lo < hi){ var mid = (lo + hi) >> 1; if (spread[mid] < netAll) lo = mid + 1; else hi = mid; }
+    var pctl = lo / spread.length;
+    var median = spread[Math.floor(spread.length / 2)];
+
+    $("luckBlock").hidden = false;
+    var lucky = pctl >= 0.5;
+    $("luckLab").textContent = lucky ? "Luckier than" : "Unluckier than";
+    $("luckVal").textContent = pct(lucky ? pctl : 1 - pctl) + " of runs like this";
+    $("luckVal").style.color = pctl >= 0.5 ? "var(--green)" : "var(--danger)";
+    $("luckBar").style.width = (100 * pctl) + "%";
+    $("luckBar").className = pctl >= 0.5 ? "greenb" : "redb";
+    $("luckLo").textContent = "worst " + money(spread[0]);
+    $("luckMid").textContent = "middle " + money(median);
+    $("luckHi").textContent = "best " + money(spread[spread.length - 1]);
+    $("luckNote").textContent = "Out of " + num(trials) + " simulated runs of " + H.length +
+      (H.length === 1 ? " round" : " rounds") + " on the ladder you started with, " +
+      pct(pctl) + " finished below where you did. The middle one finished " + money(median) + ".";
+  } else {
+    $("luckBlock").hidden = true;
+  }
 
   var edge = 0.01 * staked;
   var luck = Math.abs(netAll) - edge;
@@ -1846,8 +1961,13 @@ $("btnSpin").addEventListener("click", function(){
   if (S.animating) return;
   $("pop").hidden = true;        /* clears on the press, not at the end of the reveal */
   step();
-  if (S.cfg.game === "keno" && !REDUCED && S.speed !== "instant" && S.run.last && S.run.last.drawn) revealDraw(paintPlay);
-  else paintPlay();
+  var animate = !REDUCED && S.speed !== "instant" && S.run.last;
+  if (animate && S.cfg.game === "keno" && S.run.last.drawn) revealDraw(paintPlay);
+  else if (animate && S.cfg.game === "limbo") revealLimbo(paintPlay);
+  else {
+    if (S.cfg.game === "limbo" && S.run.last) limboTick(S.run.last.mult, S.cfg.lmult);
+    paintPlay();
+  }
 });
 function batchSize(){
   var typed = clamp(Math.round(+$("batch").value || 1), 1, 100000);

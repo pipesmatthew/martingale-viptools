@@ -101,6 +101,33 @@ at the spin this one ended on**. It has a property worth knowing: a late win
 reads as rarer than an early one, because fewer runs last that long. Correct in
 the arithmetic, backwards from how a late win feels.
 
+### Was I lucky?
+
+The statistics screen puts the finish in the spread of runs like it: same
+ladder, same number of rounds, twenty thousand of them, and where yours landed
+among them. About 30ms.
+
+It samples rather than replays. The wait for a hit is geometric, so the spin it
+lands on is drawn directly instead of stepping through every spin, and keno's
+11x drip is a Poisson draw per level.
+
+**It is validated against Wald**, which is the identity the whole study leans on:
+`E[profit] = -edge x E[total staked]`. At four million rounds the sampler agrees
+to well within one standard error, and reproduces the study's own figures for
+the default ladder (E[staked] $598, median +$235, 75.8% of rounds winning).
+
+Two real bugs turned up in exactly that check, and neither was visible by eye:
+
+- every hit paid **350x**, ignoring that about one stop in 37 is the **710x** -
+  worth roughly ten bets a round
+- the **stopping spin was also counted as eligible for the 11x drip**, which it
+  cannot be
+
+It is an approximation in one respect and says so on screen: it holds the
+opening ladder fixed, so it does not model changing the bet mid-run or the
+ladder shrinking as the balance does. It answers "was I lucky", not "what
+exactly were my odds".
+
 ### The seed
 
 Every draw comes from a seeded mulberry32 stream — the same generator the ladder
