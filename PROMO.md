@@ -26,17 +26,18 @@ It's the real thing, not a mock-up:
 * **Real seeds.** Type an old one back in and the whole run replays, spin for spin.
 * No account, no money, nothing placed anywhere.
 
-Here's the part that'll get you: **four rounds in five end in profit.** You will
-feel unstoppable. You will start wondering why nobody told you about this sooner.
+Here's the part that'll get you: **more than three rounds in four end in
+profit.** You will feel unstoppable. You will start wondering why nobody told
+you about this sooner.
 
 Then you play forty rounds. Measured across 4,000 simulated runs:
 
 | | keno |
 |---|---|
-| rounds you win | **80.2%** |
-| runs that finish ahead | 4.2% |
-| runs that go broke | **95.5%** |
-| typical run | **loses the whole bankroll** |
+| rounds you win | **77.3%** |
+| runs that finish ahead | 2.9% |
+| runs that go broke | **96.8%** |
+| typical run | **loses the whole $1,400** |
 
 Both games hand the house about a penny per dollar, forever, and no bet size or
 seed rotation moves that number. The ladder doesn't beat the edge — it just
@@ -67,9 +68,9 @@ and keep climbing until the 350x lands or the balance doesn't.
 * **Seeded and replayable** — type a seed back in and the run repeats exactly
 * No account, no money, nothing placed anywhere
 
-Four rounds in five end in profit, which is exactly what makes the strategy so
-convincing. Over forty rounds, though, 95.5% of bankrolls go broke and 4.2%
-finish ahead. Both numbers are true at once, and that's the whole thing worth
+More than three rounds in four end in profit, which is exactly what makes the
+strategy so convincing. Over forty rounds, though, 96.8% of bankrolls go broke
+and 2.9% finish ahead. Both numbers are true at once, and that's the whole thing worth
 understanding before you try it for real.
 
 Every figure on the site is either exact combinatorics or a measured simulation.
@@ -83,9 +84,9 @@ Nothing is guessed.
 * Version A's joke lands at BILLSKIE's expense — it only works because the tool
   shows the strategy doesn't. Fine if that reads as banter in your community;
   Version B says the same thing without aiming at anyone.
-* Every number quoted is measured, not estimated. 80.2% / 4.2% / 95.5% come from
-  4,000 simulated runs of 40 rounds through the shipped engine at $2,000 and $1
-  a spin, on the default ladder.
-* Those numbers depend on the default settings. A fixed three-level ladder — the
-  configuration in the original study — busts 60.5% instead of 95.5%. If the
-  default changes, the ad is wrong.
+* Every number quoted is measured, not estimated. 77.3% / 2.9% / 96.8% come from
+  4,000 simulated runs of 40 rounds through the shipped engine at the site's
+  defaults: $1,400 at $1 a spin, riding until the balance is gone.
+* They depend on those defaults. Capping the ladder at three fixed levels — so a
+  losing round leaves money behind instead of taking everything — busts about
+  60% rather than 97%. If the default bail rule changes, the ad is wrong.
