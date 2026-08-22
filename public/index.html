@@ -88,30 +88,30 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 
 .runover{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:20px}
 .roscrim{position:absolute;inset:0;background:rgba(10,10,12,.66)}
-.runover .pop{position:relative;z-index:2;background:var(--card);border:1px solid var(--border);
+.ropop{position:relative;z-index:2;pointer-events:auto;background:var(--card);border:1px solid var(--border);
   box-shadow:0 18px 50px rgba(0,0,0,.6);width:100%;max-width:400px;
-  animation:winin .18s ease-out}
-.runover .pop.win{border-color:#2f6b46}
-.runover .pop.bad{border-color:#5a2b25}
+  animation:ropopin .18s ease-out}
+.ropop.win{border-color:#2f6b46}
+.ropop.bad{border-color:#5a2b25}
 .runover .head{padding:9px 16px;border-bottom:1px solid var(--border);
   display:flex;align-items:center;justify-content:space-between;gap:10px}
 .runover .head .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
   text-transform:uppercase;font-weight:700}
-.runover .pop.win .head{background:#12241a;border-bottom-color:#2f6b46}
-.runover .pop.bad .head{background:#241412;border-bottom-color:#5a2b25}
-.runover .pop.win .head .k{color:var(--green)}
-.runover .pop.bad .head .k{color:var(--danger)}
+.ropop.win .head{background:#12241a;border-bottom-color:#2f6b46}
+.ropop.bad .head{background:#241412;border-bottom-color:#5a2b25}
+.ropop.win .head .k{color:var(--green)}
+.ropop.bad .head .k{color:var(--danger)}
 .runover .head .spin{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
 .runover .hero{padding:22px 16px 18px;text-align:center}
 .runover .mult{font-family:var(--mono);font-size:40px;font-weight:700;letter-spacing:-.03em;
   line-height:1;font-variant-numeric:tabular-nums;text-wrap:balance}
-.runover .pop.win .mult{color:var(--green)}
-.runover .pop.bad .mult{color:var(--danger)}
+.ropop.win .mult{color:var(--green)}
+.ropop.bad .mult{color:var(--danger)}
 .runover .mult.gold{color:var(--gold)}
 .runover .delta{font-family:var(--mono);font-size:15px;font-weight:600;margin-top:7px;
   font-variant-numeric:tabular-nums}
-.runover .pop.win .delta{color:var(--green)}
-.runover .pop.bad .delta{color:var(--danger)}
+.ropop.win .delta{color:var(--green)}
+.ropop.bad .delta{color:var(--danger)}
 .runover .bal{padding:11px 16px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
   display:flex;align-items:baseline;justify-content:space-between;gap:12px;background:#17171b}
 .runover .bal .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700}
@@ -122,7 +122,12 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .runover .stat .row span{font-size:12.5px;color:var(--fg-2)}
 .runover .stat .row b{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums}
 .runover .meter{margin-top:6px}
-.runover .acts{padding:11px 16px;border-top:1px solid var(--border);display:flex;gap:5px;align-items:center}
+.runover .acts{padding:11px 16px;border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:5px}
+.runover .btn.wide{width:100%;display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;padding:8px 14px;text-align:left}
+.runover .btn.wide b{font-weight:700;font-size:13.5px}
+.runover .btn.wide span{font-family:var(--mono);font-size:11.5px;opacity:.75;font-weight:600}
 .runover .btn{font:inherit;cursor:pointer;border-radius:0;padding:6px 14px;
   border:1px solid var(--border);background:var(--button);color:var(--muted)}
 .runover .btn:hover{background:var(--button-hover);color:var(--fg)}
@@ -161,6 +166,9 @@ button.primary:disabled:hover{background:var(--accent)}
 .seg button.on.teal{background:var(--teal);border-color:var(--teal);color:#08191a}
 .seg.big{gap:5px}
 .seg.big button{flex:1 1 0;padding:9px 10px;font-size:13.5px;font-weight:600}
+/* every segmented group divides its row evenly - buttons sized by their own
+   labels leave a ragged edge wherever the two words differ in length */
+.seg > button{flex:1 1 0;text-align:center}
 
 /* ───────────────────────────────────────────────────── panels & cards ── */
 .panel{display:none;padding:10px 12px 40px}
@@ -236,6 +244,15 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
 .stack{display:flex;flex-direction:column;gap:10px}
 .hint{font-size:11.5px;color:var(--faint);margin:6px 0 0;line-height:1.45}
+/* A single integer does not need a box the width of the panel. Label on the
+   left, a field the size of its own contents on the right. */
+.field{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:7px 0;border-bottom:1px solid var(--border)}
+.field:last-child{border-bottom:0}
+.field > span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--faint);font-weight:700}
+.field input{width:104px;flex:none;text-align:right}
+.field input[readonly]{background:transparent;border-color:transparent;color:var(--muted)}
 .err{font-size:11.5px;color:var(--danger);margin:6px 0 0}
 
 /* ───────────────────────────────────────────────────────────── meter ── */
@@ -276,6 +293,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .pop.warn .pmain{color:var(--accent)}
 .pop.bad{background:#2a1412;border:1px solid var(--danger)}
 .pop.bad .pmain{color:var(--danger)}
+@keyframes ropopin{0%{opacity:0;transform:scale(.93)}100%{opacity:1;transform:none}}
 @keyframes winin{0%{opacity:0;transform:translate(-50%,-50%) scale(.85)}
                  100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 .kt.pick{border-color:var(--cream);color:var(--cream);background:#23211a}
@@ -295,8 +313,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .limbotape i.win{background:var(--green)}
 
 /* ───────────────────────────────────────────────────────────── levels ── */
-.levels{display:flex;gap:3px;align-items:stretch;flex-wrap:wrap}
-.level{flex:1 1 90px;border:1px solid var(--border);background:var(--bg-deep);padding:7px 9px;min-width:0}
+.levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));
+  gap:3px;align-items:stretch}
+.levels > .level:last-child.fill{grid-column:1/-1}
+.level{border:1px solid var(--border);background:var(--bg-deep);padding:7px 9px;min-width:0}
 .level.here{border-color:var(--accent);background:#221b0f}
 .level.here.teal{border-color:var(--teal);background:#12292a}
 .level.spent{opacity:.45}
@@ -393,12 +413,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             </div>
 
             <div id="limboOpts" hidden style="margin-top:11px">
-              <div class="grid2">
-                <label class="f"><span>Target multiplier</span>
-                  <input type="number" id="lmult" value="350" min="1.02" max="1000000" step="10"></label>
-                <label class="f"><span>Chance per roll</span>
-                  <input type="text" id="lchance" value="0.283%" readonly tabindex="-1"></label>
-              </div>
+              <label class="field"><span>Target multiplier</span>
+                <input type="number" id="lmult" value="350" min="1.02" max="1000000" step="10"></label>
+              <label class="field"><span>Chance per roll</span>
+                <input type="text" id="lchance" value="0.283%" readonly tabindex="-1"></label>
             </div>
           </div>
         </div>
@@ -407,18 +425,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardhead"><h2>The ladder</h2><span class="grow"></span>
             <button class="ghost" id="resetLadder" style="font-size:11.5px;padding:2px 9px">Reset to BILLSKIE's</button></div>
           <div class="cardbody">
-            <div class="grid2" style="margin-bottom:9px">
-              <label class="f"><span>Opening bet</span>
-                <input type="number" id="base" value="1" min="0.01" step="0.5"></label>
-              <label class="f"><span>Multiply by</span>
-                <input type="number" id="stepx" value="2" min="1" max="10" step="0.25"></label>
-            </div>
-            <div class="grid2" style="margin-bottom:11px">
-              <label class="f"><span>First level, spins</span>
-                <input type="number" id="len1" value="350" min="1" max="20000" step="25"></label>
-              <label class="f"><span>Every level after</span>
-                <input type="number" id="lenN" value="175" min="1" max="20000" step="25"></label>
-            </div>
+            <label class="field"><span>Initial bet</span>
+              <input type="number" id="base" value="1" min="0.01" step="0.5"></label>
+            <label class="field"><span>Multiply by</span>
+              <input type="number" id="stepx" value="2" min="1" max="10" step="0.25"></label>
+            <label class="field"><span>First level, spins</span>
+              <input type="number" id="len1" value="350" min="1" max="20000" step="25"></label>
+            <label class="field" style="margin-bottom:11px"><span>Every level after</span>
+              <input type="number" id="lenN" value="175" min="1" max="20000" step="25"></label>
             <div style="margin-bottom:9px">
               <span style="display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
                            color:var(--faint);font-weight:700;margin-bottom:4px">Ride it until</span>
@@ -435,12 +449,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="card">
           <div class="cardhead"><h2>Balance</h2></div>
           <div class="cardbody">
-            <div class="grid2">
-              <label class="f"><span>Start with</span>
-                <input type="number" id="bank" value="2000" min="1" step="100"></label>
-              <label class="f"><span>Walk away at</span>
-                <input type="number" id="walk" value="0" min="0" step="500"></label>
-            </div>
+            <label class="field"><span>Start with</span>
+              <input type="number" id="bank" value="2000" min="1" step="100"></label>
+            <label class="field"><span>Walk away at</span>
+              <input type="number" id="walk" value="0" min="0" step="500"></label>
           </div>
         </div>
       </div>
@@ -460,7 +472,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             <div class="v" id="tSpins">700</div><div class="d">spins before you bail</div></div>
         </div>
         <div class="tiles two">
-          <div class="tile"><div class="k">Runs that get the hit</div>
+          <div class="tile"><div class="k">Rounds that get the hit</div>
             <div class="v green" id="tWin">75.8%</div><div class="d" id="tWinD">about 3 in 4</div></div>
           <div class="tile"><div class="k">Levels you'd climb</div>
             <div class="v amber" id="tLevels">7</div><div class="d">before the money runs out</div></div>
@@ -580,12 +592,12 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <div class="meter" style="margin-top:5px"><i class="greenb" id="bAlready" style="width:0%"></i></div>
             </div>
             <div>
-              <div class="oddsrow"><span>Runs that have failed by now</span>
-                <b id="oFailed" style="color:var(--danger)">100.0%</b></div>
-              <div class="meter" style="margin-top:5px"><i class="redb" id="bFailed" style="width:100%"></i></div>
+              <div class="oddsrow"><span id="oUpLab">Hunts that ever run up this far</span>
+                <b id="oUp" style="color:var(--accent)">100.0%</b></div>
+              <div class="meter" style="margin-top:5px"><i id="bUp" style="width:100%"></i></div>
             </div>
             <div>
-              <div class="oddsrow"><span>Chance before you'd give up</span>
+              <div class="oddsrow"><span id="oEndLab">Chance before bankrupt</span>
                 <b id="oEnd" style="color:var(--green)">75.8%</b></div>
               <div class="meter" style="margin-top:5px"><i class="greenb" id="bEnd" style="width:75.8%"></i></div>
             </div>
@@ -600,7 +612,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
   <div class="runover" id="runover" hidden>
     <div class="roscrim"></div>
-    <div class="pop win" id="roPop">
+    <div class="ropop win" id="roPop">
       <div class="head"><span class="k" id="roHead">The run is over</span>
         <span class="spin" id="roSpin">spin 273</span></div>
       <div class="hero">
@@ -615,7 +627,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="meter"><i id="roStatBar" style="width:57.5%"></i></div>
       </div>
       <div class="acts">
-        <button class="btn primary green" id="roNext">Next run</button>
+        <button class="btn primary green wide" id="roNext">
+          <b>Next round</b><span id="roNextAmt">$1.00 a spin</span></button>
+        <button class="btn wide" id="roDouble">
+          <b>Up the bet</b><span id="roDoubleAmt">$2.00 a spin</span></button>
         <button class="btn" id="roEnd">End run</button>
       </div>
     </div>
@@ -623,14 +638,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
   <div id="view-stats" hidden>
     <div class="card" id="histCard">
-      <div class="cardhead"><h2>Your dry-run record</h2><span class="grow"></span>
+      <div class="cardhead"><h2>This run, round by round</h2><span class="grow"></span>
         <span class="note" id="histNote"></span>
         <button class="ghost" id="clearHist" style="font-size:11.5px;padding:2px 9px">Clear</button></div>
       <div class="cardbody" id="histSparkWrap">
         <svg id="histSpark" viewBox="0 0 480 95" preserveAspectRatio="none"
-             style="display:block;width:100%;height:112px" role="img" aria-label="Practice balance across your runs"></svg>
-        <div class="meterrow" style="margin-top:2px"><span id="histFirst">run 1</span>
-          <span style="color:var(--muted)">dashed line is where you started</span><span id="histLast">run 1</span></div>
+             style="display:block;width:100%;height:112px" role="img" aria-label="Balance across the rounds of this run"></svg>
+        <div class="meterrow" style="margin-top:2px"><span id="histFirst">round 1</span>
+          <span style="color:var(--muted)">dashed line is where you started</span><span id="histLast">round 1</span></div>
       </div>
       <div class="tablewrap"><table>
         <thead><tr><th class="n">#</th><th>Game</th><th>How it ended</th><th class="n">Spin</th>
@@ -1255,6 +1270,7 @@ function paintSetup(){
             '<div class="rd">' + num(R.len) + ' ' + c.noun + 's ' + DOT + ' ' + money(R.cum) + '</div></div>';
   }
   $("setupLevels").innerHTML = html;
+  layoutLevels($("setupLevels"), c.levels.length, 3);
 
   $("tMaxLoss").textContent = money(c.cost);
   var share = c.cost / c.bank;
@@ -1296,7 +1312,7 @@ function plainOdds(p){
   if (p >= 0.995) return "almost every run";
   if (p <= 0.005) return "almost no runs";
   var k = p >= 0.5 ? Math.round(1/(1-p)) : Math.round(1/p);
-  return p >= 0.5 ? "about " + (k-1) + " runs in " + k : "about 1 run in " + k;
+  return p >= 0.5 ? "about " + (k-1) + " rounds in " + k : "about 1 round in " + k;
 }
 function spinsAffordable(c){
   var bal = c.bank, n = 0;
@@ -1326,7 +1342,7 @@ function startRun(fresh){
   }
   S.ended = null; S.pop = null; S.hideDraw = false;
   S.run = newRun();
-  say("SYS", "New run " + DOT + " " + m2(S.cfg.levels[0].bet) + " a " + S.cfg.noun +
+  say("SYS", "New round " + DOT + " " + m2(S.cfg.levels[0].bet) + " a " + S.cfg.noun +
              ", giving up after " + num(S.cfg.total));
   showView("play");
   paintPlay();
@@ -1397,6 +1413,22 @@ function paintTape(){
   }
   $("l-tape").innerHTML = html;
 }
+/* auto-fit packs as many as will fit and orphans the remainder - four levels
+   come out 3 + 1. Pick the column count that divides the levels most evenly
+   instead, and let a lone trailing card span the row so the block stays
+   rectangular whatever the bankroll makes the ladder. */
+function layoutLevels(host, count, maxCols){
+  var best = Math.min(count, maxCols), bestOrphan = 99;
+  if (count > maxCols){
+    for (var c = 2; c <= maxCols; c++){
+      var orphan = (c - (count % c)) % c;
+      if (orphan < bestOrphan || (orphan === bestOrphan && c > best)){ bestOrphan = orphan; best = c; }
+    }
+  }
+  host.style.gridTemplateColumns = "repeat(" + best + ",minmax(0,1fr))";
+  var last = host.lastElementChild;
+  if (last) last.classList.toggle("fill", count % best === 1);
+}
 function paintLevels(){
   var c = S.cfg, here = S.run.over ? -1 : levelAt(c, S.run.done), html = "";
   for (var i=0;i<c.levels.length;i++){
@@ -1408,6 +1440,7 @@ function paintLevels(){
             '<div class="rd">' + num(R.len) + ' ' + c.noun + 's ' + DOT + ' ' + money(R.cum) + '</div></div>';
   }
   $("playLevels").innerHTML = html;
+  layoutLevels($("playLevels"), c.levels.length, 5);
 }
 function paintOdds(){
   var c = S.cfg, r = S.run, q = c.stop, done = r.done;
@@ -1417,8 +1450,22 @@ function paintOdds(){
 
   $("oAlready").textContent = pct(already);
   $("bAlready").style.width = (100*already) + "%";
-  $("oFailed").textContent = pct(1-already);
-  $("bFailed").style.width = (100*(1-already)) + "%";
+  /* A balance question rather than a spin question, so it is not row 1 wearing
+     a different hat. From a starting bankroll, the chance of EVER reaching a
+     given multiple of it before going broke is 1/T for a fair game; measured
+     across this ladder it lands near 0.93/T (47% at 2x, 31% at 3x, 19% at 5x,
+     9% at 10x), which is the constant used here. */
+  var T = S.startBank > 0 ? (S.balance + (r.over ? 0 : r.net)) / S.startBank : 1;
+  var everUp = T <= 1 ? 1 : Math.min(1, 0.93 / T);
+  $("oUpLab").textContent = T <= 1
+    ? "Runs that ever get this high"
+    : "Runs that ever reach " + money(S.startBank * T);
+  $("oUp").textContent = pct(everUp);
+  $("oUp").style.color = everUp < 0.5 ? "var(--accent)" : "var(--fg-2)";
+  $("bUp").style.width = (100*everUp) + "%";
+  $("bUp").className = everUp < 0.5 ? "" : "faintb";
+
+  $("oEndLab").textContent = c.mode === "broke" ? "Chance before bankrupt" : "Chance before bail";
   $("oEnd").textContent = pct(end);
   $("bEnd").style.width = (100*end) + "%";
   $("bEnd").className = end < 0.25 ? "redb" : "greenb";
@@ -1435,8 +1482,8 @@ function paintResult(){
   if (!S.run.over || S.run.why === "quit"){ box.hidden = true; return; }
   var c = S.cfg, r = S.run, q = c.stop, ok = r.won;
 
-  $("roPop").className = "pop " + (ok ? "win" : "bad");
-  $("roHead").textContent = "The run is over";
+  $("roPop").className = "ropop " + (ok ? "win" : "bad");
+  $("roHead").textContent = "The round is over";
   $("roSpin").textContent = c.noun + " " + num(r.done);
 
   var mult = $("roMult");
@@ -1454,14 +1501,14 @@ function paintResult(){
   var share, lab, tone;
   if (ok){
     share = Math.pow(1-q, r.done);
-    lab = "Runs that get this far"; tone = "var(--green)";
+    lab = "Rounds that get this far"; tone = "var(--green)";
   } else if (r.why === "broke"){
     share = Math.min(1, r.done / Math.max(1, c.total));
     lab = "You reached level " + (levelAt(c, Math.max(0, r.done-1)) + 1) + " of " + c.count;
     tone = "var(--danger)";
   } else {
     share = 1 - c.reach;
-    lab = "Runs that end this way"; tone = "var(--danger)";
+    lab = "Rounds that end this way"; tone = "var(--danger)";
   }
   $("roStatLab").textContent = lab;
   $("roStatVal").textContent = pct(share);
@@ -1469,9 +1516,14 @@ function paintResult(){
   $("roStatBar").style.width = (100*share) + "%";
   $("roStatBar").style.background = tone;
 
-  var canGoOn = S.balance >= c.levels[0].bet;
-  $("roNext").hidden = !canGoOn;
-  $("roNext").className = "btn primary" + (ok ? " green" : "");
+  var base = c.base, up = c.base * c.stepx;
+  $("roNext").hidden = S.balance < base;
+  $("roNext").className = "btn primary wide" + (ok ? " green" : "");
+  $("roNextAmt").textContent = m2(base) + " a " + c.noun;
+  /* Doubling the opening bet is the martingale applied across runs rather than
+     inside one. Only offered when the balance can actually place that bet. */
+  $("roDouble").hidden = S.balance < up;
+  $("roDoubleAmt").textContent = m2(up) + " a " + c.noun;
   box.hidden = false;
 }
 
@@ -1589,7 +1641,7 @@ function paintHistory(){
   var worst = H.reduce(function(a,h){ return Math.min(a, h.net); }, Infinity);
   var peak = H.reduce(function(a,h){ return Math.max(a, h.balance); }, S.startBank);
 
-  $("histNote").textContent = H.length + " runs " + DOT + " " + won + " won " + DOT +
+  $("histNote").textContent = H.length + " rounds " + DOT + " " + won + " won " + DOT +
     " peaked at " + money(peak);
 
   var rows = "";
@@ -1611,8 +1663,8 @@ function paintHistory(){
       '<td class="n">' + money(h.balance) + '</td></tr>';
   }
   $("histBody").innerHTML = rows;
-  $("histFirst").textContent = "run 1";
-  $("histLast").textContent = "run " + H.length;
+  $("histFirst").textContent = "round 1";
+  $("histLast").textContent = "round " + H.length;
 
   /* the balance line */
   var pts = [S.startBank].concat(H.map(function(h){ return h.balance; }));
@@ -1636,7 +1688,7 @@ function paintHistory(){
   var edge = 0.01 * staked;
   var luck = Math.abs(netAll) - edge;
   $("histSummary").innerHTML = "<b>You bet " + money(staked) + " across those " + H.length +
-    (H.length === 1 ? " run and finished " : " runs and finished ") +
+    (H.length === 1 ? " round and finished " : " rounds and finished ") +
     (netAll >= 0 ? money(netAll) + " up" : money(Math.abs(netAll)) + " down") + ".</b> About " +
     money(edge) + " of that was the house's cut &mdash; a penny on every dollar, exactly as advertised. " +
     (luck > 0
@@ -1794,6 +1846,11 @@ $("hdrSound").addEventListener("click", function(){
 });
 $("hdrEnd").addEventListener("click", endHunt);
 $("roNext").addEventListener("click", function(){ $("runover").hidden = true; startRun(false); });
+$("roDouble").addEventListener("click", function(){
+  $("base").value = +(S.cfg.base * S.cfg.stepx).toFixed(4);
+  $("runover").hidden = true;
+  startRun(false);
+});
 $("roEnd").addEventListener("click", function(){ $("runover").hidden = true; endHunt(); });
 $$("#bailSeg button").forEach(function(b){
   b.addEventListener("click", function(){ setBail(b.getAttribute("data-b")); paintSetup(); });
