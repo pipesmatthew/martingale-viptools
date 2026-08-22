@@ -445,7 +445,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardbody">
             <div class="grid2">
               <label class="f"><span>Start with</span>
-                <input type="number" id="bank" value="2000" min="1" step="100"></label>
+                <input type="number" id="bank" value="1400" min="1" step="100"></label>
               <label class="f"><span>Walk away at</span>
                 <input type="number" id="walk" value="0" min="0" step="500"></label>
             </div>
@@ -966,7 +966,7 @@ var KENO_SIX_GIVEN_STOP = KP[6]/KENO_STOP;
 /* ═══════════════════════════════ session ══════════════════════════════ */
 var S = {
   cfg: null, levels: [], ends: [], total: 0,
-  startBank: 2000, balance: 2000,
+  startBank: 1400, balance: 1400,
   history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null,
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
@@ -1110,7 +1110,7 @@ function readForm(){
     len1:  Math.round(+$("len1").value) || 350,
     lenN:  Math.round(+$("lenN").value) || 175,
     count: +$("levels").value || 3,
-    bank:  +$("bank").value  || 2000,
+    bank:  +$("bank").value  || 1400,
     walk:  +$("walk").value  || 0
   };
 }
