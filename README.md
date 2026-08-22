@@ -34,18 +34,54 @@ flipping it to `true` — nothing else to restore.
 | `SHOW_DISCLAIMER` | the footer — what the page is, where the odds come from, the helpline |
 | `SHOW_RISK_BANNER` | "You are risking $X for a win worth $Y at the very best" on the setup screen |
 | `SHOW_NOTES` | the prose under controls, and "It is never due" under the odds rail |
-| `SHOW_HISTORY` | the run record — the table, the balance line and the session summary |
 
 The nav hides itself when `SHOW_STATS_TAB` is off, because a tab bar with one
 tab in it is telling you nothing.
 
-`SHOW_HISTORY` only hides the card. Every run is still recorded to `S.history`
-and persisted, so wherever the record ends up living it will have the whole
-session waiting for it rather than starting from the moment it was switched on.
+The run record is no longer behind a switch — it is the statistics screen you
+land on when a hunt ends.
 
 **The disclaimer is the one to think hardest about turning back on.** Everything
 else here is chrome; that is the page saying out loud that it is a simulator,
 that both games return 99%, and where to get help. It costs a screenful.
+
+---
+
+## How a session goes
+
+A **hunt** has a beginning and an end. A **run** is one climb of the ladder, and
+a hunt is however many runs you play off one balance.
+
+1. **Setup** — game, ladder, opening bet, balance. Seen once, at the start.
+2. **Start run** — and from here the setup screen is gone.
+3. Play. A run ends on a hit, on riding the whole ladder without one, or on
+   running out of money. Then: **Next run**, or **End run**.
+4. **End run** — available at any moment, mid-run included — closes the hunt and
+   shows the statistics screen: every run, the balance line, and what the whole
+   thing cost.
+5. From there, **Keep going** re-opens the table with your balance intact, or
+   **Start over** returns to setup for a fresh hunt.
+
+### The seed
+
+Every draw comes from a seeded mulberry32 stream — the same generator the ladder
+study used. The seed is on screen and editable: type an old one back in and that
+hunt's draws replay exactly. **New seed** rolls a fresh one.
+
+This changes nothing statistically, and the page is not claiming it does. It
+exists so a surprising run can be looked at twice, which is the difference
+between a simulator you can check and one you have to trust.
+
+Picking your own six uses `Math.random`, deliberately — your choices are not
+part of the game's stream, so they do not consume it or shift the draws.
+
+### Reveal speed and sound
+
+Keno turns its draw over one tile at a time, at **Normal**, **Faster** or
+**Instant**. Only a single spin animates; a batch or an autoplay would be
+unwatchable at that pace, and slowing them to watch is what the single spin is
+for. Sound is synthesised with the Web Audio API — no files, no requests,
+nothing the CSP has to allow — and each hit in a draw rings a step higher.
 
 ---
 

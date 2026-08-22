@@ -91,6 +91,13 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .playgrid.two{grid-template-columns:1fr 1fr}
 .playgrid input{text-align:center}
 .playgrid button{width:100%;padding:6px 8px}
+.seg.speed{gap:3px}
+.seg.speed button{flex:1 1 0;padding:4px 6px;font-size:11.5px}
+.seedrow{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  border-top:1px solid var(--border);margin-top:2px;padding-top:7px;
+  font-size:11.5px;color:var(--faint)}
+.seedrow input{color:var(--fg-2);text-align:center}
+.seedrow button{padding:3px 9px;font-size:11.5px}
 
 /* ──────────────────────────────────────────────────────────── buttons ── */
 button.ghost,button.primary{
@@ -205,6 +212,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:600;
   color:var(--faint);cursor:pointer;user-select:none;min-height:28px}
 .kt:hover{background:var(--button-hover);color:var(--fg)}
+.kt{transition:background .13s ease,border-color .13s ease,color .13s ease}
+@keyframes ktpop{0%{transform:scale(.82)}55%{transform:scale(1.08)}100%{transform:scale(1)}}
+@keyframes kthit{0%{transform:scale(.82);box-shadow:0 0 0 0 rgba(255,180,84,.55)}
+                 55%{transform:scale(1.14);box-shadow:0 0 0 7px rgba(255,180,84,0)}
+                 100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,180,84,0)}}
+.kt.just{animation:ktpop .2s ease-out}
+.kt.pick.just{animation:kthit .34s ease-out}
+.board.revealing .kt{cursor:default}
 .kt.pick{border-color:var(--cream);color:var(--cream);background:#23211a}
 .kt.drawn{background:var(--track);color:var(--fg-2);border-color:var(--track)}
 .kt.pick.drawn{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
@@ -298,7 +313,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
     <button class="tab" role="tab" aria-selected="false" data-tab="stats">What usually happens</button>
   </nav>
   <div class="live">
-    <button class="ghost" id="hdrSettings" hidden>&#9881;&nbsp; Settings</button>
+    <button class="ghost" id="hdrSound" title="Sound">&#9835;&nbsp; Sound on</button>
+    <button class="ghost" id="hdrEnd" hidden>End run</button>
   </div>
 </header>
 
@@ -389,7 +405,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         </div>
 
         <div class="card"><div class="cardbody">
-          <button class="primary" id="startBtn" style="width:100%;padding:8px">Begin simulation</button>
+          <button class="primary" id="startBtn" style="width:100%;padding:8px">Start run</button>
           <p class="err" id="setupErr" hidden></p>
           <p class="hint" id="startHint" style="text-align:center"></p>
         </div></div>
@@ -470,6 +486,17 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <button class="ghost" id="btnAuto">Auto &#9654;</button>
               <button class="ghost" id="btnRandom">Random six</button>
             </div>
+            <div class="seg speed" id="speedSeg" role="group" aria-label="Reveal speed">
+              <button data-s="normal" class="on">Normal</button>
+              <button data-s="faster">Faster</button>
+              <button data-s="instant">Instant</button>
+            </div>
+            <div class="seedrow">
+              <label for="seedVal" style="flex:none">Seed</label>
+              <input type="number" id="seedVal" value="0" min="1" step="1"
+                     style="flex:1 1 auto;min-width:0;padding:2px 6px;font-size:11.5px">
+              <button class="ghost" id="btnSeed">New seed</button>
+            </div>
           </div>
         </div>
 
@@ -480,6 +507,11 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <div class="oddsrow"><span>Already got their hit by now</span>
                 <b id="oAlready" style="color:var(--green)">0.0%</b></div>
               <div class="meter" style="margin-top:5px"><i class="greenb" id="bAlready" style="width:0%"></i></div>
+            </div>
+            <div>
+              <div class="oddsrow"><span>Runs that have failed by now</span>
+                <b id="oFailed" style="color:var(--danger)">100.0%</b></div>
+              <div class="meter" style="margin-top:5px"><i class="redb" id="bFailed" style="width:100%"></i></div>
             </div>
             <div>
               <div class="oddsrow"><span id="oNowLab">Chance it lands on this spin</span>
@@ -508,7 +540,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
       </div>
     </div>
 
-    <div class="card" id="histCard" hidden>
+  </div>
+
+  <div id="view-stats" hidden>
+    <div class="card" id="histCard">
       <div class="cardhead"><h2>Your dry-run record</h2><span class="grow"></span>
         <span class="note" id="histNote"></span>
         <button class="ghost" id="clearHist" style="font-size:11.5px;padding:2px 9px">Clear</button></div>
@@ -526,6 +561,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
       <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="histSummary"></p>
     </div>
 
+    <div class="card"><div class="cardbody" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+      <button class="primary" id="btnNewHunt">Start over</button>
+      <button class="ghost" id="btnResume">Keep going</button>
+    </div></div>
   </div>
 </div>
 </main>
@@ -766,7 +805,6 @@ var SHOW_STATS_TAB   = false;  /* the "What usually happens" tab */
 var SHOW_DISCLAIMER  = false;  /* the footer */
 var SHOW_RISK_BANNER = false;  /* "You are risking $X for a win worth $Y" */
 var SHOW_NOTES       = false;  /* prose explaining a control rather than reporting state */
-var SHOW_HISTORY     = false;  /* the run record - still recorded, just not shown here yet */
 
 var $  = function(id){ return document.getElementById(id); };
 var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
@@ -799,14 +837,72 @@ var KENO_SIX_GIVEN_STOP = KP[6]/KENO_STOP;
 var S = {
   cfg: null, levels: [], ends: [], total: 0,
   startBank: 2000, balance: 2000,
-  history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null
+  history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null,
+  /* revealUpto null = show the whole draw; a number = mid-reveal */
+  revealUpto: null, animating: false, muted: false,
+  speed: "normal", seed: 0, rand: Math.random, hideDraw: false
 };
+
+/* ── sound, synthesised: no files, no requests, nothing to load ────────── */
+var SPEEDS = { normal: 78, faster: 30, instant: 0 };
+
+/* mulberry32 - the study's own generator. Seeding it changes nothing
+   statistically; it makes a run reproducible, which is the point. */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function newSeed(){ return Math.floor(Math.random() * 9000000) + 1000000; }
+function reseed(v){
+  S.seed = v || newSeed();
+  S.rand = mulberry32(S.seed);
+  if ($("seedVal")) $("seedVal").value = S.seed;
+}
+var AC = null;
+function audio(){
+  if (AC === null){
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { AC = false; }
+  }
+  return AC;
+}
+function tone(freq, at, len, peak, shape){
+  var ac = audio(); if (!ac) return;
+  var o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + at;
+  o.type = shape || "triangle";
+  o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t); o.stop(t + len + 0.02);
+}
+/* each hit in a draw rings a step higher, the way keno games do */
+function ping(step){
+  if (S.muted) return;
+  var ac = audio(); if (!ac) return;
+  if (ac.state === "suspended") ac.resume();
+  tone(523.25 * Math.pow(2, Math.min(step, 10) * 2 / 12), 0, 0.26, 0.16);
+}
+function fanfare(){
+  if (S.muted) return;
+  var ac = audio(); if (!ac) return;
+  if (ac.state === "suspended") ac.resume();
+  [0, 0.10, 0.20].forEach(function(at, i){
+    tone(523.25 * Math.pow(2, [0,4,7][i]/12), at, 0.5, 0.2, "sine");
+  });
+}
+var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function saveState(){
   try {
     localStorage.setItem(STORE, JSON.stringify({
       form: readForm(), startBank: S.startBank, balance: S.balance,
-      history: S.history, picks: S.picks
+      history: S.history, picks: S.picks, muted: S.muted, speed: S.speed, seed: S.seed
     }));
   } catch (e) { /* private mode, quota - the page works without it */ }
 }
@@ -820,6 +916,8 @@ function loadState(){
     if (Array.isArray(d.history)) S.history = d.history;
     if (typeof d.balance === "number") S.balance = d.balance;
     if (typeof d.startBank === "number") S.startBank = d.startBank;
+    if (typeof d.muted === "boolean") S.muted = d.muted;
+    if (SPEEDS[d.speed] !== undefined) S.speed = d.speed;
   } catch (e) { /* corrupt or unavailable - start fresh */ }
 }
 
@@ -898,7 +996,7 @@ var POOL = []; for (var t=1; t<=40; t++) POOL.push(t);
 function draw10(){
   var a = POOL.slice();
   for (var i=0;i<10;i++){
-    var j = i + Math.floor(Math.random()*(40-i));
+    var j = i + Math.floor(S.rand()*(40-i));
     var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
   }
   return a.slice(0,10);
@@ -914,7 +1012,7 @@ function kenoDraw(){
   };
 }
 function limboDraw(c){
-  var u = Math.random();
+  var u = S.rand();
   if (u <= 0) u = 1e-12;
   var r = Math.floor((0.99/u)*100)/100;
   if (r < 1 || !isFinite(r)) r = 1;
@@ -946,7 +1044,7 @@ function step(){
 
   r.staked += bet; r.done += 1; r.net = r.recovered - r.staked;
   var out = c.game === "limbo" ? limboDraw(c) : kenoDraw();
-  r.last = out;
+  r.last = out; S.hideDraw = false;
   if (out.tape !== undefined){ r.tape.push(out.tape); if (r.tape.length > 40) r.tape.shift(); }
   if (out.mult > r.best) r.best = out.mult;
 
@@ -984,6 +1082,7 @@ function finish(why, out){
   r.over = true; r.why = why; r.won = (why === "hit");
   if (why === "bail") say("BUST", c.total + " " + c.noun + "s, no hit. Gave up " + money(r.net) + ".");
   if (why === "broke") say("BROKE", "Out of money on " + c.noun + " " + r.done + ". Lost " + money(r.net) + ".");
+  if (why === "quit") say("SYS", "Stopped on " + c.noun + " " + r.done + " at " + signed(r.net) + ".");
   if (why === "hit" && out && out.hits === 6) say("SYS", "That was the 710x - it turns up once in 18,278.");
 
   S.balance += r.net;
@@ -1059,9 +1158,8 @@ function paintSetup(){
       money(c.cost) + ".";
   }
 
-  var fresh = needsFreshSession(c);
-  $("startBtn").textContent = "Begin simulation with " + money(fresh ? c.bank : S.balance);
-  $("startHint").textContent = fresh ? "" : "Keeping your " + S.history.length + "-run record.";
+  $("startBtn").textContent = "Start run";
+  $("startHint").textContent = "";
   $("startBtn").disabled = false;
   $("setupErr").hidden = true;
   if (SHOW_STATS_TAB) paintStats();
@@ -1089,6 +1187,7 @@ function startRun(fresh){
     var c = derive(readForm());
     S.cfg = c; S.startBank = c.bank; S.balance = c.bank;
     S.history = [];
+    reseed();
   }
   S.ended = null;
   S.run = newRun();
@@ -1100,19 +1199,57 @@ function startRun(fresh){
 function showView(v){
   $("view-setup").hidden = v !== "setup";
   $("view-play").hidden  = v !== "play";
-  $("hdrSettings").hidden = v !== "play";
+  $("view-stats").hidden = v !== "stats";
+  $("hdrEnd").hidden = v !== "play";
+  window.scrollTo(0,0);
+}
+/* The hunt is the thing with a beginning and an end. Runs happen inside it,
+   and the setup screen is not seen again until it is over. */
+function endHunt(){
+  stopAuto();
+  if (S.run && !S.run.over) finish("quit");
+  showView("stats");
+  paintHistory();
+  $("btnResume").hidden = !(S.run && S.cfg && S.balance >= S.cfg.levels[0].bet);
 }
 
 function paintBoard(){
-  var drawn = (S.run && S.run.last && S.run.last.drawn) ? S.run.last.drawn : [];
+  var all = (!S.hideDraw && S.run && S.run.last && S.run.last.drawn) ? S.run.last.drawn : [];
+  var drawn = S.revealUpto === null ? all : all.slice(0, S.revealUpto);
+  var newest = S.revealUpto === null ? -1 : all[S.revealUpto - 1];
   var html = "";
   for (var t=1;t<=40;t++){
     var isPick = S.picks.indexOf(t) !== -1, isDrawn = drawn.indexOf(t) !== -1;
-    html += '<div class="kt' + (isPick ? " pick" : "") + (isDrawn ? " drawn" : "") + '"' +
+    html += '<div class="kt' + (isPick ? " pick" : "") + (isDrawn ? " drawn" : "") +
+            (t === newest ? " just" : "") + '"' +
             ' data-t="' + t + '" role="button" tabindex="0" aria-pressed="' + isPick + '"' +
             ' aria-label="Tile ' + t + (isPick ? ", picked" : "") + '">' + t + '</div>';
   }
   $("board").innerHTML = html;
+  $("board").classList.toggle("revealing", S.animating);
+}
+
+/* Turns one draw over a tile at a time instead of all at once. Only on a
+   single spin - a batch or an autoplay would be unwatchable at this pace,
+   and slowing them down to watch is what the single spin is for. */
+function revealDraw(done){
+  var all = S.run.last.drawn;
+  S.animating = true; S.revealUpto = 0;
+  var hits = 0;
+  $("btnSpin").disabled = true; $("btnSpinN").disabled = true; $("btnAuto").disabled = true;
+  (function next(){
+    if (S.revealUpto >= all.length){
+      S.animating = false; S.revealUpto = null;
+      if (S.run.over && S.run.won) fanfare();
+      done();
+      return;
+    }
+    var v = all[S.revealUpto];
+    S.revealUpto += 1;
+    paintBoard();
+    if (S.picks.indexOf(v) !== -1){ hits += 1; ping(hits); }
+    setTimeout(next, SPEEDS[S.speed] || 78);
+  })();
 }
 function paintTape(){
   var c = S.cfg, r = S.run, html = "", top = Math.log10(Math.max(2, c.lmult));
@@ -1147,6 +1284,8 @@ function paintOdds(){
 
   $("oAlready").textContent = pct(already);
   $("bAlready").style.width = (100*already) + "%";
+  $("oFailed").textContent = pct(1-already);
+  $("bFailed").style.width = (100*(1-already)) + "%";
   $("oNowLab").textContent = "Chance it lands on this " + c.noun;
   $("oNow").textContent = (100*q).toFixed(dp) + "%";
   $("bNow").style.width = Math.max(1.4, Math.min(100, 100*q*10)) + "%";
@@ -1275,8 +1414,8 @@ function paintResult(){
         'Stopping here is the only decision on this site that improves your odds - the run-it-back button ' +
         'gives it straight back.</p>' : "") +
       '<div class="cardbody" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border)">' +
-        '<button class="primary' + (c.game === "limbo" ? " teal" : "") + '" id="btnAgain">Run it back</button>' +
-        '<button class="ghost" id="btnStop">Change settings</button>' +
+        '<button class="primary' + (c.game === "limbo" ? " teal" : "") + '" id="btnAgain">Next run</button>' +
+        '<button class="ghost" id="btnStop">End run</button>' +
         '<span style="flex:1"></span>' +
         '<span style="font-size:11.5px;color:var(--faint)">Run ' + S.history.length + ' ' + DOT + ' ' +
           S.history.filter(function(h){return h.why === "hit";}).length + ' won, ' +
@@ -1285,10 +1424,10 @@ function paintResult(){
     '</div>';
 
   $("btnAgain").addEventListener("click", function(){
-    if (S.balance < S.cfg.levels[0].bet){ showView("setup"); paintSetup(); return; }
+    if (S.balance < S.cfg.levels[0].bet){ endHunt(); return; }
     startRun(false);
   });
-  $("btnStop").addEventListener("click", function(){ showView("setup"); paintSetup(); });
+  $("btnStop").addEventListener("click", endHunt);
 
   function row(label, n, amt, colour){
     return '<tr><td>' + label + '</td><td class="n">' + n + '</td>' +
@@ -1376,8 +1515,8 @@ function paintPlay(){
 /* ═══════════════════════════════ history ══════════════════════════════ */
 function paintHistory(){
   var H = S.history;
-  $("histCard").hidden = !SHOW_HISTORY || H.length === 0;
-  if (!SHOW_HISTORY || !H.length){ $("histBody").innerHTML = ""; return; }
+  $("histCard").hidden = H.length === 0;
+  if (!H.length){ $("histBody").innerHTML = ""; return; }
 
   var won = H.filter(function(h){ return h.why === "hit"; }).length;
   var staked = H.reduce(function(a,h){ return a + h.staked; }, 0);
@@ -1392,8 +1531,10 @@ function paintHistory(){
   var rows = "";
   for (var i=0;i<H.length;i++){
     var h = H[i];
-    var how = h.why === "hit" ? ("Hit " + (h.label || "the target"))
-            : h.why === "broke" ? "Out of money" : "Gave up";
+    var how = h.why === "hit"   ? ("Hit " + (h.label || "the target"))
+            : h.why === "broke" ? "Out of money"
+            : h.why === "quit"  ? "Stopped early"
+            : "Rode it out";
     var mine = (h.net === best && h.why === "hit") ? ' class="is-mine"' : "";
     rows += '<tr' + mine + '><td class="n">' + (i+1) + '</td>' +
       '<td><span class="pill ' + (h.game === "limbo" ? "tealp" : "amber") + '">' +
@@ -1549,15 +1690,14 @@ $("startBtn").addEventListener("click", function(){
     $("setupErr").hidden = false;
     return;
   }
-  startRun(needsFreshSession(c));
+  startRun(true);
 });
-function needsFreshSession(c){
-  if (!S.history.length) return true;              /* nothing to keep */
-  if (c.bank !== S.startBank) return true;         /* they changed the stake */
-  if (S.balance < c.levels[0].bet) return true;     /* cannot cover the opening bet */
-  return false;
-}
-$("btnSpin").addEventListener("click", function(){ step(); paintPlay(); });
+$("btnSpin").addEventListener("click", function(){
+  if (S.animating) return;
+  step();
+  if (S.cfg.game === "keno" && !REDUCED && S.speed !== "instant" && S.run.last && S.run.last.drawn) revealDraw(paintPlay);
+  else paintPlay();
+});
 function batchSize(){ return clamp(Math.round(+$("batch").value || 1), 1, 100000); }
 $("batch").addEventListener("input", function(){
   $("btnSpinN").innerHTML = (S.cfg && S.cfg.game === "limbo" ? "Roll" : "Spin") +
@@ -1569,12 +1709,38 @@ $("btnSpinN").addEventListener("click", function(){
   paintPlay();
 });
 $("btnAuto").addEventListener("click", toggleAuto);
-$("hdrSettings").addEventListener("click", function(){ stopAuto(); showView("setup"); paintSetup(); });
+$("hdrSound").addEventListener("click", function(){
+  S.muted = !S.muted;
+  $("hdrSound").innerHTML = S.muted ? "&#9835;&nbsp; Sound off" : "&#9835;&nbsp; Sound on";
+  $("hdrSound").style.color = S.muted ? "var(--faint)" : "var(--accent)";
+  if (!S.muted) ping(1);                    /* so you hear what you just turned on */
+  saveState();
+});
+$("hdrEnd").addEventListener("click", endHunt);
+$("btnNewHunt").addEventListener("click", function(){ showView("setup"); paintSetup(); });
+$("btnResume").addEventListener("click", function(){
+  if (S.run && S.run.over) startRun(false); else showView("play");
+  paintPlay();
+});
+$$("#speedSeg button").forEach(function(b){
+  b.addEventListener("click", function(){
+    S.speed = b.getAttribute("data-s");
+    $$("#speedSeg button").forEach(function(o){ o.classList.toggle("on", o === b); });
+    saveState();
+  });
+});
+$("btnSeed").addEventListener("click", function(){ reseed(); saveState(); });
+$("seedVal").addEventListener("change", function(){
+  /* typing a seed back in replays that hunt's draws exactly */
+  var v = Math.max(1, Math.round(+$("seedVal").value || 0));
+  reseed(v); saveState();
+});
 $("clearHist").addEventListener("click", function(){
   S.history = []; S.balance = S.startBank; saveState(); paintPlay();
 });
 
 $("board").addEventListener("click", function(e){
+  if (S.animating) return;
   var t = e.target.closest(".kt"); if (!t) return;
   var v = +t.getAttribute("data-t"), at = S.picks.indexOf(v);
   if (at !== -1) S.picks.splice(at, 1);              /* click it again to take it off */
@@ -1590,6 +1756,7 @@ $("btnRandom").addEventListener("click", function(){
     var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
   }
   S.picks = pool.slice(0,6).sort(function(a,b){ return a-b; });
+  S.hideDraw = true;                       /* a new six starts on a clean board */
   saveState(); paintPlay();
 });
 $("board").addEventListener("keydown", function(e){
@@ -1622,6 +1789,10 @@ if (!SHOW_DISCLAIMER)  $("disclaimer").hidden = true;
 if (!SHOW_RISK_BANNER) $("setupWarnCard").hidden = true;
 
 loadState();
+reseed();
+$$("#speedSeg button").forEach(function(o){ o.classList.toggle("on", o.getAttribute("data-s") === S.speed); });
+$("hdrSound").innerHTML = S.muted ? "&#9835;&nbsp; Sound off" : "&#9835;&nbsp; Sound on";
+$("hdrSound").style.color = S.muted ? "var(--faint)" : "var(--accent)";
 paintSetup();
 $("bal").textContent = m2(S.balance);
 showView("setup");
