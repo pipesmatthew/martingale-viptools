@@ -441,6 +441,18 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         </div>
 
         <div class="card">
+          <div class="cardhead"><h2>Balance</h2></div>
+          <div class="cardbody">
+            <div class="grid2">
+              <label class="f"><span>Start with</span>
+                <input type="number" id="bank" value="2000" min="1" step="100"></label>
+              <label class="f"><span>Walk away at</span>
+                <input type="number" id="walk" value="0" min="0" step="500"></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="cardhead"><h2>The Martingaler</h2><span class="grow"></span>
             <button class="ghost" id="resetLadder" style="font-size:11.5px;padding:2px 9px">Reset to BILLSKIE's</button></div>
           <div class="cardbody">
@@ -466,18 +478,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             </div>
             <label class="f" id="levelsWrap" hidden><span>Give up after level <b id="levelsV">3</b></span>
               <input type="range" id="levels" min="1" max="12" step="1" value="3"></label>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="cardhead"><h2>Balance</h2></div>
-          <div class="cardbody">
-            <div class="grid2">
-              <label class="f"><span>Start with</span>
-                <input type="number" id="bank" value="2000" min="1" step="100"></label>
-              <label class="f"><span>Walk away at</span>
-                <input type="number" id="walk" value="0" min="0" step="500"></label>
-            </div>
           </div>
         </div>
       </div>
