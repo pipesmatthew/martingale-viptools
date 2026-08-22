@@ -194,7 +194,8 @@ button.primary:disabled:hover{background:var(--accent)}
    take up the slack, so the bottoms land on the same line. */
 #view-setup .split{align-items:stretch}
 #view-setup .split > div{display:flex;flex-direction:column;min-width:0}
-#view-setup .split > div > .card:last-child{flex:1 1 auto;display:flex;flex-direction:column;
+#view-setup .split > div > .card:last-child{flex:1 1 auto}
+#view-setup .split > div:last-child > .card:last-child{display:flex;flex-direction:column;
   justify-content:center}
 @media (max-width:980px){.split{grid-template-columns:1fr}}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:5px}
@@ -1191,6 +1192,23 @@ function affordFrom(c, from, bal){
   }
   return n;
 }
+/* The level list is built with headroom the 11x drip might one day reach.
+   That headroom is not something a balance owns before it starts playing, so
+   what gets DRAWN is only what the money in hand pays for, with the last level
+   cut to the spins it can actually cover. */
+function fundedLevels(c, bal){
+  var out = [], left = bal, cum = 0;
+  for (var i=0; i<c.levels.length; i++){
+    var bet = c.levels[i].bet, len = c.levels[i].len;
+    var can = Math.floor(left / bet + 1e-9);
+    if (can <= 0) break;
+    if (can < len) len = can;
+    cum += bet * len; left -= bet * len;
+    out.push({ bet: bet, len: len, cum: cum });
+  }
+  if (!out.length) out.push({ bet: c.levels[0].bet, len: 0, cum: 0 });
+  return out;
+}
 function levelAt(c, done){
   for (var i=0;i<c.ends.length;i++) if (done < c.ends[i]) return i;
   return -1;
@@ -1354,15 +1372,15 @@ function paintSetup(){
     ? "before the money runs out" : "you chose to ride";
   $("lchance").value = pct(0.99/c.lmult, 3);
 
-  var html = "";
-  for (var i=0;i<c.levels.length;i++){
-    var R = c.levels[i];
+  var shown = fundedLevels(c, c.bank), html = "";
+  for (var i=0;i<shown.length;i++){
+    var R = shown[i];
     html += '<div class="level"><div class="rk">Level ' + (i+1) + '</div>' +
             '<div class="rv">' + m2(R.bet) + '</div>' +
             '<div class="rd">' + num(R.len) + ' ' + c.noun + 's ' + DOT + ' ' + money(R.cum) + '</div></div>';
   }
   $("setupLevels").innerHTML = html;
-  layoutLevels($("setupLevels"), c.levels.length, 3);
+  layoutLevels($("setupLevels"), shown.length, 3);
 
   $("tMaxLoss").textContent = money(c.cost);
   var share = c.cost / c.bank;
@@ -1538,9 +1556,12 @@ function layoutLevels(host, count, maxCols){
   if (last) last.classList.toggle("fill", count % best === 1);
 }
 function paintLevels(){
-  var c = S.cfg, here = S.run.over ? -1 : levelAt(c, S.run.done), html = "";
-  for (var i=0;i<c.levels.length;i++){
-    var R = c.levels[i];
+  var c = S.cfg, r = S.run, here = r.over ? -1 : levelAt(c, r.done), html = "";
+  var live = S.balance + (r.over ? 0 : r.net) + r.staked;   /* what this round has to spend in total */
+  var shown = fundedLevels(c, live);
+  if (here >= 0 && shown.length < here + 1) shown = c.levels.slice(0, here + 1);
+  for (var i=0;i<shown.length;i++){
+    var R = shown[i];
     var cls = "level" + (i === here ? " here" + (c.game === "limbo" ? " teal" : "")
                                    : (here < 0 || i < here ? " spent" : ""));
     html += '<div class="' + cls + '"><div class="rk">Level ' + (i+1) + '</div>' +
@@ -1548,7 +1569,7 @@ function paintLevels(){
             '<div class="rd">' + num(R.len) + ' ' + c.noun + 's ' + DOT + ' ' + money(R.cum) + '</div></div>';
   }
   $("playLevels").innerHTML = html;
-  layoutLevels($("playLevels"), c.levels.length, 5);
+  layoutLevels($("playLevels"), shown.length, 5);
 }
 /* The chance a run EVER touches T times its starting balance before going
    broke. A first-passage probability, not a product of per-round wins: you get
@@ -1698,7 +1719,8 @@ function paintPlay(){
     : "ladder finished";
   $("p-level").textContent = ri < 0 ? "—" : (ri+1);
   $("p-level").className = "v amber";
-  $("p-levelD").textContent = "of " + c.count + " before you bail";
+  var funded = fundedLevels(c, S.balance + (r.over ? 0 : r.net) + r.staked).length;
+  $("p-levelD").textContent = "of " + num(Math.max(funded, ri + 1)) + " before you bail";
   $("p-bet").textContent = ri < 0 ? "—" : m2(bet);
   $("p-betD").textContent = "per " + c.noun;
   $("p-stk").textContent = money(r.staked);
