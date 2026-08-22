@@ -34,9 +34,14 @@ flipping it to `true` — nothing else to restore.
 | `SHOW_DISCLAIMER` | the footer — what the page is, where the odds come from, the helpline |
 | `SHOW_RISK_BANNER` | "You are risking $X for a win worth $Y at the very best" on the setup screen |
 | `SHOW_NOTES` | the prose under controls, and "It is never due" under the odds rail |
+| `SHOW_HISTORY` | the run record — the table, the balance line and the session summary |
 
 The nav hides itself when `SHOW_STATS_TAB` is off, because a tab bar with one
 tab in it is telling you nothing.
+
+`SHOW_HISTORY` only hides the card. Every run is still recorded to `S.history`
+and persisted, so wherever the record ends up living it will have the whole
+session waiting for it rather than starting from the moment it was switched on.
 
 **The disclaimer is the one to think hardest about turning back on.** Everything
 else here is chrome; that is the page saying out loud that it is a simulator,
