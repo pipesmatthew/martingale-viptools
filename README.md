@@ -16,10 +16,31 @@ your six, limbo rolls `0.99 / u`. Nothing is approximated, and no result is
 scripted. The only thing that is not real is the money.
 
 **What usually happens.** The same strategy as statistics, written for somebody
-who does not want statistics. One number and one sentence per row.
+who does not want statistics. One number and one sentence per row. **Currently
+switched off** — see below.
 
 The two are separate tabs because they answer different questions and mixing
 them makes both worse.
+
+### Things that are built but switched off
+
+Four switches at the top of the script in `public/index.html`. They hide
+finished, working code rather than deleting it, so each one comes back by
+flipping it to `true` — nothing else to restore.
+
+| switch | what it brings back |
+|---|---|
+| `SHOW_STATS_TAB` | the "What usually happens" tab, and the header nav that holds it |
+| `SHOW_DISCLAIMER` | the footer — what the page is, where the odds come from, the helpline |
+| `SHOW_RISK_BANNER` | "You are risking $X for a win worth $Y at the very best" on the setup screen |
+| `SHOW_NOTES` | the prose under controls, and "It is never due" under the odds rail |
+
+The nav hides itself when `SHOW_STATS_TAB` is off, because a tab bar with one
+tab in it is telling you nothing.
+
+**The disclaimer is the one to think hardest about turning back on.** Everything
+else here is chrome; that is the page saying out loud that it is a simulator,
+that both games return 99%, and where to get help. It costs a screenful.
 
 ---
 

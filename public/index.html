@@ -100,6 +100,8 @@ button.primary:disabled:hover{background:var(--accent)}
 .seg button:hover{background:var(--button-hover);color:var(--fg)}
 .seg button.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 .seg button.on.teal{background:var(--teal);border-color:var(--teal);color:#08191a}
+.seg.big{gap:5px}
+.seg.big button{flex:1 1 0;padding:9px 10px;font-size:13.5px;font-weight:600}
 
 /* ───────────────────────────────────────────────────── panels & cards ── */
 .panel{display:none;padding:10px 12px 40px}
@@ -282,7 +284,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
 <header class="top">
   <span class="brand">VIP Tools<b>The 350x Ladder</b></span>
-  <nav class="tabs" role="tablist">
+  <nav class="tabs" role="tablist" id="tabnav">
     <button class="tab is-active" role="tab" aria-selected="true" data-tab="dryrun">Dry run</button>
     <button class="tab" role="tab" aria-selected="false" data-tab="stats">What usually happens</button>
   </nav>
@@ -301,33 +303,20 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
     <div class="split">
       <div>
         <div class="card">
-          <div class="cardhead"><h2>Which game</h2><span class="grow"></span>
-            <span class="note">both return 99% in the long run</span></div>
+          <div class="cardhead"><h2>Which game</h2></div>
           <div class="cardbody">
-            <div class="seg" id="gameSeg" style="margin-bottom:11px">
-              <button data-g="keno" class="on">Keno &middot; 6 picks, high risk</button>
-              <button data-g="limbo">Limbo</button>
+            <div class="seg big" id="gameSeg">
+              <button data-g="keno" class="on">Simulate Keno</button>
+              <button data-g="limbo">Simulate Limbo</button>
             </div>
 
-            <div id="kenoOpts">
-              <div class="grid3">
-                <label class="f"><span>4 of 6 pays</span><input type="number" value="11" readonly tabindex="-1"></label>
-                <label class="f"><span>5 of 6 pays</span><input type="number" value="350" readonly tabindex="-1"></label>
-                <label class="f"><span>6 of 6 pays</span><input type="number" value="710" readonly tabindex="-1"></label>
-              </div>
-              <p class="hint">A run ends the moment 5 or 6 land &mdash; once every 494 spins. Four-of-six
-              pays 11x and the run keeps going, about every 42 spins. That drip is what funds the long waits.</p>
-            </div>
-
-            <div id="limboOpts" hidden>
+            <div id="limboOpts" hidden style="margin-top:11px">
               <div class="grid2">
                 <label class="f"><span>Target multiplier</span>
                   <input type="number" id="lmult" value="350" min="1.02" max="1000000" step="10"></label>
                 <label class="f"><span>Chance per roll</span>
                   <input type="text" id="lchance" value="0.283%" readonly tabindex="-1"></label>
               </div>
-              <p class="hint" id="limboHint">One number a roll, and it either clears the target or it doesn't.
-              No consolation tier &mdash; when limbo fails it fails for the whole ladder.</p>
             </div>
           </div>
         </div>
@@ -350,8 +339,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             </div>
             <label class="f"><span>Give up after rung <b id="rungsV">3</b></span>
               <input type="range" id="rungs" min="1" max="8" step="1" value="3"></label>
-            <p class="hint">Each rung after the first is half as long, because doubling the bet doubles the
-            payout. That's the whole trick: a hit on the last spin of any rung gets you back to exactly even.</p>
           </div>
         </div>
 
@@ -364,8 +351,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <label class="f"><span>Walk away at</span>
                 <input type="number" id="walk" value="0" min="0" step="500"></label>
             </div>
-            <p class="hint">Fake money, so pick the number you'd actually sit down with. Leave the walk-away
-            at 0 for no target &mdash; but setting one is the only choice on this page that changes your odds.</p>
           </div>
         </div>
       </div>
@@ -375,8 +360,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardhead"><h2>Before you start</h2></div>
           <div class="cardbody">
             <div class="rungs" id="setupRungs" style="margin-bottom:10px"></div>
-            <p class="hint" style="margin-top:0">Bet size, spins on that rung, and the running total you'd
-            have staked by the end of it.</p>
           </div>
         </div>
 
@@ -393,14 +376,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             <div class="v amber" id="tBreak">350</div><div class="d">of the first rung</div></div>
         </div>
 
-        <div class="card">
+        <div class="card" id="setupWarnCard">
           <p class="callout warn" id="setupWarn" style="margin:0"></p>
         </div>
 
         <div class="card"><div class="cardbody">
-          <button class="primary" id="startBtn" style="width:100%;padding:8px">Start the dry run</button>
+          <button class="primary" id="startBtn" style="width:100%;padding:8px">Begin simulation</button>
           <p class="err" id="setupErr" hidden></p>
-          <p class="hint" style="text-align:center">No money, no account, nothing placed anywhere.</p>
+          <p class="hint" id="startHint" style="text-align:center"></p>
         </div></div>
       </div>
     </div>
@@ -434,9 +417,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             <span class="note" id="lastNote">pick your numbers, then spin</span></div>
           <div class="cardbody">
             <div class="board" id="board"></div>
-            <p class="hint">Cream border is a number you picked. Filled grey is a tile the game drew. Amber is
-            both &mdash; a match. Click any tile to change your picks; it makes no difference to the odds,
-            which is itself worth finding out.</p>
           </div>
         </div>
 
@@ -452,8 +432,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <span id="l-verdict" style="color:var(--faint)">READY</span>
             </div>
             <div class="limbotape" id="l-tape"></div>
-            <p class="hint">Last forty rolls, tallest is biggest. The bar you're waiting for would go clean
-            off the top of this strip &mdash; that's the honest picture of a 1-in-353.5.</p>
           </div>
         </div>
 
@@ -474,8 +452,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
       <div>
         <div class="card">
-          <div class="cardhead"><h2>Where you stand</h2><span class="grow"></span>
-            <span class="note">out of everyone who tries this</span></div>
+          <div class="cardhead"><h2>Where you stand</h2></div>
           <div class="cardbody stack">
             <div>
               <div class="oddsrow"><span>Already got their hit by now</span>
@@ -504,9 +481,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
                 <span>fails <b id="oFail" style="color:var(--danger)">24.2%</b></span></div>
             </div>
           </div>
-          <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="oddsNote">
-            <b>It is never due.</b> Every one of these spins is a fresh 1-in-494. The only thing a dry spell
-            changes is how much you have already put in.</p>
+          <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="oddsNote"></p>
         </div>
 
         <div class="card">
@@ -744,7 +719,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 </div>
 </main>
 
-<footer class="foot">
+<footer class="foot" id="disclaimer">
   <b>Nothing here places a bet.</b> This is a simulator: no account, no casino, no money, and nothing is sent
   anywhere &mdash; your practice balance and run history live in this browser tab and nowhere else. The odds
   are the real ones. Keno's exact figures come from the hypergeometric distribution for 6 picks on a 40-tile
@@ -766,6 +741,15 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
    Nothing here talks to a server. The practice balance and the run history
    live in localStorage under one key and go nowhere else.
    ═══════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────
+   TEMPORARILY OFF. Each of these hides finished, working code rather than
+   deleting it - flip one back to true and the thing returns intact.
+   ───────────────────────────────────────────────────────────────────── */
+var SHOW_STATS_TAB   = false;  /* the "What usually happens" tab */
+var SHOW_DISCLAIMER  = false;  /* the footer */
+var SHOW_RISK_BANNER = false;  /* "You are risking $X for a win worth $Y" */
+var SHOW_NOTES       = false;  /* prose explaining a control rather than reporting state */
 
 var $  = function(id){ return document.getElementById(id); };
 var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
@@ -1005,7 +989,6 @@ function setGame(g){
     b.classList.toggle("on", on);
     b.classList.toggle("teal", on && g === "limbo");
   });
-  $("kenoOpts").hidden  = g !== "keno";
   $("limboOpts").hidden = g !== "limbo";
 }
 
@@ -1059,13 +1042,12 @@ function paintSetup(){
       money(c.cost) + ".";
   }
 
-  $("startBtn").textContent = needsFreshSession(c) ? "Start the dry run" : "Back to the table";
-  $("startBtn").nextElementSibling.nextElementSibling.textContent = needsFreshSession(c)
-    ? "No money, no account, nothing placed anywhere."
-    : "Keeping your " + S.history.length + "-run record and " + money(S.balance) + " balance.";
+  var fresh = needsFreshSession(c);
+  $("startBtn").textContent = "Begin simulation with " + money(fresh ? c.bank : S.balance);
+  $("startHint").textContent = fresh ? "" : "Keeping your " + S.history.length + "-run record.";
   $("startBtn").disabled = false;
   $("setupErr").hidden = true;
-  paintStats();
+  if (SHOW_STATS_TAB) paintStats();
   saveState();
 }
 function plainOdds(p){
@@ -1164,8 +1146,11 @@ function paintOdds(){
   $("oLeft").textContent = num(left);
   $("oLeftLab").textContent = c.noun + "s left in the ladder";
   $("oFail").textContent = pct(1-end);
-  $("oddsNote").innerHTML = "<b>It is never due.</b> Every one of these " + c.noun + "s is a fresh 1-in-" +
-    (1/q).toFixed(0) + ". The only thing a dry spell changes is how much you have already put in.";
+  $("oddsNote").innerHTML = SHOW_NOTES
+    ? "<b>It is never due.</b> Every one of these " + c.noun + "s is a fresh 1-in-" + (1/q).toFixed(0) +
+      ". The only thing a dry spell changes is how much you have already put in."
+    : "";
+  $("oddsNote").hidden = !SHOW_NOTES;
 }
 function paintLog(){
   var r = S.run, html = "";
@@ -1593,6 +1578,13 @@ $$(".tab").forEach(function(b){
 });
 
 /* ═══════════════════════════════ boot ═════════════════════════════════ */
+if (!SHOW_STATS_TAB){
+  $("tabnav").hidden = true;              /* one tab left says nothing, so it goes too */
+  $("panel-stats").hidden = true;
+}
+if (!SHOW_DISCLAIMER)  $("disclaimer").hidden = true;
+if (!SHOW_RISK_BANNER) $("setupWarnCard").hidden = true;
+
 loadState();
 paintSetup();
 $("bal").textContent = m2(S.balance);
