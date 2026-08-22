@@ -671,7 +671,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <svg id="histSpark" style="display:block;width:100%;height:190px"
              role="img" aria-label="Balance across the rounds of this run"></svg>
         <div class="meterrow" style="margin-top:2px"><span id="histFirst">round 1</span>
-          <span style="color:var(--muted)">your run against 140 others on the same ladder</span><span id="histLast">round 1</span></div>
+          <span style="color:var(--muted)">your run against 1,000 others on the same ladder</span><span id="histLast">round 1</span></div>
       </div>
       <div class="tablewrap"><table>
         <thead><tr><th class="n">#</th><th>Game</th><th>How it ended</th><th class="n">Spin</th>
@@ -1947,7 +1947,7 @@ function paintHistory(){
   var mine = [S.startBank].concat(H.map(function(h){ return h.balance; }));
   var rounds = H.length;
 
-  var others = [], PATHS = 140;
+  var others = [], PATHS = 1000;
   if (base0c && base0c.levels && base0c.levels.length){
     var rnd = streamFor(0xC0FFEE ^ rounds);
     for (var k2=0; k2<PATHS; k2++){
@@ -1987,9 +1987,16 @@ function paintHistory(){
   var baseY = Y(S.startBank);
   function poly(arr){ return arr.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join(" "); }
 
-  var ghosts = others.map(function(pth){
-    return '<polyline points="' + poly(pth) + '" fill="none" stroke="#ffb454" stroke-opacity="0.10" stroke-width="1"></polyline>';
+  /* A thousand <polyline> nodes is a thousand things for the browser to lay
+     out. They all share a stroke, so they can be one <path> with a thousand
+     subpaths instead - same picture, one element. The alpha is low enough that
+     overlap reads as density rather than a solid block. */
+  var ghostD = others.map(function(pth){
+    return "M" + pth.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join("L");
   }).join("");
+  var ghosts = ghostD
+    ? '<path d="' + ghostD + '" fill="none" stroke="#ffb454" stroke-opacity="0.045" stroke-width="1"></path>'
+    : "";
 
   var peakI = mine.indexOf(Math.max.apply(null, mine)), endI = mine.length - 1;
   var endColour = netAll >= 0 ? "#4ade80" : "#e06c5a";
@@ -2063,7 +2070,9 @@ function paintHistory(){
     var fwd = reachOdds(goal / here);
 
     $("fwdLab").textContent = "Chance of ever reaching " + money(goal);
-    $("fwdVal").textContent = pct(fwd);
+    /* getting back from a long way down rounds to 0.0%, which reads as
+       impossible when it is merely very unlikely */
+    $("fwdVal").textContent = fwd > 0 && fwd < 0.001 ? "under 0.1%" : pct(fwd);
     $("fwdVal").style.color = fwd < 0.25 ? "var(--danger)" : fwd < 0.6 ? "var(--accent)" : "var(--green)";
     $("fwdBar").style.width = (100 * fwd) + "%";
     $("fwdBar").className = fwd < 0.25 ? "redb" : fwd < 0.6 ? "" : "greenb";
