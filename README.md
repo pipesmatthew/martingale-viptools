@@ -80,7 +80,15 @@ Level 4 is truncated to the 75 spins $600 actually buys, so the totals describe
 a ladder you can finish rather than one you could not. 775 spins, costing the
 whole balance, hitting 79.2% of the time.
 
-**The ladder is rebuilt from the live balance before every run.** Win and it
+**The level list is not cut to the opening balance.** It used to be, and that
+made the mode a lie on keno: the 11x drip pays money back while you play, so a
+round could reach the end of a ladder priced at the starting balance while still
+holding a thousand dollars of winnings. The round then stopped for having run
+out of *plan*, not out of money. Levels are now built past what the balance
+funds — two spare doublings, which the drip cannot outrun — and the live balance
+decides when the round ends.
+
+**The ladder is rebuilt from the live balance before every round.** Win and it
 grows a little; lose and it shrinks. Deriving it once from the opening bankroll
 would leave a nearly-broke hunt quoting the ladder it could afford on day one,
 and the "chance before you'd give up" figure would name a bail-out point it can

@@ -4,13 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Martingale Simulation</title>
-<meta name="description" content="Play BILLSKIE's 350x keno/limbo ladder with fake money, and read in plain English what it usually does to the people who play it.">
 <meta name="color-scheme" content="dark">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="VIP Tools">
 <meta property="og:title" content="Martingale Simulation">
-<meta property="og:description" content="Play the ladder with fake money before you play it with real money. Real odds, no account, nothing placed anywhere.">
 <meta property="og:url" content="https://martingale.viptools.gg/">
 <meta name="twitter:card" content="summary">
 
@@ -196,7 +194,8 @@ button.primary:disabled:hover{background:var(--accent)}
    take up the slack, so the bottoms land on the same line. */
 #view-setup .split{align-items:stretch}
 #view-setup .split > div{display:flex;flex-direction:column;min-width:0}
-#view-setup .split > div > .card:last-child{flex:1 1 auto}
+#view-setup .split > div > .card:last-child{flex:1 1 auto;display:flex;flex-direction:column;
+  justify-content:center}
 @media (max-width:980px){.split{grid-template-columns:1fr}}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:5px}
 
@@ -260,6 +259,9 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
 .stack{display:flex;flex-direction:column;gap:10px}
 .hint{font-size:11.5px;color:var(--faint);margin:6px 0 0;line-height:1.45}
+/* an empty hint still carried its margin, which pushed the button it sits
+   under off the centre of the card */
+.hint:empty{display:none}
 .err{font-size:11.5px;color:var(--danger);margin:6px 0 0}
 
 /* ───────────────────────────────────────────────────────────── meter ── */
@@ -612,14 +614,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <div class="meter" style="margin-top:5px"><i class="greenb" id="bAlready" style="width:0%"></i></div>
             </div>
             <div>
-              <div class="oddsrow"><span id="oUpLab">Hunts that ever run up this far</span>
-                <b id="oUp" style="color:var(--accent)">100.0%</b></div>
-              <div class="meter" style="margin-top:5px"><i id="bUp" style="width:100%"></i></div>
-            </div>
-            <div>
               <div class="oddsrow"><span id="oEndLab">Chance before bankrupt</span>
                 <b id="oEnd" style="color:var(--green)">75.8%</b></div>
               <div class="meter" style="margin-top:5px"><i class="greenb" id="bEnd" style="width:75.8%"></i></div>
+            </div>
+            <div>
+              <div class="oddsrow"><span id="oUpLab">Runs that ever get this high</span>
+                <b id="oUp" style="color:var(--accent)">100.0%</b></div>
+              <div class="meter" style="margin-top:5px"><i id="bUp" style="width:100%"></i></div>
             </div>
           </div>
           <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="oddsNote"></p>
@@ -677,6 +679,16 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <tbody id="histBody"></tbody>
       </table></div>
       <div class="cardbody" id="luckBlock" style="border-top:1px solid var(--border)" hidden>
+        <div class="oddsrow"><span id="reachLab">Runs that get this far</span>
+          <b id="reachVal" style="font-size:15px">&mdash;</b></div>
+        <div class="meter" style="margin-top:6px;height:9px"><i id="reachBar" style="width:0%"></i></div>
+        <div class="meterrow" style="margin-bottom:12px"><span id="reachSub"></span></div>
+
+        <div class="oddsrow"><span id="lastLab">Runs that last this many spins</span>
+          <b id="lastVal" style="font-size:15px">&mdash;</b></div>
+        <div class="meter" style="margin-top:6px;height:9px"><i id="lastBar" style="width:0%"></i></div>
+        <div class="meterrow" style="margin-bottom:12px"><span id="lastSub"></span></div>
+
         <div class="oddsrow"><span id="luckLab">Luckier than</span>
           <b id="luckVal" style="font-size:15px">&mdash;</b></div>
         <div class="meter" style="margin-top:6px;height:9px"><i id="luckBar" style="width:0%"></i></div>
@@ -1133,22 +1145,23 @@ function derive(f){
     stop: f.game === "limbo" ? 0.99/lmult : KENO_STOP,
     pay:  f.game === "limbo" ? lmult : 350
   };
-  /* In "broke" mode the ladder has no level cap - it runs until the balance
-     cannot cover the next bet. The last level is truncated to the spins the
-     money actually buys, so ends/total/reach stay honest rather than describing
-     a ladder you could never finish. */
+  /* THE LADDER IS NOT CUT TO THE OPENING BALANCE. It used to be, and that made
+     "ride until the balance is gone" a lie on keno: the 11x drip pays money
+     back while you play, so a run could reach the end of a ladder priced at the
+     starting balance while still holding a thousand dollars of winnings. The
+     round then stopped for having run out of PLAN, not out of money.
+     Levels are built in full and the live balance decides when to stop. */
   c.levels = [];
-  var cum = 0, left = c.bank, cap = c.mode === "broke" ? 40 : c.count;
+  var cum = 0, cap = c.mode === "broke" ? 40 : c.count;
   for (var i=0; i<cap; i++){
     var bet = c.base * Math.pow(c.stepx, i);
     var len = i ? c.lenN : c.len1;
-    if (c.mode === "broke"){
-      var can = Math.floor(left / bet + 1e-9);
-      if (can <= 0) break;
-      if (can < len) len = can;
-    }
-    cum += bet * len; left -= bet * len;
+    cum += bet * len;
     c.levels.push({ bet: bet, len: len, cum: cum, payout: c.pay * bet });
+    /* Keno pays about 26% of stake back as it goes, so the money reaches
+       roughly 1.35x the opening balance - two spare levels is four times it,
+       which the drip cannot outrun. Beyond that the list is fantasy. */
+    if (c.mode === "broke" && cum >= c.bank * 4) break;
   }
   if (!c.levels.length){
     c.levels.push({ bet: c.base, len: 1, cum: c.base, payout: c.pay * c.base });
@@ -1157,9 +1170,26 @@ function derive(f){
   c.ends = []; var e = 0;
   for (var j=0; j<c.levels.length; j++){ e += c.levels[j].len; c.ends.push(e); }
   c.total = e;
-  c.cost  = cum;                                   /* a full ladder, every level */
-  c.reach = 1 - Math.pow(1 - c.stop, c.total);     /* chance it lands before you bail */
+  c.cost  = c.mode === "broke" ? Math.min(cum, c.bank) : cum;   /* most you can lose */
+  c.afford = c.mode === "broke" ? affordFrom(c, 0, c.bank) : Math.min(c.total, affordFrom(c, 0, c.bank));
+  c.reach = 1 - Math.pow(1 - c.stop, c.afford);    /* chance it lands before you run out */
   return c;
+}
+/* Spins a balance funds outright, from `from` onwards. Used for the planning
+   figures on the setup screen and, live, for the odds - so keno's drip shows up
+   as the ladder reaching further than the opening balance said it would. */
+function affordFrom(c, from, bal){
+  var n = 0, left = bal, i = levelAt(c, from);
+  if (i < 0) return 0;
+  var used = from - (i > 0 ? c.ends[i-1] : 0);
+  for (; i < c.levels.length; i++){
+    var room = c.levels[i].len - (n === 0 ? used : 0);
+    var can = Math.floor(left / c.levels[i].bet + 1e-9);
+    if (can <= 0) break;
+    if (can < room){ n += can; return n; }
+    n += room; left -= c.levels[i].bet * room;
+  }
+  return n;
 }
 function levelAt(c, done){
   for (var i=0;i<c.ends.length;i++) if (done < c.ends[i]) return i;
@@ -1319,7 +1349,7 @@ function paintSetup(){
   S.cfg = c;
 
   $("levelsV").textContent = $("levels").value;
-  $("tLevels").textContent = c.count;
+  $("tLevels").textContent = num(levelAt(c, Math.max(0, c.afford - 1)) + 1);
   $("tLevels").nextElementSibling.textContent = c.mode === "broke"
     ? "before the money runs out" : "you chose to ride";
   $("lchance").value = pct(0.99/c.lmult, 3);
@@ -1336,10 +1366,10 @@ function paintSetup(){
 
   $("tMaxLoss").textContent = money(c.cost);
   var share = c.cost / c.bank;
-  $("tMaxLossD").textContent = share >= 1
-    ? "more than your whole balance"
+  $("tMaxLossD").textContent = share >= 0.995
+    ? "your whole balance"
     : Math.round(100*share) + "% of your balance";
-  $("tSpins").textContent = num(c.total);
+  $("tSpins").textContent = num(c.afford);
   $("tSpins").nextElementSibling.textContent = c.noun + "s before you bail";
   $("tWin").textContent = pct(c.reach);
   $("tWinD").textContent = plainOdds(c.reach);
@@ -1520,9 +1550,27 @@ function paintLevels(){
   $("playLevels").innerHTML = html;
   layoutLevels($("playLevels"), c.levels.length, 5);
 }
+/* The chance a run EVER touches T times its starting balance before going
+   broke. A first-passage probability, not a product of per-round wins: you get
+   unlimited attempts and only have to touch the number once, which is why
+   growing a bankroll by two thirds sits near 55% and not somewhere tiny. For a
+   fair game optional stopping makes it exactly 1/T; the edge takes a slice, and
+   the slice grows with how far you have to travel.
+
+   0.93/T fitted the study table (47% at 2x, 31% at 3x, 19% at 5x, 9% at 10x)
+   but was wrong where it matters most day to day: it jumped from 100% to 93%
+   the instant the balance went a cent above where it started. This form keeps
+   the table and is continuous, reaching exactly 1 at T = 1. */
+function reachOdds(T){
+  if (!(T > 1)) return 1;
+  return (1/T) * (1 - 0.12 * (1 - 1/T));
+}
 function paintOdds(){
   var c = S.cfg, r = S.run, q = c.stop, done = r.done;
-  var left = Math.max(0, c.total - done);
+  /* Not "spins left in the level list" - spins the money still funds, which on
+     keno grows every time an 11x lands. */
+  var live = S.balance + (r.over ? 0 : r.net);
+  var left = Math.min(Math.max(0, c.total - done), affordFrom(c, done, live));
   var already = 1 - Math.pow(1-q, done);
   var end = 1 - Math.pow(1-q, left);
 
@@ -1534,7 +1582,7 @@ function paintOdds(){
      across this ladder it lands near 0.93/T (47% at 2x, 31% at 3x, 19% at 5x,
      9% at 10x), which is the constant used here. */
   var T = S.startBank > 0 ? (S.balance + (r.over ? 0 : r.net)) / S.startBank : 1;
-  var everUp = T <= 1 ? 1 : Math.min(1, 0.93 / T);
+  var everUp = reachOdds(T);
   $("oUpLab").textContent = T <= 1
     ? "Runs that ever get this high"
     : "Runs that ever reach " + money(S.startBank * T);
@@ -1575,7 +1623,7 @@ function paintResult(){
   mult.className = "mult" + (ok && r.last && r.last.pay === 710 ? " gold" : "");
   mult.textContent = ok
     ? (r.last && r.last.pay ? r.last.pay + "x hit" : "Hit")
-    : (r.why === "broke" ? "Out of money" : "No hit");
+    : (r.why === "broke" ? "Bet too big" : "No hit");
   $("roDelta").textContent = signed(r.net);
 
   $("roFrom").textContent = money(S.balance - r.net);
@@ -1589,12 +1637,17 @@ function paintResult(){
        this far" makes it look ordinary, because a short round is a common
        round. How high the balance has climbed only goes one way. */
     var T = S.startBank > 0 ? S.balance / S.startBank : 1;
-    share = T <= 1 ? 1 : Math.min(1, 0.93 / T);
+    share = reachOdds(T);
     lab = T <= 1 ? "Runs that ever get this high" : "Runs that ever reach " + money(S.balance);
     tone = "var(--green)";
   } else if (r.why === "broke"){
+    /* "Out of money" read as "you have nothing" when the balance was usually a
+       few dollars short of ONE BET, which is a different and more confusing
+       thing to be told. */
+    var li = Math.max(0, levelAt(c, Math.max(0, r.done - 1)));
+    var needed = c.levels[Math.min(li, c.levels.length - 1)].bet;
     share = Math.min(1, r.done / Math.max(1, c.total));
-    lab = "You reached level " + (levelAt(c, Math.max(0, r.done-1)) + 1) + " of " + c.count;
+    lab = money(S.balance) + " left, next bet was " + m2(needed);
     tone = "var(--danger)";
   } else {
     share = 1 - c.reach;
@@ -1744,11 +1797,14 @@ function paintPlay(){
    can be drawn directly instead of stepping through every spin. Keno's 11x drip
    is added per level as a normal approximation to its binomial count - close
    enough for a percentile, and thousands of times faster than replaying spins. */
-function sampleRound(c, rnd){
+function sampleRound(c, rnd, bal){
   var q = c.stop;
+  /* The level list runs past what any one balance can pay for, so the ceiling
+     is what this balance funds - not the length of the list. */
+  var reach = affordFrom(c, 0, bal === undefined ? c.bank : bal);
   var u = rnd(); if (u <= 0) u = 1e-12;
   var g = 1 + Math.floor(Math.log(1 - u) / Math.log(1 - q));
-  var hit = g <= c.total, staked, net;
+  var hit = g <= reach, staked, net;
   var last = hit ? (function(){ for (var i=0;i<c.ends.length;i++) if (g <= c.ends[i]) return i; return 0; })() : -1;
   if (hit){
     var prevEnd = last > 0 ? c.ends[last-1] : 0;
@@ -1759,11 +1815,15 @@ function sampleRound(c, rnd){
     var mult = (c.game === "keno" && rnd() < KENO_SIX_GIVEN_STOP) ? 710 : c.pay;
     net = mult * c.levels[last].bet - staked;
   } else {
-    g = c.total; staked = c.cost; net = -staked;
+    g = reach;
+    var li = levelAt(c, Math.max(0, g - 1));
+    var pe = li > 0 ? c.ends[li-1] : 0, pc = li > 0 ? c.levels[li-1].cum : 0;
+    staked = pc + (g - pe) * c.levels[li].bet;
+    net = -staked;
   }
   if (c.game === "keno"){
     /* The spin that stopped the round cannot also have been a 4-hit. */
-    var dripSpins = hit ? g - 1 : c.total;
+    var dripSpins = hit ? g - 1 : g;
     var p4 = KENO_FOUR / (1 - q), drip = 0, seen = 0;
     for (var j=0; j<c.levels.length && seen < dripSpins; j++){
       var played = Math.min(c.levels[j].len, dripSpins - seen); seen += played;
@@ -1771,7 +1831,7 @@ function sampleRound(c, rnd){
     }
     net += drip;
   }
-  return net;
+  return [net, g];
 }
 /* Knuth. Binomial(n, 0.0238) is Poisson(np) to well inside the noise here, and
    unlike rounding a normal it keeps the right mean when the count is small. */
@@ -1785,11 +1845,42 @@ function poisson(lam, rnd){
   do { k++; pr *= rnd(); } while (pr > L);
   return k - 1;
 }
+/* How far a run gets before it can no longer cover its opening bet. Rounds
+   and spins, rather than money - "did I last longer than most" is a different
+   question from "did I finish ahead of most", and a run can do well at one and
+   badly at the other. */
+var SURVIVAL_CAP = 80;      /* a run that gets this far is "still going" */
+function survivalSpread(c, trials){
+  var rnd = streamFor(0x51ED270B ^ Math.round(c.bank)), open = c.levels[0].bet;
+  var rounds = new Float64Array(trials), spins = new Float64Array(trials);
+  for (var t=0; t<trials; t++){
+    var bal = c.bank, nr = 0, ns = 0;
+    while (nr < SURVIVAL_CAP && bal >= open){
+      var o = sampleRound(c, rnd, bal);
+      bal += o[0]; ns += o[1]; nr += 1;
+    }
+    rounds[t] = nr; spins[t] = ns;
+  }
+  Array.prototype.sort.call(rounds, function(a,b){ return a-b; });
+  Array.prototype.sort.call(spins,  function(a,b){ return a-b; });
+  return { rounds: rounds, spins: spins };
+}
+/* share of the sorted sample that reached AT LEAST v */
+function shareAtLeast(sorted, v){
+  var lo = 0, hi = sorted.length;
+  while (lo < hi){ var mid = (lo + hi) >> 1; if (sorted[mid] < v) lo = mid + 1; else hi = mid; }
+  return (sorted.length - lo) / sorted.length;
+}
 function outcomeSpread(c, rounds, trials){
   var rnd = streamFor(0x9E3779B9 ^ rounds), out = new Float64Array(trials);
   for (var t=0; t<trials; t++){
     var sum = 0;
-    for (var i=0; i<rounds; i++) sum += sampleRound(c, rnd);
+    var bal = c.bank;
+    for (var i=0; i<rounds; i++){
+      if (bal < c.levels[0].bet) break;
+      var out2 = sampleRound(c, rnd, bal);
+      sum += out2[0]; bal += out2[0];
+    }
     out[t] = sum;
   }
   Array.prototype.sort.call(out, function(a,b){ return a-b; });
@@ -1863,6 +1954,30 @@ function paintHistory(){
     while (lo < hi){ var mid = (lo + hi) >> 1; if (spread[mid] < netAll) lo = mid + 1; else hi = mid; }
     var pctl = lo / spread.length;
     var median = spread[Math.floor(spread.length / 2)];
+
+    var sv = survivalSpread(base0, 1200);
+    var spinsPlayed = H.reduce(function(a,h){ return a + h.spin; }, 0);
+    var reachP = shareAtLeast(sv.rounds, H.length);
+    var lastP  = shareAtLeast(sv.spins, spinsPlayed);
+
+    $("reachLab").textContent = "Runs that reach round " + H.length;
+    $("reachVal").textContent = pct(reachP);
+    $("reachVal").style.color = reachP < 0.5 ? "var(--accent)" : "var(--fg-2)";
+    $("reachBar").style.width = (100*reachP) + "%";
+    $("reachBar").className = reachP < 0.5 ? "" : "faintb";
+    var midRounds = sv.rounds[sv.rounds.length >> 1];
+    $("reachSub").textContent = midRounds >= SURVIVAL_CAP
+      ? "the middle run is still going after " + num(SURVIVAL_CAP) + " rounds"
+      : "the middle run manages " + num(midRounds) + " rounds before it cannot cover the opening bet";
+
+    $("lastLab").textContent = "Runs that last " + num(spinsPlayed) + " " + base0.noun + "s";
+    $("lastVal").textContent = pct(lastP);
+    $("lastVal").style.color = lastP < 0.5 ? "var(--accent)" : "var(--fg-2)";
+    $("lastBar").style.width = (100*lastP) + "%";
+    $("lastBar").className = lastP < 0.5 ? "" : "faintb";
+    var midSpins = sv.spins[sv.spins.length >> 1];
+    $("lastSub").textContent = (midRounds >= SURVIVAL_CAP ? "the middle run passes " : "the middle run lasts ") +
+      num(midSpins) + " " + base0.noun + "s";
 
     $("luckBlock").hidden = false;
     var lucky = pctl >= 0.5;
