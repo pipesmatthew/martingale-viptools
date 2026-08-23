@@ -665,6 +665,11 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
     <div class="card" id="histCard">
       <div class="cardhead"><h2>This run, round by round</h2><span class="grow"></span>
         <span class="note" id="histNote"></span>
+        <div class="seg" id="horizonSeg" role="group" aria-label="Rounds shown past your own">
+          <button data-h="2" class="on">+2</button>
+          <button data-h="10">+10</button>
+          <button data-h="25">+25</button>
+        </div>
         <button class="ghost" id="clearHist" style="font-size:11.5px;padding:2px 9px">Clear</button></div>
       <div class="cardbody" id="histSparkWrap">
         <svg id="histSpark" style="display:block;width:100%;height:340px"
@@ -974,7 +979,7 @@ var S = {
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
   speed: "normal", seed: 0, nonce: 0, rand: Math.random, hideDraw: false,
-  pop: null, popSounded: false
+  pop: null, popSounded: false, horizon: 2
 };
 
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
@@ -1928,25 +1933,29 @@ function paintHistory(){
   /* YOUR RUN AGAINST THE RUNS IT COULD HAVE BEEN, on axes you can read. One
      line on its own says nothing about whether it was ordinary; a thousand
      faint ones behind it turn the picture into a position. Same ladder, same
-     number of rounds; a run that goes broke flatlines rather than vanishing,
+     opening balance; a run that goes broke flatlines rather than vanishing,
      because that is what it does.
 
-     The scale starts at $0 and always shows it. A balance chart whose floor
-     floats with the data cannot be read at a glance, and "how close am I to
-     nothing" is the only question it exists to answer. */
+     The field runs past the rounds actually played, so the shape of what comes
+     next is visible instead of stopping dead at your last round.
+
+     Ground above the starting balance is tinted green and below it red, which
+     turns up and down into a place rather than a comparison you have to make
+     against a line. */
   var base0c = S.cfg0 || S.cfg;
   var svg = $("histSpark");
-  var W = Math.max(300, Math.round(svg.clientWidth || 640)), Hh = 340;
-  var padL = 64, padR = 16, padT = 18, padB = 30;
+  var W = Math.max(320, Math.round(svg.clientWidth || 640)), Hh = 340;
+  var padL = 74, padR = 16, padT = 20, padB = 34;
   var mine = [S.startBank].concat(H.map(function(h){ return h.balance; }));
-  var rounds = H.length;
+  var played = H.length;
+  var shown = played + S.horizon;
 
   var others = [], PATHS = 1000;
   if (base0c && base0c.levels && base0c.levels.length){
-    var rnd = streamFor(0xC0FFEE ^ rounds);
+    var rnd = streamFor(0xC0FFEE ^ shown);
     for (var k2=0; k2<PATHS; k2++){
       var bal = S.startBank, path = [bal], dead = false;
-      for (var i2=0; i2<rounds; i2++){
+      for (var i2=0; i2<shown; i2++){
         if (!dead && bal >= base0c.levels[0].bet){
           var o2 = sampleRound(base0c, rnd, bal);
           bal += o2[0];
@@ -1970,51 +1979,58 @@ function paintHistory(){
   var hi = Math.max(p98, mineMax, S.startBank) * 1.06;
   if (hi <= lo) hi = lo + 1;
 
-  var X = function(i){ return mine.length < 2 ? padL : padL + (W - padL - padR) * i / (mine.length - 1); };
-  var Yraw = function(v){
-    return padT + (Hh - padT - padB) * (1 - (v - lo) / (hi - lo));
-  };
+  var X = function(i){ return padL + (W - padL - padR) * i / Math.max(1, shown); };
+  var Yraw = function(v){ return padT + (Hh - padT - padB) * (1 - (v - lo) / (hi - lo)); };
   var Y = function(v){ return Math.max(padT - 4, Math.min(Hh - padB, Yraw(v))); };
   var over = 0;
   all.forEach(function(v){ if (v > hi) over++; });
 
-  /* short money for an axis: $16k reads at a glance, $16,378 does not */
   function tickMoney(v){
     if (v >= 1e6) return "$" + (v/1e6).toFixed(v >= 1e7 ? 0 : 1) + "m";
     if (v >= 1000) return "$" + (v/1000).toFixed(v >= 10000 ? 0 : 1) + "k";
     return "$" + Math.round(v);
   }
-  var ticks = [];
-  for (var ti = 0; ti <= 4; ti++) ticks.push(lo + (hi - lo) * ti / 4);
 
-  var grid = ticks.map(function(v){
-    var y = Yraw(v);
-    if (y < padT - 1 || y > Hh - padB + 1) return "";
-    return '<line x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) +
-           '" stroke="#26262e" stroke-width="1"></line>' +
-           '<text x="' + (padL - 8) + '" y="' + (y + 3.5).toFixed(1) +
-           '" fill="#8b8b93" font-family="JetBrains Mono, monospace" font-size="10.5" text-anchor="end">' +
-           tickMoney(v) + '</text>';
-  }).join("");
+  var startY = Yraw(S.startBank), zeroY = Yraw(0);
 
-  /* $0 is the line the whole chart is about, so it is an axis and not a tick */
-  var zeroY = Yraw(0);
+  /* the two grounds, drawn first so everything else sits on top of them */
+  var bands =
+    '<rect x="' + padL + '" y="' + padT + '" width="' + (W - padL - padR) +
+      '" height="' + Math.max(0, startY - padT).toFixed(1) + '" fill="#4ade80" fill-opacity="0.045"></rect>' +
+    '<rect x="' + padL + '" y="' + startY.toFixed(1) + '" width="' + (W - padL - padR) +
+      '" height="' + Math.max(0, (Hh - padB) - startY).toFixed(1) + '" fill="#e06c5a" fill-opacity="0.045"></rect>';
+
+  /* money ticks, minus whichever one would sit on top of the start label */
+  var grid = "";
+  for (var ti = 0; ti <= 4; ti++){
+    var tv = lo + (hi - lo) * ti / 4, ty = Yraw(tv);
+    if (ty < padT - 1 || ty > Hh - padB + 1) continue;
+    /* the start reading and the $0 axis label both own their heights already */
+    if (Math.abs(ty - startY) < 13) continue;
+    if (Math.abs(ty - zeroY) < 6) continue;
+    grid += '<line x1="' + padL + '" y1="' + ty.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + ty.toFixed(1) +
+            '" stroke="#26262e" stroke-width="1"></line>' +
+            '<text x="' + (padL - 8) + '" y="' + (ty + 3.5).toFixed(1) +
+            '" fill="#8b8b93" font-family="JetBrains Mono, monospace" font-size="10.5" text-anchor="end">' +
+            tickMoney(tv) + '</text>';
+  }
+
   var zeroLine = (zeroY <= Hh - padB + 1)
     ? '<line x1="' + padL + '" y1="' + zeroY.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + zeroY.toFixed(1) +
-      '" stroke="#e06c5a" stroke-width="1.5"></line>' +
-      '<text x="' + (W - padR) + '" y="' + (zeroY - 5).toFixed(1) +
-      '" fill="#e06c5a" font-family="JetBrains Mono, monospace" font-size="10.5" text-anchor="end">broke</text>'
+      '" stroke="#4a4a56" stroke-width="1.5"></line>' +
+      '<text x="' + (padL - 8) + '" y="' + (zeroY + 3.5).toFixed(1) +
+      '" fill="#8b8b93" font-family="JetBrains Mono, monospace" font-size="10.5" text-anchor="end">$0</text>'
     : "";
 
-  var startY = Yraw(S.startBank);
-  var startLine =
-    '<line x1="' + padL + '" y1="' + startY.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + startY.toFixed(1) +
-      '" stroke="#e8e2c4" stroke-width="1" stroke-dasharray="5 4"></line>' +
-    '<text x="' + (W - padR) + '" y="' + (startY - 5).toFixed(1) +
-      '" fill="#e8e2c4" font-family="JetBrains Mono, monospace" font-size="10.5" text-anchor="end">started ' +
-      tickMoney(S.startBank) + '</text>';
+  /* the starting balance is an axis reading, not an annotation floating in the
+     plot - so it has no line across and cannot collide with anything */
+  var startMark =
+    '<text x="' + (padL - 8) + '" y="' + (startY + 3.5).toFixed(1) +
+      '" fill="#e8e2c4" font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="600" ' +
+      'text-anchor="end">' + tickMoney(S.startBank) + '</text>' +
+    '<text x="' + (padL - 8) + '" y="' + (startY + 14.5).toFixed(1) +
+      '" fill="#8a8574" font-family="JetBrains Mono, monospace" font-size="9" text-anchor="end">start</text>';
 
-  function poly(arr){ return arr.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join(" "); }
   var ghostD = others.map(function(pth){
     return "M" + pth.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join("L");
   }).join("");
@@ -2022,42 +2038,53 @@ function paintHistory(){
     ? '<path d="' + ghostD + '" fill="none" stroke="#ffb454" stroke-opacity="0.05" stroke-width="1"></path>'
     : "";
 
-  var axes =
-    '<text x="' + padL + '" y="' + (Hh - 10) + '" fill="#8b8b93" font-family="JetBrains Mono, monospace" ' +
-      'font-size="10.5">round 1</text>' +
-    '<text x="' + (W - padR) + '" y="' + (Hh - 10) + '" fill="#8b8b93" font-family="JetBrains Mono, monospace" ' +
-      'font-size="10.5" text-anchor="end">round ' + num(rounds) + '</text>' +
-    '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (Hh - padB) +
-      '" stroke="#3a3a42" stroke-width="1"></line>';
+  var step = shown > 14 ? Math.ceil(shown / 10) : 1;
+  var xt = "";
+  for (var xi = 0; xi <= shown; xi += step){
+    xt += '<text x="' + X(xi).toFixed(1) + '" y="' + (Hh - 12) +
+          '" fill="' + (xi <= played ? "#8b8b93" : "#5c5c66") +
+          '" font-family="JetBrains Mono, monospace" font-size="10" text-anchor="middle">' + xi + '</text>';
+  }
+  xt += '<text x="' + padL + '" y="' + (Hh - 1) +
+        '" fill="#5c5c66" font-family="JetBrains Mono, monospace" font-size="9.5">round</text>' +
+        '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (Hh - padB) +
+        '" stroke="#3a3a42" stroke-width="1"></line>';
 
+  /* a plate, or a thousand amber strokes swallow the text */
+  function plate(x, y, txt, colour){
+    var w = txt.length * 6.6 + 10, rx = Math.min(W - padR - w, Math.max(padL, x - w/2));
+    return '<rect x="' + rx.toFixed(1) + '" y="' + (y - 11).toFixed(1) + '" width="' + w.toFixed(1) +
+           '" height="15" fill="#0e0e11" fill-opacity="0.86" stroke="' + colour + '" stroke-opacity="0.4"></rect>' +
+           '<text x="' + (rx + w/2).toFixed(1) + '" y="' + y.toFixed(1) + '" fill="' + colour +
+           '" font-family="JetBrains Mono, monospace" font-size="10.5" text-anchor="middle">' + txt + '</text>';
+  }
+
+  function poly(arr){ return arr.map(function(v,i){ return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join(" "); }
   var peakI = mine.indexOf(mineMax), endI = mine.length - 1;
   var endColour = netAll >= 0 ? "#4ade80" : "#e06c5a";
-  function label(i, txt, colour, above){
-    return '<text x="' + X(i).toFixed(1) + '" y="' + (Y(mine[i]) + (above ? -9 : 16)).toFixed(1) +
-      '" fill="' + colour + '" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="' +
-      (i === endI ? "end" : "middle") + '">' + txt + '</text>';
-  }
 
   svg.setAttribute("viewBox", "0 0 " + W + " " + Hh);
   svg.innerHTML =
-    grid + zeroLine + ghosts + startLine + axes +
-    '<polyline points="' + poly(mine) + '" fill="none" stroke="#0e0e11" stroke-width="5" ' +
-      'stroke-linejoin="round" stroke-linecap="round"></polyline>' +
-    '<polyline points="' + poly(mine) + '" fill="none" stroke="' + endColour + '" stroke-width="2.4" ' +
+    bands + grid + ghosts + zeroLine + startMark + xt +
+    /* a soft separation rather than a thick outline - the old 5.5px halo under a
+       2.6px stroke is what made this line look drawn on with a marker */
+    '<polyline points="' + poly(mine) + '" fill="none" stroke="#0e0e11" stroke-opacity="0.65" ' +
+      'stroke-width="4" stroke-linejoin="round" stroke-linecap="round"></polyline>' +
+    '<polyline points="' + poly(mine) + '" fill="none" stroke="' + endColour + '" stroke-width="1.8" ' +
       'stroke-linejoin="round" stroke-linecap="round"></polyline>' +
     (peakI !== endI && peakI !== 0
       ? '<circle cx="' + X(peakI).toFixed(1) + '" cy="' + Y(mine[peakI]).toFixed(1) +
-        '" r="3.5" fill="#4ade80" stroke="#0e0e11" stroke-width="1.5"></circle>' +
-        label(peakI, money(mine[peakI]), "#4ade80", true)
+        '" r="2.8" fill="#4ade80" stroke="#0e0e11" stroke-width="1"></circle>' +
+        plate(X(peakI), Y(mine[peakI]) - 10, "peak " + money(mine[peakI]), "#4ade80")
       : "") +
     '<circle cx="' + X(endI).toFixed(1) + '" cy="' + Y(mine[endI]).toFixed(1) +
-      '" r="4" fill="' + endColour + '" stroke="#0e0e11" stroke-width="1.5"></circle>' +
-    label(endI, money(mine[endI]), endColour, mine[endI] >= S.startBank);
+      '" r="3.2" fill="' + endColour + '" stroke="#0e0e11" stroke-width="1"></circle>' +
+    plate(X(endI), Y(mine[endI]) - 11, money(mine[endI]), endColour);
 
-  $("chartCaption").textContent = over
-    ? "your run against " + num(PATHS) + " others " + DOT + " " + num(over) +
-      " readings run off the top of the frame"
-    : "your run against " + num(PATHS) + " others on the same ladder";
+  $("chartCaption").textContent =
+    "your run against " + num(PATHS) + " others " + DOT + " " + num(played) +
+    (played === 1 ? " round played, " : " rounds played, ") + num(shown) + " shown" +
+    (over ? " " + DOT + " " + num(over) + " readings run off the top" : "");
 
   /* Where this run's finish sits among runs of the same length on the same
      ladder. An approximation on purpose: it holds the opening ladder fixed, so
@@ -2282,6 +2309,13 @@ $("seedVal").addEventListener("change", function(){
   /* typing a seed back in replays that hunt's draws exactly */
   var v = Math.max(1, Math.round(+$("seedVal").value || 0));
   reseed(v); saveState();
+});
+$$("#horizonSeg button").forEach(function(b){
+  b.addEventListener("click", function(){
+    S.horizon = +b.getAttribute("data-h") || 2;
+    $$("#horizonSeg button").forEach(function(o){ o.classList.toggle("on", o === b); });
+    paintHistory();
+  });
 });
 $("clearHist").addEventListener("click", function(){
   S.history = []; S.balance = S.startBank; saveState(); paintPlay();
