@@ -1665,13 +1665,12 @@ function paintResult(){
     lab = T <= 1 ? "Runs that ever get this high" : "Runs that ever reach " + money(S.balance);
     tone = "var(--green)";
   } else if (r.why === "broke"){
-    /* "Out of money" read as "you have nothing" when the balance was usually a
-       few dollars short of ONE BET, which is a different and more confusing
-       thing to be told. */
-    var li = Math.max(0, levelAt(c, Math.max(0, r.done - 1)));
-    var needed = c.levels[Math.min(li, c.levels.length - 1)].bet;
-    share = Math.min(1, r.done / Math.max(1, c.total));
-    lab = money(S.balance) + " left, next bet was " + m2(needed);
+    /* The bar used to plot spins-completed-over-ladder-length while the label
+       beside it talked about the bet that could not be covered - a number and
+       a sentence describing different things. Running out of money in this mode
+       IS the no-hit ending, so it takes the same figure as one. */
+    share = 1 - c.reach;
+    lab = "Rounds that end this way";
     tone = "var(--danger)";
   } else {
     share = 1 - c.reach;
