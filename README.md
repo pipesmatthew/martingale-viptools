@@ -197,10 +197,10 @@ numbers are picked starts the tally again, since it is only true for the board
 it was gathered on - changing *which* numbers does not, the distribution being
 identical.
 
-**It launches from its own buttons.** "Launch Sandbox Keno" and "Launch Sandbox
-Limbo" sit beside Martingale in the first card and go straight to the board -
-one press to choose the game, the strategy and to start. There is nothing to set
-up on the way, so the game, balance and ladder cards are all the ladder's.
+**It launches from the mode rail.** Keno and Limbo sit under Sandbox in the
+rail and go straight to the board - one press to choose the game, the strategy
+and to start. There is nothing to set up on the way, so the whole form is the
+ladder's.
 
 ### Volatility
 
@@ -343,6 +343,25 @@ and the "chance before you'd give up" figure would name a bail-out point it can
 no longer reach.
 
 "A level I pick" restores the old fixed cap.
+
+### The setup screen
+
+The mode is a **rail down the left**, not a row of buttons in the form. Two of
+the three leave the screen and one does not, and while they all looked like form
+controls there was no way to tell which was which - a rail cannot be confused
+with a form, so the distinction cannot come back the next time something is
+added to either.
+
+Everything else is **one row per setting**: a label on the left, whatever the
+setting takes on the right. It was four idioms in four cards - segmented
+buttons, a checkbox, bare number grids and a second segmented control - with no
+rule about which got used when. Below 620px the label goes over the control
+instead of beside it.
+
+**"Ride it until" is gone.** There was only ever one answer worth giving: the
+balance. A level cap was a second way of saying "stop early", which the balance
+already says on its own, and every figure on the screen had to carry a second
+phrasing for it - "before you bankrupt" or "before you bail", everywhere.
 
 ### Stop on hit
 

@@ -240,6 +240,37 @@ button.ghost,button.primary{
   font:inherit;cursor:pointer;border-radius:0;padding:4px 12px;
   border:1px solid var(--border);background:var(--button);color:var(--muted)}
 button.ghost:hover{background:var(--button-hover);color:var(--fg)}
+/* ── the mode rail ──────────────────────────────────────────────────────
+   Two of these leave the screen and one does not. As buttons in the form there
+   was no way to tell which was which; out here the question does not arise. */
+.rail{display:grid;grid-template-columns:186px minmax(0,1fr);gap:5px;align-items:start}
+.railcol{display:flex;flex-direction:column;gap:3px}
+.railbtn{appearance:none;cursor:pointer;font:inherit;text-align:left;background:var(--button);
+  border:1px solid var(--border);color:var(--muted);padding:9px 11px;font-size:12.5px}
+.railbtn:hover{background:var(--button-hover);color:var(--fg)}
+.railbtn.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+.railbtn.go{color:var(--accent);border-color:#4a3a20}
+.railbtn.go:hover{background:#2a2118;color:var(--accent)}
+.railsep{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;padding:8px 2px 3px}
+@media (max-width:860px){
+  .rail{grid-template-columns:1fr}
+  .railcol{flex-direction:row;flex-wrap:wrap;align-items:center}
+  .railcol .railsep{padding:0 4px 0 0}
+  .railcol .railbtn{flex:1 1 auto}
+}
+
+/* one row per setting: a label on the left, whatever it takes on the right */
+.rowf{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--border)}
+.rowf:last-child{border-bottom:0}
+/* a 150px label column leaves 175px for the control on a phone, so below that
+   the label goes over the control instead of beside it */
+@media (max-width:620px){ .rowf{grid-template-columns:minmax(0,1fr);gap:4px} }
+.rowf > .lab{font-size:11.5px;color:var(--muted);letter-spacing:0;text-transform:none;
+  font-weight:400;margin:0}
+.rowf .picks{grid-template-columns:repeat(3,1fr)}
+
 .chk{display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer;
   font-size:12px;color:var(--muted)}
 .chk input{accent-color:var(--accent);width:15px;height:15px;flex:none;cursor:pointer;margin:0}
@@ -529,128 +560,103 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
   <!-- ── set up your run ─────────────────────────────────────────── -->
   <div id="view-setup">
-    <div class="split">
-      <div>
-        <!-- THE PRIMITIVE DECISION. It is not a ladder setting - it decides
-             whether there is a ladder at all, which counts you may pick, and
-             what every control under it means. So it goes first. -->
-        <div class="card">
-          <div class="cardhead"><h2>How you bet</h2></div>
-          <div class="cardbody">
-            <div class="seg big" id="stratSeg" role="group" aria-label="Betting strategy">
-              <button data-k="mart" data-x="mart" class="on">Martingale</button>
-              <button data-k="sb-keno"  data-x="flat" data-g="keno">Launch Sandbox Keno</button>
-              <button data-k="sb-limbo" data-x="flat" data-g="limbo">Launch Sandbox Limbo</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" id="gameCard">
-          <div class="cardhead"><h2>Which game</h2></div>
-          <div class="cardbody">
-            <div class="seg big" id="gameSeg">
-              <button data-g="keno" class="on">Keno</button>
-              <button data-g="limbo">Limbo</button>
-            </div>
-
-            <div id="kenoOpts" style="margin-top:5px">
-              <div class="picks" id="pickSeg"></div>
-            </div>
-
-            <div id="limboOpts" hidden style="margin-top:11px">
-              <div class="grid2">
-                <label class="f"><span>Target multiplier</span>
-                  <input type="number" id="lmult" value="350" min="1.02" max="1000000" step="10"></label>
-                <label class="f"><span>Chance per roll</span>
-                  <input type="text" id="lchance" value="0.283%" readonly tabindex="-1"></label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" id="bankCard">
-          <div class="cardhead"><h2>Balance</h2></div>
-          <div class="cardbody">
-            <div class="grid2">
-              <label class="f"><span>Start with</span>
-                <input type="number" id="bank" value="1400" min="1" step="100"></label>
-              <label class="f"><span>Walk away at</span>
-                <input type="number" id="walk" value="0" min="0" step="500"></label>
-            </div>
-          </div>
-        </div>
-
-        <div class="card" id="ladderCard">
-          <div class="cardhead" id="ladderHead"><h2 id="ladderTitle">The Martingaler</h2></div>
-          <div class="cardbody">
-            <!-- A pressed-in button reads as "this is a thing you can click",
-                 not as "this is currently on". A checkbox says which it is. -->
-            <label class="chk" id="optWrap">
-              <input type="checkbox" id="optBet" checked>
-              <span>Automatically adjust bet to be optimal?</span></label>
-            <div class="grid2" style="margin-bottom:9px">
-              <label class="f"><span id="baseLab">Initial bet</span>
-                <input type="number" id="base" value="1" min="0" step="0.5"></label>
-              <label class="f" id="stepWrap"><span>Multiply by</span>
-                <input type="number" id="stepx" value="2" min="1" max="10" step="0.25"></label>
-            </div>
-            <div class="grid2" id="lensRow" style="margin-bottom:11px">
-              <label class="f"><span>First level, spins</span>
-                <input type="number" id="len1" value="350" min="1" max="20000" step="25"></label>
-              <label class="f"><span>Every level after</span>
-                <input type="number" id="lenN" value="175" min="1" max="20000" step="25"></label>
-            </div>
-            <div style="margin-bottom:9px" id="bailWrap">
-              <span style="display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
-                           color:var(--faint);font-weight:700;margin-bottom:4px">Ride it until</span>
-              <div class="seg" id="bailSeg">
-                <button data-b="broke" class="on">The balance is gone</button>
-                <button data-b="fixed">A level I pick</button>
-              </div>
-            </div>
-            <label class="f" id="levelsWrap" hidden><span>Give up after level <b id="levelsV">3</b></span>
-              <input type="range" id="levels" min="1" max="12" step="1" value="3"></label>
-          </div>
-        </div>
+    <!-- THE MODE IS A RAIL, NOT A ROW OF BUTTONS IN THE FORM. Two of these
+         three leave the screen and one does not, and while they all looked like
+         form controls there was no way to tell which was which. A rail cannot
+         be confused with a form, so the distinction cannot come back the next
+         time something is added to either. -->
+    <div class="rail">
+      <div class="railcol" id="stratSeg" role="group" aria-label="Mode">
+        <div class="railsep">Mode</div>
+        <button class="railbtn on" data-k="mart" data-x="mart">Martingale</button>
+        <div class="railsep">Sandbox</div>
+        <button class="railbtn go" data-k="sb-keno"  data-x="flat" data-g="keno">Keno &rarr;</button>
+        <button class="railbtn go" data-k="sb-limbo" data-x="flat" data-g="limbo">Limbo &rarr;</button>
       </div>
 
-      <div>
-        <div id="forecast">
-        <div class="card">
-          <div class="cardhead"><h2>Before you start</h2></div>
-          <div class="cardbody">
-            <div class="levels" id="setupLevels" style="margin-bottom:10px"></div>
+      <div class="split">
+        <div>
+          <div class="card" id="ladderCard">
+            <div class="cardhead" id="ladderHead"><h2 id="ladderTitle">Martingale</h2></div>
+            <div class="cardbody" style="padding-top:2px">
+
+              <div class="rowf"><span class="lab">Game</span>
+                <div class="seg" id="gameSeg">
+                  <button data-g="keno" class="on">Keno</button>
+                  <button data-g="limbo">Limbo</button>
+                </div></div>
+
+              <div class="rowf" id="kenoOpts"><span class="lab">Numbers picked</span>
+                <div class="picks" id="pickSeg"></div></div>
+
+              <div class="rowf" id="limboOpts" hidden><span class="lab">Target multiplier</span>
+                <div class="grid2">
+                  <input type="number" id="lmult" value="350" min="1.02" max="1000000" step="10">
+                  <input type="text" id="lchance" value="0.283%" readonly tabindex="-1"></div></div>
+
+              <div class="rowf" id="bankCard"><span class="lab">Initial balance</span>
+                <input type="number" id="bank" value="1400" min="1" step="100"></div>
+
+              <div class="rowf"><span class="lab" id="baseLab">Initial bet</span>
+                <input type="number" id="base" value="1" min="0" step="0.5"></div>
+
+              <div class="rowf" id="optWrap"><span class="lab">&nbsp;</span>
+                <label class="chk" style="margin:0">
+                  <input type="checkbox" id="optBet" checked>
+                  <span>Adjust bet to be optimal automatically</span></label></div>
+
+              <div class="rowf" id="stepWrap"><span class="lab">Multiply by</span>
+                <input type="number" id="stepx" value="2" min="1" max="10" step="0.25"></div>
+
+              <div class="rowf" id="lensRow"><span class="lab">Level lengths</span>
+                <div class="grid2">
+                  <input type="number" id="len1" value="350" min="1" max="20000" step="25">
+                  <input type="number" id="lenN" value="175" min="1" max="20000" step="25"></div></div>
+
+              <div class="rowf"><span class="lab">Walk away at</span>
+                <input type="number" id="walk" value="0" min="0" step="500"></div>
+
+            </div>
           </div>
         </div>
 
-        <div class="tiles two">
-          <div class="tile"><div class="k">Most you can lose</div>
-            <div class="v red" id="tMaxLoss">$1,400</div><div class="d" id="tMaxLossD">70% of your balance</div></div>
-          <div class="tile"><div class="k">Longest you'd ride</div>
-            <div class="v" id="tSpins">700</div><div class="d">spins before you bankrupt</div></div>
-        </div>
-        <div class="tiles two">
-          <div class="tile"><div class="k">Rounds that get the hit</div>
-            <div class="v green" id="tWin">75.8%</div><div class="d" id="tWinD">about 3 in 4</div></div>
-          <div class="tile"><div class="k" id="tLevelsK">Levels you'd climb</div>
-            <div class="v amber" id="tLevels">7</div><div class="d" id="tLevelsD">before the money runs out</div></div>
-        </div>
+        <div>
+          <div id="forecast">
+          <div class="card">
+            <div class="cardhead"><h2>Before you start</h2></div>
+            <div class="cardbody">
+              <div class="levels" id="setupLevels" style="margin-bottom:10px"></div>
+            </div>
+          </div>
 
-        <div class="card" id="setupWarnCard">
-          <p class="callout warn" id="setupWarn" style="margin:0"></p>
-        </div>
-        </div>
+          <div class="tiles two">
+            <div class="tile"><div class="k">Most you can lose</div>
+              <div class="v red" id="tMaxLoss">$1,400</div><div class="d" id="tMaxLossD">70% of your balance</div></div>
+            <div class="tile"><div class="k">Longest you'd ride</div>
+              <div class="v" id="tSpins">700</div><div class="d">spins before you bankrupt</div></div>
+          </div>
+          <div class="tiles two">
+            <div class="tile"><div class="k">Rounds that get the hit</div>
+              <div class="v green" id="tWin">75.8%</div><div class="d" id="tWinD">about 3 in 4</div></div>
+            <div class="tile"><div class="k" id="tLevelsK">Levels you'd climb</div>
+              <div class="v amber" id="tLevels">7</div><div class="d" id="tLevelsD">before the money runs out</div></div>
+          </div>
 
-        <div class="card" id="startCard"><div class="cardbody">
-          <button class="primary" id="startBtn" style="width:100%;padding:8px">Start run</button>
-          <p class="err" id="setupErr" hidden></p>
-          <p class="hint" id="startHint" style="text-align:center"></p>
-        </div></div>
+          <div class="card" id="setupWarnCard">
+            <p class="callout warn" id="setupWarn" style="margin:0"></p>
+          </div>
+          </div>
+
+          <div class="card" id="startCard"><div class="cardbody">
+            <button class="primary" id="startBtn" style="width:100%;padding:8px">Start run</button>
+            <p class="err" id="setupErr" hidden></p>
+            <p class="hint" id="startHint" style="text-align:center"></p>
+          </div></div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- ── play it ─────────────────────────────────────────────────── -->
   <div id="view-play" hidden>
 
     <div class="playtop">
@@ -1411,7 +1417,10 @@ function readForm(){
     game:  $("gameSeg").querySelector("button.on").getAttribute("data-g"),
     picks: +(($("pickSeg").querySelector("button.on") || {}).getAttribute
               ? $("pickSeg").querySelector("button.on").getAttribute("data-k") : 6) || 6,
-    mode:  $("bailSeg").querySelector("button.on").getAttribute("data-b"),
+    /* THERE IS ONLY ONE ANSWER TO "RIDE IT UNTIL". A level cap was a second
+       way of saying "stop early", which the balance already says on its own,
+       and every figure on the screen had to carry a second phrasing for it. */
+    mode:  "broke",
     strat: $("stratSeg").querySelector("button.on").getAttribute("data-x"),
     opt:   $("optBet").checked,
     lmult: +$("lmult").value || 350,
@@ -1422,7 +1431,7 @@ function readForm(){
     stepx: +$("stepx").value || 2,
     len1:  Math.round(+$("len1").value) || 350,
     lenN:  Math.round(+$("lenN").value) || 175,
-    count: +$("levels").value || 3,
+    count: 3,
     bank:  +$("bank").value  || 1400,
     walk:  +$("walk").value  || 0
   };
@@ -1432,9 +1441,8 @@ function writeForm(f){
   setStrat(f.strat === "flat" ? "flat" : "mart");
   setPicks(clamp(Math.round(f.picks || 6), 1, 10));
   setGame(f.game === "limbo" ? "limbo" : "keno");
-  setBail(f.mode === "fixed" ? "fixed" : "broke");
   $("lmult").value = f.lmult; $("base").value = f.base; $("stepx").value = f.stepx;
-  $("len1").value  = f.len1;  $("lenN").value = f.lenN; $("levels").value = f.count;
+  $("len1").value  = f.len1;  $("lenN").value = f.lenN;
   $("bank").value  = f.bank;  $("walk").value = f.walk;
 }
 
@@ -1839,7 +1847,6 @@ function paintGameOpts(){
      launch it themselves and say so. */
   $("startCard").hidden = flat;
   /* the sandbox picks its game on the way in, so the game card is the ladder's */
-  $("gameCard").hidden = flat;
 }
 function isFlat(){
   var b = $("stratSeg").querySelector("button.on");
@@ -1874,8 +1881,6 @@ function setStrat(x){
   /* everything on this card except the bet size describes a climb */
   $("stepWrap").hidden = flat;
   $("lensRow").hidden  = flat;
-  $("bailWrap").hidden = flat;
-  if (flat) $("levelsWrap").hidden = true;
   $("ladderTitle").textContent = flat ? "Sandbox" : "The Martingaler";
   $("baseLab").textContent     = flat ? "Every bet" : "Initial bet";
   $("optWrap").hidden          = flat;
@@ -1895,12 +1900,6 @@ function setStrat(x){
   var cur = $("pickSeg").querySelector("button.on");
   setPicks(cur ? +cur.getAttribute("data-k") : 6);
 }
-function setBail(m){
-  $$("#bailSeg button").forEach(function(b){
-    b.classList.toggle("on", b.getAttribute("data-b") === m);
-  });
-  $("levelsWrap").hidden = m !== "fixed";
-}
 /* the stretch rules need to know which card is the last one actually showing */
 function markLastCards(){
   $$("#view-setup .split > div").forEach(function(col){
@@ -1917,7 +1916,6 @@ function paintSetup(){
   var c = derive(readForm());
   S.cfg = c;
 
-  $("levelsV").textContent = $("levels").value;
   /* "levels climbed" is a number only a climb has. The sandbox answers the
      question the tile is really for - how much of a run you get - with the
      hits the money buys you. */
@@ -1928,8 +1926,7 @@ function paintSetup(){
   } else {
     $("tLevelsK").textContent = "Levels you'd climb";
     $("tLevels").textContent = num(levelAt(c, Math.max(0, c.afford - 1)) + 1);
-    $("tLevelsD").textContent = c.mode === "broke"
-      ? "before the money runs out" : "you chose to ride";
+    $("tLevelsD").textContent = "before the money runs out";
   }
   $("lchance").value = pct(0.99/c.lmult, 3);
 
@@ -1951,7 +1948,7 @@ function paintSetup(){
     : Math.round(100*share) + "% of your balance";
   $("tSpins").textContent = num(c.afford);
   $("tSpins").nextElementSibling.textContent = c.noun + "s" +
-    (c.mode === "broke" ? " before you bankrupt" : " before you bail");
+    " before you bankrupt";
   $("tWin").textContent = pct(c.reach);
   $("tWinD").textContent = plainOdds(c.reach);
 
@@ -2194,7 +2191,7 @@ function paintOdds(){
   $("bUp").className = everUp < 0.5 ? "" : "faintb";
 
   $("oEndLab").textContent = "Chance of hitting " + c.pay + "x before " +
-    (c.mode === "broke" ? "bankrupt" : "bail");
+    "bankrupt";
   $("oAlreadyLab").textContent = "Already got their " + c.pay + "x by this bet";
   $("oEnd").textContent = pct(end);
   $("bEnd").style.width = (100*end) + "%";
@@ -2371,7 +2368,7 @@ function paintPlay(){
   $("p-level").textContent = ri < 0 ? "—" : (ri+1);
   $("p-level").className = "v amber";
   $("p-levelD").textContent = "of " + num(Math.max(purse.length, ri + 1)) +
-    (c.mode === "broke" ? " before you bankrupt" : " before you bail");
+    " before you bankrupt";
   $("p-bet").textContent = ri < 0 ? "—" : m2(bet);
   $("p-betD").textContent = "per " + c.noun;
   $("p-stk").textContent = money(r.staked);
@@ -2593,7 +2590,7 @@ function sampleRound(c, rnd, bal){
      not hit has spent essentially everything - that is the end of the run, not
      a setback. Without this the simulation kept "playing" $15, then $8, then $3
      rounds and reported a median of 19 rounds when the real answer is nearer 3. */
-  return [net, g, !hit && c.mode === "broke"];
+  return [net, g, !hit];
 }
 /* Knuth. Binomial(n, 0.0238) is Poisson(np) to well inside the noise here, and
    unlike rounding a normal it keeps the right mean when the count is small. */
@@ -3060,7 +3057,6 @@ $("lmult").addEventListener("input", function(){
 ["base","stepx","len1","lenN","bank","walk"].forEach(function(id){
   $(id).addEventListener("input", paintSetup);
 });
-$("levels").addEventListener("input", paintSetup);
 $("startBtn").addEventListener("click", function(){
   var c = derive(readForm());
   if (c.levels[0].bet > c.bank){
@@ -3136,9 +3132,6 @@ $("roDouble").addEventListener("click", function(){
   startRun(false);
 });
 $("roEnd").addEventListener("click", function(){ $("runover").hidden = true; endHunt(); });
-$$("#bailSeg button").forEach(function(b){
-  b.addEventListener("click", function(){ setBail(b.getAttribute("data-b")); paintSetup(); });
-});
 function toSetup(){ showView("setup"); paintSetup(); }
 $("btnNewHunt").addEventListener("click", toSetup);
 $("btnBackStats").addEventListener("click", toSetup);
