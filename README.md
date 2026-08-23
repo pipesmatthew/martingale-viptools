@@ -181,10 +181,17 @@ drive the first round; changing them belongs at the board, and will go there.
 **Its board is a different board.** The ladder card under it and the "where you
 stand" odds panel are both readings of a ladder that is not there, so both go.
 The bet leaves the stats strip - which drops to five tiles - and becomes a field
-you can type in, next to a balance you can also type in. Editing either rebuilds
-the config, so the next bet and every payout on the strip follow immediately;
-setting the balance also resets the baseline the run is measured against, since
-a profit line counted from a number you replaced is measuring nothing.
+under the balance. The balance itself stays exactly what it is on a ladder run,
+the same big cream figure moving with every bet; clicking it hands you the
+number to type over. It was briefly a pair of bare input boxes, and that was
+wrong twice: it threw away the one reading you actually watch, and it showed the
+stored balance, which only moves when a ROUND ends - thousands of bets away on a
+flat run, so it sat frozen at the opening figure while the money visibly went.
+What you see and edit is the live figure, and the stored balance is solved back
+from it. Editing either field rebuilds the config, so the next bet and every
+payout on the strip follow immediately; setting the balance also resets the
+baseline the run is measured against, since a profit line counted from a number
+you replaced is measuring nothing.
 
 **The paytable strip** takes the ladder's place under the board: one cell per
 possible number of hits, the multiplier over the count, and on hover the payout
@@ -192,6 +199,8 @@ at your current bet and the exact chance of that outcome. The chance is
 P(exactly h hits), not h or better, because the cell describes one outcome. At
 ten picks that runs from 15.47% for a blank board down to 0.00000012% for all
 ten, and the eleven multipliers read 0x 0x 0x 0x 3.5x 8x 13x 63x 500x 800x 1K.
+The marker beside each count is amber, the same fill the board uses for a
+number you chose.
 
 It is the same machine with the climb taken out. **Sandbox**
 is one bet size, one level long enough that the balance is always what ends the
@@ -360,17 +369,25 @@ A level popup outranks a win on the same spin, because it is the bigger news.
 Nothing needs dismissing: the next spin clears whatever is showing and plays, in
 one press.
 
-### Batches stop at the level boundary
+### Autoplay, at a speed you set
 
-Type any number into the batch box and the button rounds it down to whatever is
-left in the current level — 25 becomes 15 if 15 remain. Autoplay halts there
-too. A level change is the moment the strategy costs you something, so it is
-shown to you rather than found afterwards in the log.
+There is no batch button. "Spin x25" was a second way to do what autoplay does,
+with a worse answer to the only question that matters mid-run, which is when to
+stop; the ladder still halts autoplay at a level change, because that is the
+moment the strategy costs you something.
+
+The slider next to Auto sets the rate, with the rate it is running at now on its
+right. The scale is logarithmic - `10^(v/50)` spins a second, so 0 is one a
+second, 50 is ten and 100 is a hundred - because a slider linear in spins per
+second spends four fifths of its travel on speeds nobody can follow. It defaults
+to 63, which is 18/s, the fixed rate autoplay used to run at. Moving it while
+autoplay is running restarts the timer at the new period immediately; a slider
+you have to stop to use is not a slider.
 
 ### Reveal speed and sound
 
 Keno turns its draw over one tile at a time, at **Normal**, **Faster** or
-**Instant**. Only a single spin animates; a batch or an autoplay would be
+**Instant**. Only a single spin animates; an autoplay would be
 unwatchable at that pace, and slowing them to watch is what the single spin is
 for. Sound is synthesised with the Web Audio API — no files, no requests,
 nothing the CSP has to allow — and each hit in a draw rings a step higher.
