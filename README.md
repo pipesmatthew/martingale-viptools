@@ -220,9 +220,10 @@ table does not do at all.
 | 9 | 98.96% | 98.94% |
 | 10 | 99.01% | 98.97% |
 
-Every medium row landing in the same 98.65-98.99% band as the high ones is the
-check that they were copied correctly, not a coincidence to lean on - a
-mistranscribed tier would show up as an RTP that misses the band.
+All ten rows are transcribed from the source tables. Every one landing in the
+same 98.65-98.99% band as the high ones is the check that they were copied
+correctly, not a coincidence to lean on - a mistranscribed tier would show up as
+an RTP that misses the band.
 
 Switching resets the tally, because a different paytable is a different game and
 what was counted was counted under the old one.
