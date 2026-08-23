@@ -390,7 +390,13 @@ phrasing for it - "before you bankrupt" or "before you bail", everywhere.
 ### Stop on hit
 
 A figure in the play controls, on both games: autoplay halts when a single draw
-pays at least this much. Zero is off. It stops **autoplay**, not the board - a
+pays at least this much. Zero is off.
+
+**Clicking a tier on the paytable strip arms it.** The strip already says what
+each outcome pays at your bet, so it is the natural place to say "and stop when
+that one lands" - the alternative was reading the payout off a tooltip and
+typing it into a box three rows away. The armed tier is marked amber; clicking
+it again, or clicking any tier that pays nothing, turns the stop off. It stops **autoplay**, not the board - a
 number you typed is a plan for the machine that is betting on its own, and a bet
 you press yourself is still yours to press.
 
