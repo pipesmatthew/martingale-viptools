@@ -729,6 +729,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
         <div class="card">
           <div class="cardbody playpad">
+            <!-- sandbox keno only: it changes what every tier pays, so it sits
+                 above the button rather than down with the run settings -->
+            <label class="f" id="volRow" hidden><span>Volatility</span>
+              <select id="volSel">
+                <option value="high">High</option>
+                <option value="med">Medium</option>
+              </select></label>
             <button class="primary" id="btnSpin">Place Bet</button>
             <div class="playgrid two" id="extraRow">
               <button class="ghost" id="btnAuto">Auto &#9654;</button>
@@ -743,13 +750,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <label for="seedVal" style="flex:none">Seed</label>
               <input type="number" id="seedVal" value="0" min="1" step="1">
               <button class="ghost" id="btnSeed">New seed</button>
-            </div>
-            <div class="seedrow" id="volRow" hidden>
-              <span style="flex:none">Volatility</span>
-              <div class="seg" id="volSeg" style="flex:1 1 auto" role="group" aria-label="Volatility">
-                <button data-v="high" class="on">High</button>
-                <button data-v="med">Medium</button>
-              </div>
             </div>
             <div class="seedrow">
               <label for="stopWin" style="flex:none">Stop on hit</label>
@@ -1239,7 +1239,8 @@ var S = {
   history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null, editingBal: false,
   vol: "high",
   sbBets: 0, sbHits: 0, sbStaked: 0, sbBack: 0, sbTier: [], sbPicks: null,
-  martBank: undefined, martBase: undefined, sbBank: undefined, sbBase: undefined,
+  martBank: undefined, martBase: undefined, martGame: undefined,
+  sbBank: undefined, sbBase: undefined,
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
   speed: "normal", seed: 0, nonce: 0, rand: Math.random, hideDraw: false,
@@ -1397,10 +1398,7 @@ function loadState(){
     if (typeof d.muted === "boolean") S.muted = d.muted;
     if (typeof d.autoRate === "number") $("autoRate").value = clamp(d.autoRate, 0, 100);
     if (typeof d.stopWin === "number") $("stopWin").value = Math.max(0, d.stopWin);
-    if (d.vol === "med" || d.vol === "high"){
-      S.vol = d.vol;
-      $$("#volSeg button").forEach(function(o){ o.classList.toggle("on", o.getAttribute("data-v") === S.vol); });
-    }
+    if (d.vol === "med" || d.vol === "high"){ S.vol = d.vol; $("volSel").value = S.vol; }
   } catch (e) { /* corrupt or unavailable - start fresh */ }
 }
 
@@ -1861,6 +1859,7 @@ function setStrat(x){
       S.sbBank = $("bank").value; S.sbBase = $("base").value;
       if (S.martBank !== undefined) $("bank").value = S.martBank;
       if (S.martBase !== undefined) $("base").value = S.martBase;
+      if (S.martGame) setGame(S.martGame);
     }
   }
   /* two of the three buttons are "flat", so the on-state is keyed by which
@@ -3030,6 +3029,11 @@ $("stratSeg").addEventListener("click", function(e){
   var b = e.target.closest("button[data-x]"); if (!b) return;
   var x = b.getAttribute("data-x"), g = b.getAttribute("data-g");
   if (x === "flat"){
+    /* THE GAME IS THE LADDER'S TOO, and this button is about to change it.
+       Stashed here rather than inside setStrat, because setGame has already
+       run by the time setStrat sees it - which stashed the sandbox's own
+       choice and handed it back to the ladder as if it were the ladder's. */
+    if (!isFlat()) S.martGame = $("gameSeg").querySelector("button.on").getAttribute("data-g");
     /* one press: choose the game, choose the strategy, and go. There is
        nothing to set up on the way. */
     setGame(g);
@@ -3082,19 +3086,16 @@ $("btnSpin").addEventListener("click", function(){
 });
 $("btnAuto").addEventListener("click", toggleAuto);
 $("autoRate").addEventListener("input", function(){ paintRate(); saveState(); });
-$$("#volSeg button").forEach(function(b){
-  b.addEventListener("click", function(){
-    S.vol = b.getAttribute("data-v");
-    $$("#volSeg button").forEach(function(o){ o.classList.toggle("on", o === b); });
-    /* a different paytable is a different game: what has been counted so far
-       was counted under the old one */
-    S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = [];
-    if (S.cfg && S.cfg.strat === "flat"){
-      var f = readForm(); f.bank = S.balance; S.cfg = derive(f);
-    }
-    S.hideDraw = true;
-    saveState(); paintPlay();
-  });
+$("volSel").addEventListener("change", function(){
+  S.vol = $("volSel").value === "med" ? "med" : "high";
+  /* a different paytable is a different game: what has been counted so far was
+     counted under the old one */
+  S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = [];
+  if (S.cfg && S.cfg.strat === "flat"){
+    var f = readForm(); f.bank = S.balance; S.cfg = derive(f);
+  }
+  S.hideDraw = true;
+  saveState(); paintPlay();
 });
 $("stopWin").addEventListener("input", function(){
   $("stopWinNote").textContent = (+$("stopWin").value || 0) > 0 ? "or more" : "off";

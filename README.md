@@ -225,8 +225,16 @@ same 98.65-98.99% band as the high ones is the check that they were copied
 correctly, not a coincidence to lean on - a mistranscribed tier would show up as
 an RTP that misses the band.
 
-Switching resets the tally, because a different paytable is a different game and
-what was counted was counted under the old one.
+It is a dropdown above the button it governs, in the sandbox keno controls -
+limbo has no paytable and the ladder is priced against high, so neither shows
+it. Switching resets the tally, because a different paytable is a different game
+and what was counted was counted under the old one.
+
+The sandbox and the ladder keep their own game as well as their own money. The
+launch buttons change the shared game control on the way in, so the ladder's
+choice is stashed first and handed back when you return - otherwise a trip to
+the limbo sandbox left the ladder playing limbo, board card hidden, a game you
+never picked.
 
 **The ladder stays on high.** Its targets and its three laddered counts were
 chosen from those tiers, and medium would need its own analysis of which counts
