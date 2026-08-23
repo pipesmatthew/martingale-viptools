@@ -421,7 +421,12 @@ This changes nothing statistically, and the page is not claiming it does. It
 exists so a surprising run can be looked at twice, which is the difference
 between a simulator you can check and one you have to trust.
 
-Picking your own six uses `Math.random`, deliberately — your choices are not
+Changing your numbers clears the last draw. Those ten tiles were scored against
+the selection you just abandoned, so leaving them lit reads as a result for a
+board that never played - hits appearing and vanishing as you click around,
+against numbers that were never yours.
+
+Picking your own numbers uses `Math.random`, deliberately — your choices are not
 part of the game's stream, so they do not consume it or shift the draws.
 
 ### Popups

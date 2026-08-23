@@ -3088,6 +3088,11 @@ $("board").addEventListener("click", function(e){
   else if (S.picks.length < (S.cfg && S.cfg.strat !== "flat" ? S.cfg.picks : 10)) S.picks.push(v);
   else return;                                      /* the board is full - drop one first */
   S.picks.sort(function(a,b){ return a-b; });
+  /* CHANGING YOUR NUMBERS CLEARS THE LAST DRAW. Those ten tiles were scored
+     against the selection you just abandoned, so leaving them lit reads as a
+     result for a board that never played - hits appear and vanish as you click
+     around, against numbers that were never yours. */
+  S.hideDraw = true;
   /* in the sandbox the count IS the board, so the config follows it */
   if (S.cfg && S.cfg.strat === "flat"){
     var f2 = readForm(); f2.bank = S.balance; S.cfg = derive(f2);
