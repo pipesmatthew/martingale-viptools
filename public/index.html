@@ -733,10 +733,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <button class="ghost" id="btnSeed">New seed</button>
             </div>
             <div class="seedrow">
-              <label for="stopProfit" style="flex:none">Stop at</label>
-              <input type="number" id="stopProfit" value="0" min="0" step="100"
-                     aria-label="Stop autoplay at this profit">
-              <span class="n" id="stopProfitNote" style="flex:none;color:var(--faint)">off</span>
+              <label for="stopWin" style="flex:none">Stop on hit</label>
+              <input type="number" id="stopWin" value="0" min="0" step="100"
+                     aria-label="Stop autoplay on a win of at least this much">
+              <span class="n" id="stopWinNote" style="flex:none;color:var(--faint)">off</span>
             </div>
             <div class="seedrow noncerow">
               <span>Nonce</span><b class="n" id="nonceVal">0</b>
@@ -1328,7 +1328,7 @@ function saveState(){
   try {
     localStorage.setItem(STORE, JSON.stringify({
       form: readForm(), optDefault: true, startBank: S.startBank, balance: S.balance,
-      autoRate: +$("autoRate").value, stopProfit: +$("stopProfit").value,
+      autoRate: +$("autoRate").value, stopWin: +$("stopWin").value,
       history: S.history, picks: S.picks, muted: S.muted, seed: S.seed
     }));
   } catch (e) { /* private mode, quota - the page works without it */ }
@@ -1349,7 +1349,7 @@ function loadState(){
     if (typeof d.startBank === "number") S.startBank = d.startBank;
     if (typeof d.muted === "boolean") S.muted = d.muted;
     if (typeof d.autoRate === "number") $("autoRate").value = clamp(d.autoRate, 0, 100);
-    if (typeof d.stopProfit === "number") $("stopProfit").value = Math.max(0, d.stopProfit);
+    if (typeof d.stopWin === "number") $("stopWin").value = Math.max(0, d.stopWin);
   } catch (e) { /* corrupt or unavailable - start fresh */ }
 }
 
@@ -1542,7 +1542,7 @@ function limboDraw(c){
 
 /* ═══════════════════════════════ one run ══════════════════════════════ */
 function newRun(){
-  return { done:0, staked:0, recovered:0, n4:0, best:0, payout:0, net:0,
+  return { done:0, staked:0, recovered:0, n4:0, best:0, payout:0, net:0, lastPaid:0,
            over:false, won:false, why:null, log:[], tape:[], last:null };
 }
 function say(kind, msg){
@@ -1630,7 +1630,7 @@ function step(){
   r.staked += bet; r.done += 1; r.net = r.recovered - r.staked;
   S.sbBets += 1; S.sbStaked += bet;          /* run-long, across rounds */
   var out = c.game === "limbo" ? limboDraw(c) : kenoDraw(c);
-  r.last = out; S.hideDraw = false;
+  r.last = out; r.lastPaid = 0; S.hideDraw = false;
   S.nonce += 1;          /* one bet, one nonce */
   /* cleared on every spin, so pressing spin dismisses the popup and plays the
      next one in a single press */
@@ -1648,7 +1648,7 @@ function step(){
     S.pop = { kind:"win", main: out.pay + "x",
               sub: "+" + m2(paid) + " " + DOT + " " + hitOdds(out), ending: true };
     S.popSounded = false;
-    r.recovered += paid; r.payout = paid; r.net = r.recovered - r.staked;
+    r.recovered += paid; r.payout = paid; r.lastPaid = paid; r.net = r.recovered - r.staked;
     S.sbHits += 1; S.sbBack += paid;
     S.sbTier[out.hits] = (S.sbTier[out.hits] || 0) + 1;
     /* IN THE SANDBOX A WIN IS PAID AND PLAY GOES ON. A round is a ladder idea -
@@ -1665,7 +1665,8 @@ function step(){
     }
   }
   if (out.consol){
-    r.n4 += 1; r.recovered += bet * out.pay; r.net = r.recovered - r.staked;
+    r.n4 += 1; r.recovered += bet * out.pay; r.lastPaid = bet * out.pay;
+    r.net = r.recovered - r.staked;
     S.sbHits += 1; S.sbBack += bet * out.pay;
     S.sbTier[out.hits] = (S.sbTier[out.hits] || 0) + 1;
     S.pop = { kind:"win", main: out.pay + "x",
@@ -1737,8 +1738,7 @@ function setGame(g){
     b.classList.toggle("on", on);
     b.classList.toggle("teal", on && g === "limbo");
   });
-  $("limboOpts").hidden = g !== "limbo";
-  $("kenoOpts").hidden  = g !== "keno" || isFlat();
+  paintGameOpts();
 }
 
 function setPicks(k){
@@ -1765,6 +1765,14 @@ function setPicks(k){
     if (S.picks.indexOf(v) === -1) S.picks.push(v);
   }
   S.picks.sort(function(a,b){ return a-b; });
+}
+/* THE SANDBOX SETS ITS GAME UP AT THE BOARD, not on this screen: the numbers
+   are picked on the tiles and the limbo target sits under the number it
+   governs. A ladder needs both here, because both are priced into it. */
+function paintGameOpts(){
+  var g = $("gameSeg").querySelector("button.on").getAttribute("data-g"), flat = isFlat();
+  $("kenoOpts").hidden  = g !== "keno"  || flat;
+  $("limboOpts").hidden = g !== "limbo" || flat;
 }
 function isFlat(){
   var b = $("stratSeg").querySelector("button.on");
@@ -1809,9 +1817,7 @@ function setStrat(x){
   $("forecast").hidden   = flat;
   $$("#view-setup .split").forEach(function(sp){ sp.classList.toggle("bare", flat); });
   markLastCards();
-  /* the sandbox picks its numbers on the board, so the row has nothing to say */
-  $("kenoOpts").hidden = flat ||
-    $("gameSeg").querySelector("button.on").getAttribute("data-g") !== "keno";
+  paintGameOpts();
   /* martingale offers three counts, flat offers ten - and coming back to
      martingale off 9 picks has to land somewhere legal */
   var cur = $("pickSeg").querySelector("button.on");
@@ -2395,9 +2401,8 @@ function paintPlay(){
     if (document.activeElement !== $("lTarget")) $("lTarget").value = c.lmult;
     $("lTargetChance").textContent = pct(0.99 / c.lmult, 3);
   }
-  /* what a profit stop is worth saying: the figure, or that there is not one */
-  var sp = +$("stopProfit").value || 0;
-  $("stopProfitNote").textContent = sp > 0 ? "profit" : "off";
+  var sw = +$("stopWin").value || 0;
+  $("stopWinNote").textContent = sw > 0 ? "or more" : "off";
 
   /* THE SANDBOX BOARD DESCRIBES ITSELF, NOT A PLAN. The ladder card and the
      "where you stand" odds are both readings of a ladder that is not there, so
@@ -2869,22 +2874,17 @@ function stopAuto(){
   if (S.timer){ clearInterval(S.timer); S.timer = null; }
   $("btnAuto").innerHTML = "Auto &#9654;";
 }
-/* the run's profit as it stands, mid-round included */
-function runProfit(){
-  var r = S.run;
-  return S.balance + (r && !r.over ? r.net : 0) - S.startBank;
-}
 function autoTick(){
   if (S.animating) return;               /* the last draw is still turning over */
   if (!S.run || S.run.over || !canBet()){ stopAuto(); paintPlay(); return; }
   step();
-  /* STOP AT PROFIT halts autoplay, not the board. A number you typed is a plan
-     for the machine that is betting on its own; a bet you press yourself is
-     still yours to press. */
-  var stopAt = +$("stopProfit").value || 0;
-  if (stopAt > 0 && runProfit() >= stopAt - 1e-9){
+  /* STOP ON HIT halts autoplay when a single draw pays at least this much - the
+     win that just landed, not the running total. It stops the machine that is
+     betting on its own; a bet you press yourself is still yours to press. */
+  var stopAt = +$("stopWin").value || 0;
+  if (stopAt > 0 && S.run.lastPaid >= stopAt - 1e-9){
     stopAuto();
-    say("SYS", "Stopped at " + money(runProfit()) + " profit.");
+    say("SYS", "Stopped on a " + money(S.run.lastPaid) + " win.");
   }
   if (S.pop && S.pop.levelUp) stopAuto();
   var every = REDUCED || !S.run.last ? 0 : autoRevealMs(
@@ -3014,8 +3014,8 @@ $("btnSpin").addEventListener("click", function(){
 });
 $("btnAuto").addEventListener("click", toggleAuto);
 $("autoRate").addEventListener("input", function(){ paintRate(); saveState(); });
-$("stopProfit").addEventListener("input", function(){
-  $("stopProfitNote").textContent = (+$("stopProfit").value || 0) > 0 ? "profit" : "off";
+$("stopWin").addEventListener("input", function(){
+  $("stopWinNote").textContent = (+$("stopWin").value || 0) > 0 ? "or more" : "off";
   saveState();
 });
 $("lTarget").addEventListener("input", function(){

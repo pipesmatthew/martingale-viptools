@@ -205,7 +205,8 @@ needs a million bets. It is a setting rather than an accident: the sandbox
 cannot lose its way to exactly nothing, because it stops before it gets there.
 
 **Limbo dials its own target**, under the number it governs, with the chance per
-roll beside it. A ladder's target is priced into the ladder and cannot move
+roll beside it - and the setup screen drops its target and chance fields
+entirely, since the sandbox sets its game up at the board. A ladder's target is priced into the ladder and cannot move
 mid-run; a sandbox target is just a dial.
 
 **Running dry is not an ending.** There is no ladder to have failed and no plan
@@ -296,11 +297,18 @@ no longer reach.
 
 "A level I pick" restores the old fixed cap.
 
-### Stop at profit
+### Stop on hit
 
-A figure in the play controls, on both games. It stops **autoplay**, not the
-board: a number you typed is a plan for the machine that is betting on its own,
-and a bet you press yourself is still yours to press. Zero is off.
+A figure in the play controls, on both games: autoplay halts when a single draw
+pays at least this much. Zero is off. It stops **autoplay**, not the board - a
+number you typed is a plan for the machine that is betting on its own, and a bet
+you press yourself is still yours to press.
+
+It was briefly "stop at profit", which was the wrong shape as well as the wrong
+idea. A profit target is a *level*, not an *event*: once the run was above it,
+every single tick re-triggered the stop, so autoplay ran exactly one bet and
+halted, forever, until the field was cleared. Testing the win that just landed
+cannot get stuck that way, because it resets to zero on every spin.
 
 ### Go back
 
