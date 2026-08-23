@@ -98,7 +98,7 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
   display:flex;align-items:center;justify-content:center;gap:5px}
 .pt.pays .phits{color:var(--fg-2)}
 .pt .phits i{width:8px;height:8px;background:var(--track);display:block}
-.pt.pays .phits i{background:var(--green)}
+.pt.pays .phits i{background:var(--accent)}
 .pt:hover .pmult{background:var(--button-hover);color:var(--fg)}
 .pt .ptip{display:none;position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%);
   z-index:30;background:var(--card);border:1px solid var(--border);padding:8px 10px;
@@ -173,12 +173,22 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .runover .btn.primary.green{background:var(--green);border-color:var(--green);color:#0b2015}
 .playpad{display:flex;flex-direction:column;gap:5px}
 .playpad > button.primary{width:100%;padding:9px;font-size:14px}
-.playgrid{display:grid;grid-template-columns:82px minmax(0,1fr);gap:5px}
+/* one full-width column by default - the 82px lead column existed for the
+   batch input, and there is no batch any more */
+.playgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:5px}
 .playgrid.two{grid-template-columns:1fr 1fr}
 .playgrid input{text-align:center}
 .playgrid button{width:100%;padding:6px 8px}
 .seg.speed{gap:3px}
 .seg.speed button{flex:1 1 0;padding:4px 6px;font-size:11.5px}
+/* how fast Auto goes, with the rate it is going at now on the right of it.
+   The scale is logarithmic - a slider that is linear in spins per second
+   spends four fifths of its travel on speeds you cannot follow anyway. */
+.raterow{display:grid;grid-template-columns:minmax(0,1fr) 52px;gap:8px;align-items:center;
+  margin-top:5px}
+.raterow b{font-size:11.5px;color:var(--accent);text-align:right}
+.balbig.editable{cursor:text}
+.balbig.editable:hover{color:var(--accent)}
 .seedrow{display:flex;align-items:center;justify-content:space-between;gap:8px;
   border-top:1px solid var(--border);margin-top:2px;padding-top:7px;
   font-size:11.5px;color:var(--faint)}
@@ -675,14 +685,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="card">
           <div class="cardbody playpad">
             <button class="primary" id="btnSpin">Spin</button>
-            <div class="playgrid" id="batchRow">
-              <input type="number" id="batch" value="25" min="1" max="100000" step="5"
-                     aria-label="How many spins at once">
-              <button class="ghost" id="btnSpinN">Spin &times;25</button>
-            </div>
             <div class="playgrid two" id="extraRow">
               <button class="ghost" id="btnAuto">Auto &#9654;</button>
               <button class="ghost" id="btnRandom">Random 6</button>
+            </div>
+            <div class="raterow">
+              <input type="range" id="autoRate" min="0" max="100" step="1" value="63"
+                     aria-label="Autoplay speed">
+              <b class="n" id="autoRateV">18/s</b>
             </div>
             <div class="seg speed" id="speedSeg" role="group" aria-label="Reveal speed">
               <button data-s="normal" class="on">Normal</button>
@@ -1137,7 +1147,7 @@ function kenoRTP(k){
 var S = {
   cfg: null, levels: [], ends: [], total: 0,
   startBank: 1400, balance: 1400,
-  history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null,
+  history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null, editingBal: false,
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
   speed: "normal", seed: 0, nonce: 0, rand: Math.random, hideDraw: false,
@@ -1146,6 +1156,11 @@ var S = {
 
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
 var SPEEDS = { normal: 78, faster: 30, instant: 0 };
+/* the slider is 0-100 and reads as a rate: 10^(v/50) spins a second, so 0 is
+   one a second, 50 is ten, and 100 is a hundred. 63 is 18/s, the fixed rate
+   autoplay used to run at. */
+function rateSps(v){ return Math.max(1, Math.round(Math.pow(10, clamp(v,0,100)/50))); }
+function autoSps(){ return rateSps(+$("autoRate").value || 0); }
 
 /* mulberry32 has 32 bits of state and it shows: measured over 300 million
    draws it returns u <= 0.099 about 0.1% too often (combined z = 4.3 across
@@ -1250,6 +1265,7 @@ function saveState(){
   try {
     localStorage.setItem(STORE, JSON.stringify({
       form: readForm(), optDefault: true, startBank: S.startBank, balance: S.balance,
+      autoRate: +$("autoRate").value,
       history: S.history, picks: S.picks, muted: S.muted, speed: S.speed, seed: S.seed
     }));
   } catch (e) { /* private mode, quota - the page works without it */ }
@@ -1270,6 +1286,7 @@ function loadState(){
     if (typeof d.startBank === "number") S.startBank = d.startBank;
     if (typeof d.muted === "boolean") S.muted = d.muted;
     if (SPEEDS[d.speed] !== undefined) S.speed = d.speed;
+    if (typeof d.autoRate === "number") $("autoRate").value = clamp(d.autoRate, 0, 100);
   } catch (e) { /* corrupt or unavailable - start fresh */ }
 }
 
@@ -1785,7 +1802,7 @@ function revealLimbo(done){
   var target = S.run.last.mult, steps = 14, i = 0;
   var every = Math.max(12, Math.round((SPEEDS[speedNow()] || 78) * 7 / steps));
   S.animating = true;
-  $("btnSpin").disabled = true; $("btnSpinN").disabled = true; $("btnAuto").disabled = true;
+  $("btnSpin").disabled = true; $("btnAuto").disabled = true;
   (function tick(){
     i += 1;
     var p = i / steps, eased = 1 - Math.pow(1 - p, 3);
@@ -1803,7 +1820,7 @@ function revealDraw(done){
   var all = S.run.last.drawn;
   S.animating = true; S.revealUpto = 0;
   var hits = 0;
-  $("btnSpin").disabled = true; $("btnSpinN").disabled = true; $("btnAuto").disabled = true;
+  $("btnSpin").disabled = true; $("btnAuto").disabled = true;
   (function next(){
     if (S.revealUpto >= all.length){
       S.animating = false; S.revealUpto = null;
@@ -2117,11 +2134,10 @@ function paintPlay(){
   var dead  = r.over || short;
   if (short) stopAuto();
 
-  $("btnSpin").disabled = dead; $("btnSpinN").disabled = dead; $("btnAuto").disabled = dead;
+  $("btnSpin").disabled = dead; $("btnAuto").disabled = dead;
   $("btnSpin").textContent = !short ? verb
     : c.strat === "flat" ? "Pick a number"
     : "Pick " + (c.picks - S.picks.length) + " more";
-  $("btnSpinN").innerHTML = verb + " &times;" + num(batchSize());
   $("btnSpin").className = "primary" + (c.game === "limbo" ? " teal" : "");
   $("btnRandom").hidden = c.game !== "keno";
   $("btnRandom").textContent = "Random " + c.picks;
@@ -2137,21 +2153,26 @@ function paintPlay(){
   $("betTile").hidden        = sand;
   $("pStrip").classList.toggle("six", !sand);
   $("pStrip").classList.toggle("five", sand);
-  $("bal").hidden        = sand;
-  $("balEdit").hidden    = !sand;
+  /* THE BALANCE STAYS THE BALANCE. It reads the same as it does on a ladder
+     run - the same big cream figure, moving with every bet - and the only thing
+     the sandbox adds is that clicking it hands you the number to type over.
+     The old pair of bare input boxes showed S.balance, which only moves when a
+     ROUND ends; on a flat run that is thousands of bets away, so it sat frozen
+     at the opening figure while the money visibly went. */
+  $("bal").classList.toggle("editable", sand);
   $("betEditWrap").hidden = !sand;
+  if (!sand || !S.editingBal){
+    $("bal").hidden = false;
+    $("balEdit").hidden = true;
+  }
   if (sand){
+    if (!S.editingBal) $("balEdit").value = +(S.balance + (r.over ? 0 : r.net)).toFixed(2);
     /* never fight the keyboard: a field being typed into is left alone */
-    if (document.activeElement !== $("balEdit")) $("balEdit").value = +S.balance.toFixed(2);
     if (document.activeElement !== $("betEdit")) $("betEdit").value = +c.levels[0].bet.toFixed(2);
   }
   paintPaytable();
-  /* Random N is keno-only, so on limbo Auto would sit alone on its row. */
-  var batchRowAuto = c.game === "limbo";
-  if (batchRowAuto && $("btnAuto").parentNode !== $("batchRow")) $("batchRow").appendChild($("btnAuto"));
-  if (!batchRowAuto && $("btnAuto").parentNode !== $("extraRow")) $("extraRow").insertBefore($("btnAuto"), $("btnRandom"));
-  $("batchRow").style.gridTemplateColumns = batchRowAuto ? "82px minmax(0,1fr) minmax(0,1fr)" : "";
-  $("extraRow").hidden = batchRowAuto;
+  /* Random N is keno-only, so on limbo Auto has the row to itself. */
+  $("extraRow").classList.toggle("two", c.game !== "limbo");
   $("speedSeg").hidden = c.game === "limbo";
   $("nonceVal").textContent = num(S.nonce);
 }
@@ -2557,15 +2578,22 @@ function stopAuto(){
   if (S.timer){ clearInterval(S.timer); S.timer = null; }
   $("btnAuto").innerHTML = "Auto &#9654;";
 }
+function autoTick(){
+  if (!S.run || S.run.over){ stopAuto(); paintPlay(); return; }
+  step();
+  if (S.pop && S.pop.levelUp) stopAuto();
+  paintPlay();
+}
 function toggleAuto(){
   if (S.timer){ stopAuto(); return; }
   $("btnAuto").innerHTML = "Stop &#9632;";
-  S.timer = setInterval(function(){
-    if (!S.run || S.run.over){ stopAuto(); paintPlay(); return; }
-    step();
-    if (S.pop && S.pop.levelUp) stopAuto();
-    paintPlay();
-  }, 55);
+  S.timer = setInterval(autoTick, Math.round(1000 / autoSps()));
+}
+function paintRate(){
+  $("autoRateV").textContent = autoSps() + "/s";
+  /* a running autoplay picks up the new rate immediately rather than at the
+     next start - the slider is useless if you have to stop to use it */
+  if (S.timer){ clearInterval(S.timer); S.timer = setInterval(autoTick, Math.round(1000 / autoSps())); }
 }
 
 /* ═══════════════════════════════ wiring ═══════════════════════════════ */
@@ -2678,26 +2706,8 @@ $("btnSpin").addEventListener("click", function(){
 /* Limbo has one number to climb, and it looks wrong at any pace but one, so
    it does not get the choice. Keno keeps whatever the player picked. */
 function speedNow(){ return (S.cfg && S.cfg.game === "limbo") ? "normal" : S.speed; }
-function batchSize(){
-  var typed = clamp(Math.round(+$("batch").value || 1), 1, 100000);
-  if (!S.cfg || !S.run || S.run.over) return typed;
-  var i = levelAt(S.cfg, S.run.done);
-  if (i < 0) return typed;
-  /* stop on the boundary rather than stepping over it, so the level change is
-     something you are shown rather than something you find afterwards */
-  return Math.max(1, Math.min(typed, S.cfg.ends[i] - S.run.done));
-}
-$("batch").addEventListener("input", function(){
-  $("btnSpinN").innerHTML = (S.cfg && S.cfg.game === "limbo" ? "Roll" : "Spin") +
-                            " &times;" + num(batchSize());
-});
-$("btnSpinN").addEventListener("click", function(){
-  $("pop").hidden = true;
-  var k = batchSize();
-  for (var i=0;i<k && S.run && !S.run.over;i++) step();
-  paintPlay();
-});
 $("btnAuto").addEventListener("click", toggleAuto);
+$("autoRate").addEventListener("input", function(){ paintRate(); saveState(); });
 $("hdrSound").addEventListener("click", function(){
   S.muted = !S.muted;
   $("hdrSound").innerHTML = S.muted ? "&#9835;&nbsp; Sound off" : "&#9835;&nbsp; Sound on";
@@ -2782,11 +2792,31 @@ function sandboxRebuild(){
   if (!S.cfg || S.cfg.strat !== "flat") return;
   var f = readForm(); f.bank = S.balance; S.cfg = derive(f);
 }
-$("balEdit").addEventListener("input", function(){
+$("bal").addEventListener("click", function(){
+  if (!S.cfg || S.cfg.strat !== "flat") return;
+  S.editingBal = true;
+  $("bal").hidden = true; $("balEdit").hidden = false;
+  $("balEdit").focus(); $("balEdit").select();
+});
+function commitBal(){
+  if (!S.editingBal) return;
   var v = +$("balEdit").value;
-  if (!(v > 0)) return;
-  S.balance = v; S.startBank = v;
+  /* what is on screen is the live figure - the balance plus what this round has
+     done so far - so the stored balance is solved back from it, and the run's
+     baseline moves with it. A profit line counted from a number you replaced
+     would be measuring nothing. */
+  if (v > 0){
+    var live = S.run && !S.run.over ? S.run.net : 0;
+    S.balance = v - live;
+    S.startBank = v;
+  }
+  S.editingBal = false;
   sandboxRebuild(); saveState(); paintPlay();
+}
+$("balEdit").addEventListener("blur", commitBal);
+$("balEdit").addEventListener("keydown", function(e){
+  if (e.key === "Enter"){ e.preventDefault(); $("balEdit").blur(); }
+  if (e.key === "Escape"){ S.editingBal = false; paintPlay(); }
 });
 $("betEdit").addEventListener("input", function(){
   var v = +$("betEdit").value;
@@ -2842,6 +2872,7 @@ if (!$("pickSeg").querySelector("button.on")) setPicks(clamp(S.picks.length || 6
 setStrat($("stratSeg").querySelector("button.on").getAttribute("data-x"));
 reseed();
 $$("#speedSeg button").forEach(function(o){ o.classList.toggle("on", o.getAttribute("data-s") === S.speed); });
+paintRate();
 $("hdrSound").innerHTML = S.muted ? "&#9835;&nbsp; Sound off" : "&#9835;&nbsp; Sound on";
 $("hdrSound").style.color = S.muted ? "var(--faint)" : "var(--accent)";
 paintSetup();
