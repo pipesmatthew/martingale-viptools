@@ -115,8 +115,35 @@ So **martingale offers 3, 4 and 6**; Sandbox offers all ten. Eight is the
 only close call and it is left out: a ladder that loses half its rounds is not
 the thing the word describes.
 
-The pick row keeps its ten columns in both strategies, so a button is the same
-size either way and the three martingale counts do not balloon to fill the row.
+The pick row has no heading and sits directly under **Simulate Keno** at exactly
+that button's width, because it belongs to it. Ten of them at that width would
+be 39px each, so Sandbox spills to the full row instead.
+
+### Optimal bet
+
+A button in the ladder card head that sets the opening bet to the largest one
+the balance can carry three full levels of. Three levels cost
+`len1 + lenN x (step + step^2)` bets - 1,400 of them on the default ladder,
+which is exactly why $1,400 at $1 is the default.
+
+| balance | picks | 3 levels | optimal bet |
+|---|---|---|---|
+| $1,400 | 6 | 1,400 x bet | $1.00 |
+| $1,400 | 4 | 1,039 x bet | $1.34 |
+| $1,400 | 3 | 328 x bet | $4.26 |
+| $2,000 | 6 | 1,400 x bet | $1.43 |
+| $500 | 6 | 1,400 x bet | $0.36 |
+| $10,000 | 6 | 1,400 x bet | $7.14 |
+
+Rounding is the fiddly part. Rounding down to the cent leaves change, and at
+some balances the change is enough to open a fourth level - $2,000 at six picks
+funds three levels for $1,988 and then buys one spin of a fourth, which is not
+"exactly three levels". So when the leftover reaches the level-4 bet the cent
+rounds the other way instead, and the third level gives up a spin or two. Every
+balance tested lands on exactly three levels, from $37 to $99,999.
+
+**It is not optimal in the expected-value sense and nothing is** - every bet size
+loses the same 1% of turnover. It is the biggest bet that still fits the ladder.
 
 ### Martingale, or Sandbox
 

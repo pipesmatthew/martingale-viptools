@@ -158,6 +158,8 @@ button.ghost,button.primary{
   font:inherit;cursor:pointer;border-radius:0;padding:4px 12px;
   border:1px solid var(--border);background:var(--button);color:var(--muted)}
 button.ghost:hover{background:var(--button-hover);color:var(--fg)}
+button.ghost.amber{color:var(--accent);border-color:#4a3a20}
+button.ghost.amber:hover{color:var(--accent);background:#2a2118}
 button.primary{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 button.primary:hover{filter:brightness(1.07)}
 button.primary.teal{background:var(--teal);border-color:var(--teal);color:#08191a}
@@ -449,8 +451,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <button data-g="limbo">Simulate Limbo</button>
             </div>
 
-            <div id="kenoOpts" style="margin-top:11px">
-              <span class="lab">Numbers picked</span>
+            <div id="kenoOpts" style="margin-top:5px">
               <div class="picks" id="pickSeg"></div>
             </div>
 
@@ -479,6 +480,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
         <div class="card">
           <div class="cardhead"><h2 id="ladderTitle">The Martingaler</h2><span class="grow"></span>
+            <button class="ghost amber" id="optBet" style="font-size:11.5px;padding:2px 9px">Optimal bet</button>
             <button class="ghost" id="resetLadder" style="font-size:11.5px;padding:2px 9px">Reset to BILLSKIE's</button></div>
           <div class="cardbody">
             <div class="grid2" style="margin-bottom:9px">
@@ -1485,8 +1487,11 @@ function setPicks(k){
             list[i] + '</button>';
   }
   $("pickSeg").innerHTML = html;
-  /* the row keeps ten columns whatever it offers, so a button is the same size
-     in both strategies and the three martingale counts do not balloon */
+  /* THE ROW BELONGS TO THE KENO BUTTON, so it is that button's width - which in
+     a .seg.big pair is half the row less half the 5px gap. Ten of them would be
+     39px each at that width, so the sandbox spills to the full row instead. */
+  $("pickSeg").style.gridTemplateColumns = "repeat(" + list.length + ",1fr)";
+  $("pickSeg").style.maxWidth = list.length > 6 ? "" : "calc(50% - 2.5px)";
   /* keep the board legal: too many picks for the new count, drop the oldest */
   while (S.picks.length > k) S.picks.shift();
   var pool = POOL.slice();
@@ -1507,6 +1512,7 @@ function setStrat(x){
   $("ladderTitle").textContent = flat ? "Sandbox" : "The Martingaler";
   $("baseLab").textContent     = flat ? "Every bet" : "Initial bet";
   $("resetLadder").hidden      = flat;
+  $("optBet").hidden           = flat;
   /* martingale offers three counts, flat offers ten - and coming back to
      martingale off 9 picks has to land somewhere legal */
   var cur = $("pickSeg").querySelector("button.on");
@@ -2412,12 +2418,38 @@ $$("#gameSeg button").forEach(function(b){
     paintSetup();
   });
 });
+/* THE LARGEST OPENING BET THAT STILL BUYS THREE LEVELS. Three levels cost
+   len1 + lenN x (step + step^2) bets - 1,400 of them on the default ladder,
+   which is exactly why $1,400 at $1 is the default. Rounded DOWN to the cent,
+   so the third level is funded rather than nearly funded.
+
+   It is not optimal in the expected-value sense and nothing is: every bet size
+   loses the same 1% of turnover. It is the biggest bet the balance can carry
+   the standard three levels of. */
+function optimalBet(){
+  var c = derive(readForm());
+  var units = c.len1 + c.lenN * (c.stepx + c.stepx * c.stepx);
+  var lo = Math.floor(c.bank / units * 100) / 100;
+  /* Rounding down leaves change, and at some balances the change is enough to
+     open level 4 - $2,000 at six picks funds three levels for $1,988 and then
+     buys one spin of a fourth. That is not "exactly three levels", so when the
+     leftover reaches the level-4 bet the cent is rounded the other way and the
+     third level gives up a spin or two instead. */
+  if (c.bank - lo * units >= lo * Math.pow(c.stepx, 3)) {
+    lo = Math.ceil(c.bank / units * 100) / 100;
+  }
+  return Math.max(0.01, lo);
+}
 function priceLadder(){
   /* the level length IS the payout, so the target resizes the ladder */
   var c0 = derive(readForm());
   $("len1").value = Math.max(1, Math.round(c0.pay));
   $("lenN").value = Math.max(1, Math.round(c0.pay / 2));
 }
+$("optBet").addEventListener("click", function(){
+  $("base").value = +optimalBet().toFixed(2);
+  paintSetup();
+});
 $("stratSeg").addEventListener("click", function(e){
   var b = e.target.closest("button[data-x]"); if (!b) return;
   setStrat(b.getAttribute("data-x"));
