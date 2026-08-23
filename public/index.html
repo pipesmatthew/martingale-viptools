@@ -518,6 +518,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
       </div>
 
       <div>
+        <div id="forecast">
         <div class="card">
           <div class="cardhead"><h2>Before you start</h2></div>
           <div class="cardbody">
@@ -540,6 +541,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
         <div class="card" id="setupWarnCard">
           <p class="callout warn" id="setupWarn" style="margin:0"></p>
+        </div>
         </div>
 
         <div class="card"><div class="cardbody">
@@ -1543,6 +1545,9 @@ function setStrat(x){
      them; the stored values still drive the first round. */
   $("bankCard").hidden   = flat;
   $("ladderCard").hidden = flat;
+  /* the forecast is a reading of the ladder - every figure in it is a level,
+     a cost or a chance the levels imply - so it leaves with the ladder */
+  $("forecast").hidden   = flat;
   /* the sandbox picks its numbers on the board, so the row has nothing to say */
   $("kenoOpts").hidden = flat ||
     $("gameSeg").querySelector("button.on").getAttribute("data-g") !== "keno";

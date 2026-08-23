@@ -162,8 +162,10 @@ options do not need explaining, and a paragraph under each one made the top of
 the screen look like documentation.
 
 **The sandbox has no setup screen at all** - no balance, no bet, no pick row,
-no optimal-bet toggle. Choosing it leaves two cards standing: the strategy and
-the game. It picks its numbers on the board, however many you like from one to
+no optimal-bet toggle, and no forecast column either: every figure in "Before
+you start" is a level, a cost or a chance the levels imply, so it leaves with
+the ladder. Choosing the sandbox leaves three things standing: the strategy,
+the game, and Start run. It picks its numbers on the board, however many you like from one to
 ten, and the count follows the board live. The stored balance and bet still
 drive the first round; changing them belongs at the board, and will go there.
 
