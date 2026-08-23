@@ -178,6 +178,15 @@ columns take their natural height instead. It picks its numbers on the board, ho
 ten, and the count follows the board live. The stored balance and bet still
 drive the first round; changing them belongs at the board, and will go there.
 
+**Running dry is not an ending.** There is no ladder to have failed and no plan
+to have run out of, so when the balance will not cover the next bet the board
+simply stops taking them - the button reads "Out of balance", autoplay halts,
+and there is no bankrupt card and no closed run. Topping the balance up is one
+click on it. A ladder run still busts properly; that is what a ladder run is.
+
+**Random rolls ten** here rather than matching a pick count, since the count is
+whatever the board says.
+
 **Its board is a different board.** The ladder card under it and the "where you
 stand" odds panel are both readings of a ladder that is not there, so both go.
 The bet leaves the stats strip - which drops to five tiles - and becomes a field
@@ -386,11 +395,16 @@ you have to stop to use is not a slider.
 
 ### Reveal speed and sound
 
-Keno turns its draw over one tile at a time, at **Normal**, **Faster** or
-**Instant**. Only a single spin animates; an autoplay would be
-unwatchable at that pace, and slowing them to watch is what the single spin is
-for. Sound is synthesised with the Web Audio API — no files, no requests,
-nothing the CSP has to allow — and each hit in a draw rings a step higher.
+There is no Normal / Faster / Instant any more, because there is no second
+speed to set. The same slider paces the reveal: slow enough and keno turns its
+draw over one tile at a time with its noises, and past four spins a second there
+is no room for an animation between one spin and the next, so the draw lands at
+once. The reveal takes three quarters of the gap between spins, so it always
+finishes before the following spin starts - 75ms a tile at 1/s, 25ms at 3/s,
+19ms at 4/s, nothing above that. Limbo's climb is paced the same way.
+
+Sound is synthesised with the Web Audio API - no files, no requests, nothing the
+CSP has to allow - and each hit in a draw rings a step higher.
 
 ---
 

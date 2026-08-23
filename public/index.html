@@ -691,13 +691,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             </div>
             <div class="raterow">
               <input type="range" id="autoRate" min="0" max="100" step="1" value="63"
-                     aria-label="Autoplay speed">
+                     aria-label="Speed">
               <b class="n" id="autoRateV">18/s</b>
-            </div>
-            <div class="seg speed" id="speedSeg" role="group" aria-label="Reveal speed">
-              <button data-s="normal" class="on">Normal</button>
-              <button data-s="faster">Faster</button>
-              <button data-s="instant">Instant</button>
             </div>
             <div class="seedrow">
               <label for="seedVal" style="flex:none">Seed</label>
@@ -1155,12 +1150,24 @@ var S = {
 };
 
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
-var SPEEDS = { normal: 78, faster: 30, instant: 0 };
 /* the slider is 0-100 and reads as a rate: 10^(v/50) spins a second, so 0 is
    one a second, 50 is ten, and 100 is a hundred. 63 is 18/s, the fixed rate
    autoplay used to run at. */
 function rateSps(v){ return Math.max(1, Math.round(Math.pow(10, clamp(v,0,100)/50))); }
 function autoSps(){ return rateSps(+$("autoRate").value || 0); }
+
+/* ONE SPEED CONTROL, NOT TWO. The reveal is paced off the same slider that
+   paces autoplay: slow enough and the tiles turn over one at a time with their
+   noises, and past the threshold there is simply no room for an animation
+   between one spin and the next. Four a second is the last rate a ten-tile
+   draw fits inside; the reveal takes three quarters of the gap, so it always
+   finishes before the following spin starts. */
+var REVEAL_MAX_SPS = 4;
+function revealBudget(){ return autoSps() > REVEAL_MAX_SPS ? 0 : 1000 / autoSps() * 0.75; }
+function revealMs(steps){
+  var b = revealBudget();
+  return b ? Math.max(12, Math.round(b / steps)) : 0;
+}
 
 /* mulberry32 has 32 bits of state and it shows: measured over 300 million
    draws it returns u <= 0.099 about 0.1% too often (combined z = 4.3 across
@@ -1266,7 +1273,7 @@ function saveState(){
     localStorage.setItem(STORE, JSON.stringify({
       form: readForm(), optDefault: true, startBank: S.startBank, balance: S.balance,
       autoRate: +$("autoRate").value,
-      history: S.history, picks: S.picks, muted: S.muted, speed: S.speed, seed: S.seed
+      history: S.history, picks: S.picks, muted: S.muted, seed: S.seed
     }));
   } catch (e) { /* private mode, quota - the page works without it */ }
 }
@@ -1285,7 +1292,6 @@ function loadState(){
     if (typeof d.balance === "number") S.balance = d.balance;
     if (typeof d.startBank === "number") S.startBank = d.startBank;
     if (typeof d.muted === "boolean") S.muted = d.muted;
-    if (SPEEDS[d.speed] !== undefined) S.speed = d.speed;
     if (typeof d.autoRate === "number") $("autoRate").value = clamp(d.autoRate, 0, 100);
   } catch (e) { /* corrupt or unavailable - start fresh */ }
 }
@@ -1487,7 +1493,14 @@ function step(){
   if (ri < 0){ finish("bail"); return; }
   var bet = c.levels[ri].bet;
 
-  if (S.balance + r.net < bet - 1e-9){ finish("broke"); return; }
+  /* IN THE SANDBOX, RUNNING DRY IS NOT AN ENDING. There is no ladder to have
+     failed and no plan to have run out of, so the board simply cannot take
+     another bet until the balance is topped up - which is one click on the
+     balance away. No bankrupt card, and the run stays open. */
+  if (S.balance + r.net < bet - 1e-9){
+    if (c.strat !== "flat") finish("broke");
+    return;
+  }
 
   r.staked += bet; r.done += 1; r.net = r.recovered - r.staked;
   var out = c.game === "limbo" ? limboDraw(c) : kenoDraw(c);
@@ -1800,7 +1813,7 @@ function paintBoard(){
 
 function revealLimbo(done){
   var target = S.run.last.mult, steps = 14, i = 0;
-  var every = Math.max(12, Math.round((SPEEDS[speedNow()] || 78) * 7 / steps));
+  var every = revealMs(steps);
   S.animating = true;
   $("btnSpin").disabled = true; $("btnAuto").disabled = true;
   (function tick(){
@@ -1813,9 +1826,8 @@ function revealLimbo(done){
   })();
 }
 
-/* Turns one draw over a tile at a time instead of all at once. Only on a
-   single spin - a batch or an autoplay would be unwatchable at this pace,
-   and slowing them down to watch is what the single spin is for. */
+/* Turns one draw over a tile at a time instead of all at once, whenever the
+   speed leaves room for it. */
 function revealDraw(done){
   var all = S.run.last.drawn;
   S.animating = true; S.revealUpto = 0;
@@ -1831,7 +1843,7 @@ function revealDraw(done){
     S.revealUpto += 1;
     paintBoard();
     if (S.picks.indexOf(v) !== -1){ hits += 1; ping(hits); }
-    setTimeout(next, SPEEDS[speedNow()] || 78);
+    setTimeout(next, revealMs(all.length));
   })();
 }
 function paintTape(){
@@ -2046,6 +2058,14 @@ function paintPaytable(){
   $("paytable").innerHTML = html;
   $("paytable").style.gridTemplateColumns = "repeat(" + (k + 1) + ",1fr)";
 }
+/* whether the money in hand covers the next bet */
+function canBet(){
+  var c = S.cfg, r = S.run;
+  if (!c || !r || r.over) return false;
+  var ri = levelAt(c, r.done);
+  if (ri < 0) return false;
+  return S.balance + r.net >= c.levels[ri].bet - 1e-9;
+}
 function paintPlay(){
   var c = S.cfg, r = S.run;
   var ri = r.over ? -1 : levelAt(c, r.done);
@@ -2131,16 +2151,19 @@ function paintPlay(){
   var short = c.game === "keno" &&
               (c.strat === "flat" ? S.picks.length < 1 : S.picks.length < c.picks);
   var verb  = c.game === "limbo" ? "Roll" : "Spin";
-  var dead  = r.over || short;
-  if (short) stopAuto();
+  /* the sandbox never ends for want of money, it just stops taking bets */
+  var dry   = c.strat === "flat" && !r.over && !canBet();
+  var dead  = r.over || short || dry;
+  if (short || dry) stopAuto();
 
   $("btnSpin").disabled = dead; $("btnAuto").disabled = dead;
-  $("btnSpin").textContent = !short ? verb
-    : c.strat === "flat" ? "Pick a number"
-    : "Pick " + (c.picks - S.picks.length) + " more";
+  $("btnSpin").textContent = short
+    ? (c.strat === "flat" ? "Pick a number" : "Pick " + (c.picks - S.picks.length) + " more")
+    : dry ? "Out of balance"
+    : verb;
   $("btnSpin").className = "primary" + (c.game === "limbo" ? " teal" : "");
   $("btnRandom").hidden = c.game !== "keno";
-  $("btnRandom").textContent = "Random " + c.picks;
+  $("btnRandom").textContent = "Random " + (c.strat === "flat" ? 10 : c.picks);
 
   /* THE SANDBOX BOARD DESCRIBES ITSELF, NOT A PLAN. The ladder card and the
      "where you stand" odds are both readings of a ladder that is not there, so
@@ -2173,7 +2196,6 @@ function paintPlay(){
   paintPaytable();
   /* Random N is keno-only, so on limbo Auto has the row to itself. */
   $("extraRow").classList.toggle("two", c.game !== "limbo");
-  $("speedSeg").hidden = c.game === "limbo";
   $("nonceVal").textContent = num(S.nonce);
 }
 
@@ -2579,7 +2601,7 @@ function stopAuto(){
   $("btnAuto").innerHTML = "Auto &#9654;";
 }
 function autoTick(){
-  if (!S.run || S.run.over){ stopAuto(); paintPlay(); return; }
+  if (!S.run || S.run.over || !canBet()){ stopAuto(); paintPlay(); return; }
   step();
   if (S.pop && S.pop.levelUp) stopAuto();
   paintPlay();
@@ -2695,7 +2717,7 @@ $("btnSpin").addEventListener("click", function(){
   if (S.animating) return;
   $("pop").hidden = true;        /* clears on the press, not at the end of the reveal */
   step();
-  var animate = !REDUCED && speedNow() !== "instant" && S.run.last;
+  var animate = !REDUCED && revealBudget() > 0 && S.run.last;
   if (animate && S.cfg.game === "keno" && S.run.last.drawn) revealDraw(paintPlay);
   else if (animate && S.cfg.game === "limbo") revealLimbo(paintPlay);
   else {
@@ -2703,9 +2725,6 @@ $("btnSpin").addEventListener("click", function(){
     paintPlay();
   }
 });
-/* Limbo has one number to climb, and it looks wrong at any pace but one, so
-   it does not get the choice. Keno keeps whatever the player picked. */
-function speedNow(){ return (S.cfg && S.cfg.game === "limbo") ? "normal" : S.speed; }
 $("btnAuto").addEventListener("click", toggleAuto);
 $("autoRate").addEventListener("input", function(){ paintRate(); saveState(); });
 $("hdrSound").addEventListener("click", function(){
@@ -2744,13 +2763,6 @@ $("btnNewHunt").addEventListener("click", function(){ showView("setup"); paintSe
 $("btnResume").addEventListener("click", function(){
   if (S.run && S.run.over) startRun(false); else showView("play");
   paintPlay();
-});
-$$("#speedSeg button").forEach(function(b){
-  b.addEventListener("click", function(){
-    S.speed = b.getAttribute("data-s");
-    $$("#speedSeg button").forEach(function(o){ o.classList.toggle("on", o === b); });
-    saveState();
-  });
 });
 $("btnSeed").addEventListener("click", function(){ reseed(); saveState(); });
 $("seedVal").addEventListener("change", function(){
@@ -2825,7 +2837,8 @@ $("betEdit").addEventListener("input", function(){
   sandboxRebuild(); saveState(); paintPlay();
 });
 $("btnRandom").addEventListener("click", function(){
-  var want = S.cfg ? S.cfg.picks : 6, pool = POOL.slice();
+  var want = !S.cfg ? 6 : S.cfg.strat === "flat" ? 10 : S.cfg.picks;
+  var pool = POOL.slice();
   for (var i=0;i<want;i++){
     var j = i + Math.floor(Math.random()*(40-i));
     var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
@@ -2871,7 +2884,6 @@ loadState();
 if (!$("pickSeg").querySelector("button.on")) setPicks(clamp(S.picks.length || 6, 1, 10));
 setStrat($("stratSeg").querySelector("button.on").getAttribute("data-x"));
 reseed();
-$$("#speedSeg button").forEach(function(o){ o.classList.toggle("on", o.getAttribute("data-s") === S.speed); });
 paintRate();
 $("hdrSound").innerHTML = S.muted ? "&#9835;&nbsp; Sound off" : "&#9835;&nbsp; Sound on";
 $("hdrSound").style.color = S.muted ? "var(--faint)" : "var(--accent)";
