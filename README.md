@@ -195,9 +195,41 @@ numbers are picked starts the tally again, since it is only true for the board
 it was gathered on - changing *which* numbers does not, the distribution being
 identical.
 
-**It launches from the game buttons.** There is nothing to set up, so a Start
-run button would be a second click confirming a screen with no decisions on it -
-the buttons read "Simulate Keno (Launch)" and go straight to the board.
+**It launches from its own buttons.** "Launch Sandbox Keno" and "Launch Sandbox
+Limbo" sit beside Martingale in the first card and go straight to the board -
+one press to choose the game, the strategy and to start. There is nothing to set
+up on the way, so the game, balance and ladder cards are all the ladder's.
+
+### Volatility
+
+Keno's paytables come in two risk levels and the sandbox chooses between them.
+**High** is the set BILLSKIE plays. **Medium** pays more often and pays less
+when it does - on one number it even returns 0.4x for missing, which the high
+table does not do at all.
+
+| picks | high RTP | medium RTP |
+|---|---|---|
+| 1 | 99.00% | 98.75% |
+| 2 | 98.65% | 98.65% |
+| 3 | 98.99% | 98.99% |
+| 4 | 98.91% | 98.78% |
+| 5 | 98.89% | 98.94% |
+| 6 | 99.00% | 98.84% |
+| 7 | 98.96% | 98.96% |
+| 8 | 98.96% | 98.92% |
+| 9 | 98.96% | 98.94% |
+| 10 | 99.01% | 98.97% |
+
+Every medium row landing in the same 98.65-98.99% band as the high ones is the
+check that they were copied correctly, not a coincidence to lean on - a
+mistranscribed tier would show up as an RTP that misses the band.
+
+Switching resets the tally, because a different paytable is a different game and
+what was counted was counted under the old one.
+
+**The ladder stays on high.** Its targets and its three laddered counts were
+chosen from those tiers, and medium would need its own analysis of which counts
+can be laddered at all before it would mean anything.
 
 **Nothing ends.** A round is a ladder idea: it exists so a martingale knows when
 to start over. The sandbox has no ladder, so a win is paid and play carries on -

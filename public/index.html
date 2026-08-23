@@ -537,13 +537,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardhead"><h2>How you bet</h2></div>
           <div class="cardbody">
             <div class="seg big" id="stratSeg" role="group" aria-label="Betting strategy">
-              <button data-x="mart" class="on">Martingale</button>
-              <button data-x="flat">Sandbox</button>
+              <button data-k="mart" data-x="mart" class="on">Martingale</button>
+              <button data-k="sb-keno"  data-x="flat" data-g="keno">Launch Sandbox Keno</button>
+              <button data-k="sb-limbo" data-x="flat" data-g="limbo">Launch Sandbox Limbo</button>
             </div>
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="gameCard">
           <div class="cardhead"><h2>Which game</h2></div>
           <div class="cardbody">
             <div class="seg big" id="gameSeg">
@@ -742,6 +743,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <label for="seedVal" style="flex:none">Seed</label>
               <input type="number" id="seedVal" value="0" min="1" step="1">
               <button class="ghost" id="btnSeed">New seed</button>
+            </div>
+            <div class="seedrow" id="volRow" hidden>
+              <span style="flex:none">Volatility</span>
+              <div class="seg" id="volSeg" style="flex:1 1 auto" role="group" aria-label="Volatility">
+                <button data-v="high" class="on">High</button>
+                <button data-v="med">Medium</button>
+              </div>
             </div>
             <div class="seedrow">
               <label for="stopWin" style="flex:none">Stop on hit</label>
@@ -1135,7 +1143,7 @@ function minutes(spins){
    every pick count; a tier missing from a row pays nothing. Every one of these
    returns between 98.65% and 99.01%, checked against the distribution below. */
 function C(n,k){ if (k < 0 || k > n) return 0; var r=1; for (var i=0;i<k;i++) r = r*(n-i)/(i+1); return r; }
-var KENO_PAYS = {
+var KENO_PAYS_HIGH = {
   1:  {1:3.96},
   2:  {2:17.1},
   3:  {3:81.5},
@@ -1147,6 +1155,26 @@ var KENO_PAYS = {
   9:  {4:4, 5:11, 6:56, 7:500, 8:800, 9:1000},
   10: {4:3.5, 5:8, 6:13, 7:63, 8:500, 9:800, 10:1000}
 };
+/* MEDIUM RISK. Same game, flatter tiers: it pays more often and pays less when
+   it does, and on one number it even returns 0.4x for missing. Every row lands
+   between 98.65% and 98.99%, the same band as the high tables - which is the
+   check that they were copied correctly. */
+var KENO_PAYS_MED = {
+  1:  {0:0.4, 1:2.75},
+  2:  {1:1.8, 2:5.1},
+  3:  {2:2.8, 3:50},
+  4:  {2:1.7, 3:10, 4:100},
+  5:  {2:1.4, 3:4, 4:14, 5:390},
+  6:  {3:3, 4:9, 5:180, 6:710},
+  7:  {3:2, 4:7, 5:30, 6:400, 7:800},
+  8:  {3:2, 4:4, 5:11, 6:67, 7:400, 8:900},
+  9:  {3:2, 4:2.5, 5:5, 6:15, 7:100, 8:500, 9:1000},
+  10: {3:1.6, 4:2, 5:4, 6:7, 7:26, 8:100, 9:500, 10:1000}
+};
+/* The table in force. Everything downstream - the tiers, the stop rate, the
+   draw, the strip - reads this one name, and derive() points it at whichever
+   table the current run is playing. */
+var KENO_PAYS = KENO_PAYS_HIGH;
 function kenoP(k, h){ return C(10,h) * C(30,k-h) / C(40,k); }
 
 /* WHICH TIER ENDS A ROUND, per pick count. The count does not answer this on
@@ -1208,6 +1236,7 @@ var S = {
   cfg: null, levels: [], ends: [], total: 0,
   startBank: 1400, balance: 1400,
   history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null, editingBal: false,
+  vol: "high",
   sbBets: 0, sbHits: 0, sbStaked: 0, sbBack: 0, sbTier: [], sbPicks: null,
   martBank: undefined, martBase: undefined, sbBank: undefined, sbBase: undefined,
   /* revealUpto null = show the whole draw; a number = mid-reveal */
@@ -1345,7 +1374,7 @@ function saveState(){
   try {
     localStorage.setItem(STORE, JSON.stringify({
       form: readForm(), optDefault: true, startBank: S.startBank, balance: S.balance,
-      autoRate: +$("autoRate").value, stopWin: +$("stopWin").value,
+      autoRate: +$("autoRate").value, stopWin: +$("stopWin").value, vol: S.vol,
       history: S.history, picks: S.picks, muted: S.muted, seed: S.seed
     }));
   } catch (e) { /* private mode, quota - the page works without it */ }
@@ -1367,6 +1396,10 @@ function loadState(){
     if (typeof d.muted === "boolean") S.muted = d.muted;
     if (typeof d.autoRate === "number") $("autoRate").value = clamp(d.autoRate, 0, 100);
     if (typeof d.stopWin === "number") $("stopWin").value = Math.max(0, d.stopWin);
+    if (d.vol === "med" || d.vol === "high"){
+      S.vol = d.vol;
+      $$("#volSeg button").forEach(function(o){ o.classList.toggle("on", o.getAttribute("data-v") === S.vol); });
+    }
   } catch (e) { /* corrupt or unavailable - start fresh */ }
 }
 
@@ -1405,6 +1438,10 @@ function writeForm(f){
 
 /* the numbers a config implies, with everything named */
 function derive(f){
+  /* THE LADDER IS PRICED AGAINST THE HIGH TABLE - its targets and its three
+     laddered counts were chosen from those tiers - so only the sandbox switches.
+     Set before anything reads a payout. */
+  KENO_PAYS = (f.strat === "flat" && S.vol === "med") ? KENO_PAYS_MED : KENO_PAYS_HIGH;
   var lmult = clamp(f.lmult, 1.02, 1e6);
   var c = {
     game: f.game, lmult: lmult,
@@ -1434,7 +1471,12 @@ function derive(f){
      the stake. */
   if (c.strat === "flat"){
     c.stepx = 1;
-    c.len1 = c.lenN = Math.max(20000, Math.ceil(c.bank / c.base) + 10);
+    /* ONE LEVEL, LONG ENOUGH THAT NOTHING EVER REACHES THE END OF IT. This
+       was sized to the balance and floored at 20,000, which on an unlimited
+       balance meant exactly 20,000 - and bet 20,001 fell off the end of the
+       ladder and ended the run with "no hit". A billion bets is 1,268 years
+       at twenty-five a second. */
+    c.len1 = c.lenN = 1e9;
     c.mode = "broke";
   }
   /* the payout that ends a round, and how often it comes */
@@ -1794,10 +1836,8 @@ function paintGameOpts(){
      asking you to confirm a screen with no decisions on it. The game buttons
      launch it themselves and say so. */
   $("startCard").hidden = flat;
-  $$("#gameSeg button").forEach(function(b){
-    var name = b.getAttribute("data-g") === "keno" ? "Simulate Keno" : "Simulate Limbo";
-    b.textContent = flat ? name + " (Launch)" : name;
-  });
+  /* the sandbox picks its game on the way in, so the game card is the ladder's */
+  $("gameCard").hidden = flat;
 }
 function isFlat(){
   var b = $("stratSeg").querySelector("button.on");
@@ -1822,7 +1862,11 @@ function setStrat(x){
       if (S.martBase !== undefined) $("base").value = S.martBase;
     }
   }
-  $$("#stratSeg button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-x") === x); });
+  /* two of the three buttons are "flat", so the on-state is keyed by which
+     door it is rather than by the strategy alone */
+  var g0 = $("gameSeg").querySelector("button.on").getAttribute("data-g");
+  var key = x === "flat" ? "sb-" + g0 : "mart";
+  $$("#stratSeg button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-k") === key); });
   var flat = x === "flat";
   /* everything on this card except the bet size describes a climb */
   $("stepWrap").hidden = flat;
@@ -2413,6 +2457,8 @@ function paintPlay(){
     if (document.activeElement !== $("lTarget")) $("lTarget").value = c.lmult;
     $("lTargetChance").textContent = pct(0.99 / c.lmult, 3);
   }
+  /* the ladder is priced against the high table, so only the sandbox chooses */
+  $("volRow").hidden = !(c.strat === "flat" && c.game === "keno");
   var sw = +$("stopWin").value || 0;
   $("stopWinNote").textContent = sw > 0 ? "or more" : "off";
 
@@ -2920,7 +2966,6 @@ function paintRate(){
 $$("#gameSeg button").forEach(function(b){
   b.addEventListener("click", function(){
     var g = b.getAttribute("data-g");
-    var launch = isFlat();
     setGame(g);
     if (g === "limbo"){                       /* the break-even ladder for this target */
       var M = clamp(+$("lmult").value || 350, 1.02, 1e6);
@@ -2930,7 +2975,6 @@ $$("#gameSeg button").forEach(function(b){
       $("len1").value = 350; $("lenN").value = 175;
     }
     paintSetup();
-    if (launch) startRun(true);
   });
 });
 /* THE LARGEST OPENING BET THAT STILL BUYS THREE LEVELS. Three levels cost
@@ -2983,7 +3027,17 @@ $("optBet").addEventListener("click", function(){
 $("base").addEventListener("input", function(){ setOpt(false); });
 $("stratSeg").addEventListener("click", function(e){
   var b = e.target.closest("button[data-x]"); if (!b) return;
-  setStrat(b.getAttribute("data-x"));
+  var x = b.getAttribute("data-x"), g = b.getAttribute("data-g");
+  if (x === "flat"){
+    /* one press: choose the game, choose the strategy, and go. There is
+       nothing to set up on the way. */
+    setGame(g);
+    setStrat("flat");
+    paintSetup();
+    startRun(true);
+    return;
+  }
+  setStrat(x);
   priceLadder();
   paintSetup();
 });
@@ -3027,6 +3081,20 @@ $("btnSpin").addEventListener("click", function(){
 });
 $("btnAuto").addEventListener("click", toggleAuto);
 $("autoRate").addEventListener("input", function(){ paintRate(); saveState(); });
+$$("#volSeg button").forEach(function(b){
+  b.addEventListener("click", function(){
+    S.vol = b.getAttribute("data-v");
+    $$("#volSeg button").forEach(function(o){ o.classList.toggle("on", o === b); });
+    /* a different paytable is a different game: what has been counted so far
+       was counted under the old one */
+    S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = [];
+    if (S.cfg && S.cfg.strat === "flat"){
+      var f = readForm(); f.bank = S.balance; S.cfg = derive(f);
+    }
+    S.hideDraw = true;
+    saveState(); paintPlay();
+  });
+});
 $("stopWin").addEventListener("input", function(){
   $("stopWinNote").textContent = (+$("stopWin").value || 0) > 0 ? "or more" : "off";
   saveState();
