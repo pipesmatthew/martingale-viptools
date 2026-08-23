@@ -165,7 +165,16 @@ the screen look like documentation.
 no optimal-bet toggle, and no forecast column either: every figure in "Before
 you start" is a level, a cost or a chance the levels imply, so it leaves with
 the ladder. Choosing the sandbox leaves three things standing: the strategy,
-the game, and Start run. It picks its numbers on the board, however many you like from one to
+the game, and Start run.
+
+Two layout rules follow it. The setup screen stretches each column's last card
+so both bottoms land on the same line, and that rule keyed off `:last-child` -
+which, once cards started being hidden, picked a card that was not on screen, so
+the visible last card kept its margin and never took up the slack. It keys off
+the last *visible* card now. And in the sandbox the rule switches off entirely:
+stretching a 372px card around a 38px button to chase a bottom edge 130px away
+is not a few pixels of mismatch being tidied, it is a large empty box, so both
+columns take their natural height instead. It picks its numbers on the board, however many you like from one to
 ten, and the count follows the board live. The stored balance and bet still
 drive the first round; changing them belongs at the board, and will go there.
 

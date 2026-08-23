@@ -206,9 +206,19 @@ button.primary:disabled:hover{background:var(--accent)}
    take up the slack, so the bottoms land on the same line. */
 #view-setup .split{align-items:stretch}
 #view-setup .split > div{display:flex;flex-direction:column;min-width:0}
-#view-setup .split > div > .card:last-child{flex:1 1 auto}
-#view-setup .split > div:last-child > .card:last-child{display:flex;flex-direction:column;
+/* LAST VISIBLE, not last child. Hidden cards are still children, so :last-child
+   picked one that was not on screen - the visible last card kept its 5px margin
+   and never took up the slack, which is the mismatch the rule exists to kill. */
+#view-setup .split > div > .card.lastcard{flex:1 1 auto;margin-bottom:0}
+#view-setup .split > div:last-child > .card.lastcard{display:flex;flex-direction:column;
   justify-content:center}
+/* With the ladder and the forecast gone there are two small cards on one side
+   and a button on the other. Stretching a 372px card around a 38px button to
+   chase a bottom edge 130px away is not a few pixels of mismatch being tidied,
+   it is a large empty box. Both columns take their natural height instead. */
+#view-setup .split.bare{align-items:start}
+#view-setup .split.bare > div > .card.lastcard{flex:0 0 auto}
+#view-setup .split.bare > div:last-child > .card.lastcard{display:block}
 @media (max-width:980px){.split{grid-template-columns:1fr}}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:5px}
 
@@ -1548,6 +1558,8 @@ function setStrat(x){
   /* the forecast is a reading of the ladder - every figure in it is a level,
      a cost or a chance the levels imply - so it leaves with the ladder */
   $("forecast").hidden   = flat;
+  $$("#view-setup .split").forEach(function(sp){ sp.classList.toggle("bare", flat); });
+  markLastCards();
   /* the sandbox picks its numbers on the board, so the row has nothing to say */
   $("kenoOpts").hidden = flat ||
     $("gameSeg").querySelector("button.on").getAttribute("data-g") !== "keno";
@@ -1561,6 +1573,17 @@ function setBail(m){
     b.classList.toggle("on", b.getAttribute("data-b") === m);
   });
   $("levelsWrap").hidden = m !== "fixed";
+}
+/* the stretch rules need to know which card is the last one actually showing */
+function markLastCards(){
+  $$("#view-setup .split > div").forEach(function(col){
+    var last = null, kids = [].slice.call(col.children);
+    kids.forEach(function(el){
+      el.classList.remove("lastcard");
+      if (el.classList.contains("card") && !el.hidden) last = el;
+    });
+    if (last) last.classList.add("lastcard");
+  });
 }
 function paintSetup(){
   applyOpt();
@@ -1634,6 +1657,7 @@ function paintSetup(){
   $("startHint").textContent = "";
   $("startBtn").disabled = false;
   $("setupErr").hidden = true;
+  markLastCards();
   if (SHOW_STATS_TAB) paintStats();
   saveState();
 }
