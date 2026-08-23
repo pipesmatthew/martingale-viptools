@@ -263,9 +263,13 @@ to start over. The sandbox has no ladder, so a win is paid and play carries on -
 no round-over card, no Next round, no End run - and the balance simply stops
 taking bets when it cannot cover one.
 
-**A balance of zero means unlimited**, so autoplay can be left on a question that
-needs a million bets. It is a setting rather than an accident: the sandbox
-cannot lose its way to exactly nothing, because it stops before it gets there.
+**It opens unlimited**, so autoplay can be left on a question that needs a
+million bets. Zero is the flag for it and the balance reads "Unlimited" - a word
+rather than an infinity glyph, which the mono face renders as a thin, mean
+little thing at 30px and which reads as a rendering fault where a dollar figure
+belongs. Typing a real figure over it makes it finite; typing zero puts it back.
+It is a setting rather than an accident either way: the sandbox cannot lose its
+way to exactly nothing, because it stops taking bets before it gets there.
 
 **Limbo dials its own target**, under the number it governs, with the chance per
 roll beside it - and the setup screen drops its target and chance fields

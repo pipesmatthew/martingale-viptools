@@ -116,6 +116,9 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .ebar u{position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;background:var(--cream);
   text-decoration:none}
 .hitempty{padding:12px;color:var(--faint);font-size:11.5px}
+/* a word in the balance slot wants the sans face and a size that does not
+   shout over the figure it replaces */
+.balbig.word{font-family:var(--sans);font-size:22px;letter-spacing:.01em}
 .balin{width:100%;background:var(--bg-deep);border:1px solid var(--border);padding:1px 8px;
   color:var(--cream)}
 /* the bet is the balance's smaller sibling - same face, same colour, same
@@ -2072,12 +2075,16 @@ function startRun(fresh){
        you have to top up every few minutes is a chore rather than a tool. */
     if (c.strat === "flat"){
       if (c.game === "keno") S.picks = [];
-      $("bank").value = 400000; $("base").value = 0;
-      S.sbBank = 400000; S.sbBase = 0;
+      $("bank").value = 0; $("base").value = 0;
+      S.sbBank = 0; S.sbBase = 0;
       c = derive(readForm());
     }
     S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = []; S.sbPicks = null;
     S.cfg = c; S.startBank = c.bank; S.balance = c.bank;
+    /* THE SANDBOX OPENS UNLIMITED. Zero is the flag for it, and the bank is
+       clamped to at least 1 on the way through derive, so it is set here rather
+       than left to the form. Typing a real figure over it makes it finite. */
+    if (c.strat === "flat"){ S.startBank = 0; S.balance = 0; }
     S.history = [];
     S.cfg0 = c;                 /* the ladder this run opened on, for comparison */
     reseed();
@@ -2563,6 +2570,9 @@ function paintPlay(){
      ROUND ends; on a flat run that is thousands of bets away, so it sat frozen
      at the opening figure while the money visibly went. */
   $("bal").classList.toggle("editable", sand);
+  /* cleared out here rather than inside the sandbox branch, or a ladder run
+     after a sandbox one draws its figures in the sans face */
+  $("bal").classList.toggle("word", sbInfinite());
   $("betEditWrap").hidden = !sand;
   if (!sand || !S.editingBal){
     $("bal").hidden = false;
@@ -2573,7 +2583,10 @@ function paintPlay(){
     $("betEdit").hidden = true;
   }
   if (sand){
-    if (sbInfinite()) $("bal").textContent = "∞";
+    /* the mono infinity is a thin, mean little glyph at 30px and reads as a
+       rendering fault where a dollar figure belongs. The word cannot be
+       misread. */
+    if (sbInfinite()) $("bal").textContent = "Unlimited";
     if (!S.editingBal) $("balEdit").value = sbInfinite() ? 0 : +(S.balance + (r.over ? 0 : r.net)).toFixed(2);
     var betNow = c.levels[0].bet;
     $("betVal").textContent = betNow > 0 ? m2(betNow) : "not set";
