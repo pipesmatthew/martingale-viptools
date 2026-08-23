@@ -436,7 +436,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardbody">
             <div class="seg big" id="stratSeg" role="group" aria-label="Betting strategy">
               <button data-x="mart" class="on">Martingale</button>
-              <button data-x="flat">Flat bet</button>
+              <button data-x="flat">Sandbox</button>
             </div>
           </div>
         </div>
@@ -1037,8 +1037,8 @@ var KENO_TARGET = { 1:1, 2:2, 3:3, 4:4, 5:5, 6:5, 7:6, 8:6, 9:7, 10:7 };
 
    Below the cliff the ladder loses most of its rounds, and since every game
    here returns 99% of turnover regardless, a strategy that loses more rounds
-   AND stakes more per round is strictly worse than flat betting. Those counts
-   are flat-bet only. */
+   AND stakes more per round is strictly worse than betting flat. Those counts
+   are Sandbox only. */
 var MART_PICKS = [3, 4, 6];
 function martOK(k){ return MART_PICKS.indexOf(k) !== -1; }
 
@@ -1504,7 +1504,7 @@ function setStrat(x){
   $("lensRow").hidden  = flat;
   $("bailWrap").hidden = flat;
   if (flat) $("levelsWrap").hidden = true;
-  $("ladderTitle").textContent = flat ? "Flat betting" : "The Martingaler";
+  $("ladderTitle").textContent = flat ? "Sandbox" : "The Martingaler";
   $("baseLab").textContent     = flat ? "Every bet" : "Initial bet";
   $("resetLadder").hidden      = flat;
   /* martingale offers three counts, flat offers ten - and coming back to
@@ -1523,7 +1523,7 @@ function paintSetup(){
   S.cfg = c;
 
   $("levelsV").textContent = $("levels").value;
-  /* "levels climbed" is a number only a climb has. Flat betting answers the
+  /* "levels climbed" is a number only a climb has. The sandbox answers the
      question the tile is really for - how much of a run you get - with the
      hits the money buys you. */
   if (c.strat === "flat"){

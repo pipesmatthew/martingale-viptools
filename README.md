@@ -111,14 +111,14 @@ The Wald check makes that concrete: on 5, 7, 9 and 10 picks, three thousand runs
 out of three thousand ended at exactly minus the whole balance. Not usually -
 every one.
 
-So **martingale offers 3, 4 and 6**; flat betting offers all ten. Eight is the
+So **martingale offers 3, 4 and 6**; Sandbox offers all ten. Eight is the
 only close call and it is left out: a ladder that loses half its rounds is not
 the thing the word describes.
 
 The pick row keeps its ten columns in both strategies, so a button is the same
 size either way and the three martingale counts do not balloon to fill the row.
 
-### Martingale, or flat
+### Martingale, or Sandbox
 
 The strategy choice is the first card on the setup screen, above the game and
 above the money, because it is the one decision that changes what every other
@@ -128,7 +128,7 @@ It is two words in a segmented control, the same shape as the game choice - the
 options do not need explaining, and a paragraph under each one made the top of
 the screen look like documentation.
 
-It is the same machine with the climb taken out. **Flat bet**
+It is the same machine with the climb taken out. **Sandbox**
 is one bet size, one level long enough that the balance is always what ends the
 round — so rounds, the history table and the balance chart keep meaning exactly
 what they meant, and the only thing that changes is that losing never raises the
