@@ -161,6 +161,8 @@ button.ghost,button.primary{
 button.ghost:hover{background:var(--button-hover);color:var(--fg)}
 button.ghost.amber{color:var(--accent);border-color:#4a3a20}
 button.ghost.amber:hover{color:var(--accent);background:#2a2118}
+button.ghost.amber.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+button.ghost.amber.on:hover{background:var(--accent);color:#17130a;filter:brightness(1.07)}
 button.primary{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 button.primary:hover{filter:brightness(1.07)}
 button.primary.teal{background:var(--teal);border-color:var(--teal);color:#0c1620}
@@ -482,7 +484,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
         <div class="card">
           <div class="cardhead"><h2 id="ladderTitle">The Martingaler</h2><span class="grow"></span>
-            <button class="ghost amber" id="optBet" style="font-size:11.5px;padding:2px 9px">Optimal bet</button>
+            <button class="ghost amber" id="optBet" aria-pressed="false"
+                    style="font-size:11.5px;padding:2px 9px">Optimal bet</button>
 </div>
           <div class="cardbody">
             <div class="grid2" style="margin-bottom:9px">
@@ -1212,6 +1215,7 @@ function readForm(){
               ? $("pickSeg").querySelector("button.on").getAttribute("data-k") : 6) || 6,
     mode:  $("bailSeg").querySelector("button.on").getAttribute("data-b"),
     strat: $("stratSeg").querySelector("button.on").getAttribute("data-x"),
+    opt:   $("optBet").classList.contains("on"),
     lmult: +$("lmult").value || 350,
     base:  +$("base").value  || 1,
     stepx: +$("stepx").value || 2,
@@ -1223,6 +1227,7 @@ function readForm(){
   };
 }
 function writeForm(f){
+  setOpt(!!f.opt);
   setStrat(f.strat === "flat" ? "flat" : "mart");
   setPicks(clamp(Math.round(f.picks || 6), 1, 10));
   setGame(f.game === "limbo" ? "limbo" : "keno");
@@ -1540,6 +1545,7 @@ function setBail(m){
   $("levelsWrap").hidden = m !== "fixed";
 }
 function paintSetup(){
+  applyOpt();
   var c = derive(readForm());
   S.cfg = c;
 
@@ -2458,6 +2464,19 @@ function optimalBet(){
   }
   return Math.max(0.01, lo);
 }
+/* HELD DOWN, the opening bet is refitted every time the ladder changes shape -
+   a new pick count, a new balance, a different multiplier. Typing a bet by hand
+   releases it, because a number you typed should not be overwritten by the next
+   repaint. */
+function setOpt(on){
+  $("optBet").classList.toggle("on", !!on);
+  $("optBet").setAttribute("aria-pressed", on ? "true" : "false");
+}
+function applyOpt(){
+  if (!$("optBet").classList.contains("on") || isFlat()) return;
+  var v = +optimalBet().toFixed(2);
+  if (+$("base").value !== v) $("base").value = v;
+}
 function priceLadder(){
   /* the level length IS the payout, so the target resizes the ladder */
   var c0 = derive(readForm());
@@ -2465,9 +2484,12 @@ function priceLadder(){
   $("lenN").value = Math.max(1, Math.round(c0.pay / 2));
 }
 $("optBet").addEventListener("click", function(){
-  $("base").value = +optimalBet().toFixed(2);
+  setOpt(!$("optBet").classList.contains("on"));
   paintSetup();
 });
+/* typing a bet releases the toggle, and does so before the repaint that would
+   otherwise write over what was just typed */
+$("base").addEventListener("input", function(){ setOpt(false); });
 $("stratSeg").addEventListener("click", function(e){
   var b = e.target.closest("button[data-x]"); if (!b) return;
   setStrat(b.getAttribute("data-x"));

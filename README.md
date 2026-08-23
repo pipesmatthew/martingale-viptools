@@ -121,8 +121,12 @@ be 39px each, so Sandbox spills to the full row instead.
 
 ### Optimal bet
 
-A button in the ladder card head that sets the opening bet to the largest one
-the balance can carry three full levels of. Three levels cost
+A toggle in the ladder card head. Held down, the opening bet is refitted every
+time the ladder changes shape - a new pick count, a new balance, a different
+multiplier - to the largest bet the balance can carry three full levels of.
+Typing a bet by hand releases it, and does so before the repaint that would
+otherwise write over what was just typed. The state persists with the rest of
+the settings. Three levels cost
 `len1 + lenN x (step + step^2)` bets - 1,400 of them on the default ladder,
 which is exactly why $1,400 at $1 is the default.
 
