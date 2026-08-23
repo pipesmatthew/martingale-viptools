@@ -308,7 +308,10 @@ you replaced is measuring nothing.
 and how often it comes is a fact about the board, not about the strategy on it -
 above the ladder card on a martingale run and alone in the sandbox. One cell per
 possible number of hits, the multiplier over the count, and on hover the payout
-at your current bet and the exact chance of that outcome. The chance is
+at your current bet, the exact chance of that outcome, and the share of the RTP
+it carries. That last one is the interesting number: on six numbers the 350x is
+69.6% of the whole return, so a session that has not seen one is not measuring
+the game yet. The chance is
 P(exactly h hits), not h or better, because the cell describes one outcome. At
 ten picks that runs from 15.47% for a blank board down to 0.00000012% for all
 ten, and the eleven multipliers read 0x 0x 0x 0x 3.5x 8x 13x 63x 500x 800x 1K.
@@ -392,7 +395,8 @@ phrasing for it - "before you bankrupt" or "before you bail", everywhere.
 A figure in the play controls, on both games: autoplay halts when a single draw
 pays at least this much. Zero is off.
 
-**Clicking a tier on the paytable strip arms it.** The strip already says what
+**Clicking a tier on the paytable strip arms it, in the sandbox only** - the
+ladder's strip is a readout. The strip already says what
 each outcome pays at your bet, so it is the natural place to say "and stop when
 that one lands" - the alternative was reading the payout off a tooltip and
 typing it into a box three rows away. The armed tier is marked amber; clicking

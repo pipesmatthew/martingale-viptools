@@ -130,11 +130,8 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
    better - the cell describes one outcome, so it quotes that outcome. */
 .paytable{display:grid;gap:3px}
 .pt{position:relative;text-align:center;cursor:default}
-.pt.pays{cursor:pointer}
-/* the tier the stop is set to, so the strip says what is armed as well as
-   what it pays */
-.pt.armed .pmult{background:var(--accent);border-color:var(--accent);color:#17130a}
-.pt.armed .phits{border-color:var(--accent)}
+/* only the sandbox arms a tier; the ladder's strip is a readout */
+.paytable.armable .pt.pays{cursor:pointer}
 .pt .pmult{background:var(--button);border:1px solid var(--border);border-bottom:0;
   font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);padding:5px 2px}
 .pt.pays .pmult{color:var(--accent)}
@@ -144,10 +141,14 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .pt.pays .phits{color:var(--fg-2)}
 .pt .phits i{width:8px;height:8px;background:var(--track);display:block}
 .pt.pays .phits i{background:var(--accent)}
+/* AFTER the .pt.pays rules, or the amber text wins over the amber fill and the
+   armed multiplier disappears into its own highlight */
+.pt.armed .pmult{background:var(--accent);border-color:var(--accent);color:#17130a}
+.pt.armed .phits{border-color:var(--accent);color:var(--fg)}
 .pt:hover .pmult{background:var(--button-hover);color:var(--fg)}
 .pt .ptip{display:none;position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%);
   z-index:30;background:var(--card);border:1px solid var(--border);padding:8px 10px;
-  grid-template-columns:auto auto;gap:10px;white-space:nowrap}
+  grid-template-columns:auto auto auto;gap:10px;white-space:nowrap}
 .pt:hover .ptip{display:grid}
 .pt:first-child .ptip{left:0;transform:none}
 .pt:last-child .ptip{left:auto;right:0;transform:none}
@@ -2359,6 +2360,17 @@ function chanceLabel(p){
   if (t.indexOf(".") !== -1) t = t.replace(/0+$/, "").replace(/\.$/, "");
   return t + "%";
 }
+/* WHAT THIS TIER IS WORTH TO THE RETURN. Its contribution is P(exactly h) x
+   its payout, and the RTP is the sum of those - so this is the share of the
+   99% that this one outcome is carrying. On six numbers the 350x carries about
+   seven tenths of it, which is why the measured return sits low until one
+   lands. */
+function rtpShare(k, h){
+  var pay = (KENO_PAYS[k] || {})[h] || 0;
+  if (!pay) return "—";
+  var total = kenoRTP(k);
+  return total > 0 ? pct(kenoP(k, h) * pay / total) : "—";
+}
 function paintPaytable(){
   var c = S.cfg;
   /* every keno board has a paytable, ladder or not - what a draw pays and how
@@ -2382,9 +2394,11 @@ function paintPaytable(){
       '<div class="ptip">' +
         '<div class="pcol"><span>Payout</span><b>' + m2(pay * bet) + '</b></div>' +
         '<div class="pcol"><span>Chance</span><b>' + chanceLabel(kenoP(k, h)) + '</b></div>' +
+        '<div class="pcol"><span>Of the RTP</span><b>' + rtpShare(k, h) + '</b></div>' +
       '</div></div>';
   }
   $("paytable").innerHTML = html;
+  $("paytable").classList.toggle("armable", c.strat === "flat");
   $("paytable").style.gridTemplateColumns = "repeat(" + (k + 1) + ",1fr)";
 }
 /* A BALANCE OF ZERO MEANS UNLIMITED, in the sandbox only. It is a deliberate
@@ -3184,6 +3198,7 @@ $("volSel").addEventListener("change", function(){
 });
 $("paytable").addEventListener("click", function(e){
   var cell = e.target.closest(".pt"); if (!cell || !S.cfg) return;
+  if (S.cfg.strat !== "flat") return;        /* the ladder's strip is a readout */
   var h = +cell.getAttribute("data-h");
   var pay = (KENO_PAYS[S.cfg.picks] || {})[h] || 0;
   var bet = S.cfg.levels[0].bet;
