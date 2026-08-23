@@ -12,7 +12,7 @@ database. Open it in a browser and it works — including from the filesystem.
 
 **Dry run.** You set the ladder up and then play it, spin by spin, on keno or on
 limbo. Every draw is real: keno picks 10 tiles from 40 and scores them against
-your six, limbo rolls `0.99 / u`. Nothing is approximated, and no result is
+yours, limbo rolls `0.99 / u`. Nothing is approximated, and no result is
 scripted. The only thing that is not real is the money.
 
 **What usually happens.** The same strategy as statistics, written for somebody
@@ -61,6 +61,55 @@ a hunt is however many runs you play off one balance.
    thing cost.
 5. From there, **Keep going** re-opens the table with your balance intact, or
    **Start over** returns to setup for a fresh hunt.
+
+### How many numbers, and which tier you are chasing
+
+Keno runs on **1 to 10 picks**, each with Stake's high-risk paytable for that
+count. Every one of the ten returns between **98.65% and 99.01%** against the
+exact distribution — 2 picks is the outlier at 98.65%, and that is arithmetic
+rather than a typo in the table.
+
+Changing the count raises a question the count does not answer: **which paying
+tier is the one you are waiting for.** It decides everything downstream, because
+the level length is the payout, so the target sets the shape of the whole
+ladder. The page chooses it and then says so on screen, under the selector.
+
+The rule is the property BILLSKIE's own ladder already has. His level is 350
+spins chasing a 350x that lands once in 494 — a 50.8% chance of arriving inside
+the level it pays for. So: **pick the tier whose own payout, used as a level
+length, comes closest to an even chance of landing within it.**
+
+| picks | target | pays | 1 in |
+|---|---|---|---|
+| 1 | 1 of 1 | 3.96x | 4 |
+| 2 | 2 of 2 | 17.1x | 17 |
+| 3 | 3 of 3 | 81.5x | 82 |
+| 4 | 4 of 4 | 259x | 435 |
+| 5 | 4 of 5 | 48x | 100 |
+| **6** | **5 of 6** | **350x** | **494** |
+| 7 | 5 of 7 | 90x | 161 |
+| 8 | 4 of 8 | 5x | 11 |
+| 9 | 4 of 9 | 4x | 7 |
+| 10 | 4 of 10 | 3.5x | 5 |
+
+Six picks returns 350x, which is where the whole thing started. Ten returns a
+tier you could actually sit through rather than the 1000x that turns up once in
+847 million and would price a level nobody survives.
+
+### Martingale, or flat
+
+The strategy toggle is the same machine with the climb taken out. **Flat bet**
+is one bet size, one level long enough that the balance is always what ends the
+round — so rounds, the history table and the balance chart keep meaning exactly
+what they meant, and the only thing that changes is that losing never raises the
+stake. Everything that describes a climb hides with it: the multiplier, the two
+level lengths, the bail-out choice, and "Up the bet" on the round-over screen,
+which is the martingale sneaking back in one round late.
+
+"Levels you'd climb" has no answer on a flat run, so that tile answers what it
+was really for — how much of a run the money buys — with the hits to expect.
+
+Both strategies are checked against Wald at every pick count; see below.
 
 ### How the ladder ends
 
@@ -123,6 +172,13 @@ lands on is drawn directly instead of stepping through every spin, and keno's
 `E[profit] = -edge x E[total staked]`. At four million rounds the sampler agrees
 to well within one standard error, and reproduces the study's own figures for
 the default ladder (E[staked] $598, median +$235, 75.8% of rounds winning).
+
+The same check is run on the **play engine itself** — the shipped `step()` and
+`finish()`, lifted out of the file — across all ten pick counts and both
+strategies, twenty configurations. Every one agrees with `-edge(k) x E[staked]`
+within noise. The martingale rows at high pick counts are heavy-tailed enough
+that a single batch can read three standard errors out; 9 picks did exactly that
+and settled to 0.2 s.e. at twelve thousand runs.
 
 Two real bugs turned up in exactly that check, and neither was visible by eye:
 
@@ -193,7 +249,7 @@ One slot over the board, three meanings, each with its own sound:
 
 | | colour | when |
 |---|---|---|
-| a payout | green | any win — 11x, 350x, 710x — with the amount |
+| a payout | green | any win — the consolation tier, the target, or above it — with the amount |
 | **Level 2** | amber | the bet has doubled once |
 | **Level 3** and past it | red | the bet has doubled again |
 
@@ -224,8 +280,9 @@ Exact where the maths is exact, measured where it is not.
 
 | figure | source |
 |---|---|
-| keno outcome probabilities | `C(10,k)·C(30,6−k) / C(40,6)` — 40 tiles, 10 drawn, 6 picked, computed in the page |
-| keno stop rate | `P(5) + P(6)` = 0.2024% per spin, **1 in 494** |
+| keno outcome probabilities | `C(10,h)·C(30,k−h) / C(40,k)` — 40 tiles, 10 drawn, k picked, computed in the page |
+| keno paytables, 1 to 10 picks | Stake's high-risk tables, each checked against the distribution: 98.65%–99.01% |
+| keno stop rate | the sum over paying tiers at or above the target — at six picks `P(5) + P(6)` = 0.2024%, **1 in 494** |
 | limbo hit rate | `0.99 / M` — at 350x that is **1 in 353.5** |
 | limbo roll | `max(1, floor((0.99 / u) * 100) / 100)` — Stake's published formula |
 | how long you wait | geometric, computed live from whichever game is selected |
@@ -295,7 +352,7 @@ Redeploys are a `git push`.
 
 ## What it stores
 
-One `localStorage` key, `martingale.dryrun.v1`, holding your settings, practice
+One `localStorage` key, `martingale.dryrun.v2`, holding your settings, practice
 balance, keno picks and run history. It goes nowhere else — there is no
 analytics, no cookie, no request to anything but Google Fonts. Clearing site
 data resets it.

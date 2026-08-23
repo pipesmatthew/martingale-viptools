@@ -175,6 +175,15 @@ button.primary:disabled:hover{background:var(--accent)}
 /* every segmented group divides its row evenly - buttons sized by their own
    labels leave a ragged edge wherever the two words differ in length */
 .seg > button{flex:1 1 0;text-align:center}
+.lab{display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;margin-bottom:4px}
+.picks{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
+.picks button{appearance:none;cursor:pointer;font-family:var(--mono);font-size:12.5px;
+  background:var(--button);color:var(--muted);border:1px solid var(--border);padding:6px 0;font-weight:600}
+.picks button:hover{background:var(--button-hover);color:var(--fg)}
+.picks button.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+.pickinfo{margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.pickinfo b{color:var(--accent);font-weight:600}
 
 /* ───────────────────────────────────────────────────── panels & cards ── */
 .panel{display:none;padding:10px 12px 40px}
@@ -429,6 +438,12 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <button data-g="limbo">Simulate Limbo</button>
             </div>
 
+            <div id="kenoOpts" style="margin-top:11px">
+              <span class="lab">Numbers picked</span>
+              <div class="picks" id="pickSeg"></div>
+              <div class="pickinfo" id="pickInfo"></div>
+            </div>
+
             <div id="limboOpts" hidden style="margin-top:11px">
               <div class="grid2">
                 <label class="f"><span>Target multiplier</span>
@@ -453,22 +468,27 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         </div>
 
         <div class="card">
-          <div class="cardhead"><h2>The Martingaler</h2><span class="grow"></span>
+          <div class="cardhead"><h2 id="ladderTitle">The Martingaler</h2><span class="grow"></span>
             <button class="ghost" id="resetLadder" style="font-size:11.5px;padding:2px 9px">Reset to BILLSKIE's</button></div>
           <div class="cardbody">
+            <div class="seg" id="stratSeg" role="group" aria-label="Betting strategy"
+                 style="margin-bottom:11px">
+              <button data-x="mart" class="on">Martingale</button>
+              <button data-x="flat">Flat bet</button>
+            </div>
             <div class="grid2" style="margin-bottom:9px">
-              <label class="f"><span>Initial bet</span>
+              <label class="f"><span id="baseLab">Initial bet</span>
                 <input type="number" id="base" value="1" min="0.01" step="0.5"></label>
-              <label class="f"><span>Multiply by</span>
+              <label class="f" id="stepWrap"><span>Multiply by</span>
                 <input type="number" id="stepx" value="2" min="1" max="10" step="0.25"></label>
             </div>
-            <div class="grid2" style="margin-bottom:11px">
+            <div class="grid2" id="lensRow" style="margin-bottom:11px">
               <label class="f"><span>First level, spins</span>
                 <input type="number" id="len1" value="350" min="1" max="20000" step="25"></label>
               <label class="f"><span>Every level after</span>
                 <input type="number" id="lenN" value="175" min="1" max="20000" step="25"></label>
             </div>
-            <div style="margin-bottom:9px">
+            <div style="margin-bottom:9px" id="bailWrap">
               <span style="display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
                            color:var(--faint);font-weight:700;margin-bottom:4px">Ride it until</span>
               <div class="seg" id="bailSeg">
@@ -499,8 +519,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="tiles two">
           <div class="tile"><div class="k">Rounds that get the hit</div>
             <div class="v green" id="tWin">75.8%</div><div class="d" id="tWinD">about 3 in 4</div></div>
-          <div class="tile"><div class="k">Levels you'd climb</div>
-            <div class="v amber" id="tLevels">7</div><div class="d">before the money runs out</div></div>
+          <div class="tile"><div class="k" id="tLevelsK">Levels you'd climb</div>
+            <div class="v amber" id="tLevels">7</div><div class="d" id="tLevelsD">before the money runs out</div></div>
         </div>
 
         <div class="card" id="setupWarnCard">
@@ -586,7 +606,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             </div>
             <div class="playgrid two" id="extraRow">
               <button class="ghost" id="btnAuto">Auto &#9654;</button>
-              <button class="ghost" id="btnRandom">Random six</button>
+              <button class="ghost" id="btnRandom">Random 6</button>
             </div>
             <div class="seg speed" id="speedSeg" role="group" aria-label="Reveal speed">
               <button data-s="normal" class="on">Normal</button>
@@ -650,7 +670,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
       <div class="acts">
         <button class="btn primary green wide" id="roNext">
           <b>Next round</b><span id="roNextAmt">$1.00 a spin</span></button>
-        <div class="upgrid">
+        <div class="upgrid" id="upgrid">
           <button class="btn wide" id="roDouble">
             <b>Up the bet</b><span id="roDoubleAmt">$2.00 a spin</span></button>
           <input type="number" id="roUpAmt" value="2" min="0.01" step="0.5"
@@ -964,12 +984,65 @@ function minutes(spins){
   return (m/60).toFixed(1) + " hours";
 }
 
-/* ── exact keno: C(10,k)C(30,6-k)/C(40,6), 40 tiles, 10 drawn, 6 picked ── */
-function C(n,k){ var r=1; for (var i=0;i<k;i++) r = r*(n-i)/(i+1); return r; }
-var KP = []; for (var kk=0; kk<7; kk++) KP.push(C(10,kk)*C(30,6-kk)/C(40,6));
-var KENO_STOP = KP[5] + KP[6];          /* 0.002024291 - 1 in 494 */
-var KENO_FOUR = KP[4];                  /* 0.023799103 - 1 in 42  */
-var KENO_SIX_GIVEN_STOP = KP[6]/KENO_STOP;
+/* ── exact keno, 40 tiles, 10 drawn, k picked ──────────────────────────
+   P(h hits) = C(10,h) * C(30,k-h) / C(40,k). Stake's high-risk paytables for
+   every pick count; a tier missing from a row pays nothing. Every one of these
+   returns between 98.65% and 99.01%, checked against the distribution below. */
+function C(n,k){ if (k < 0 || k > n) return 0; var r=1; for (var i=0;i<k;i++) r = r*(n-i)/(i+1); return r; }
+var KENO_PAYS = {
+  1:  {1:3.96},
+  2:  {2:17.1},
+  3:  {3:81.5},
+  4:  {3:10, 4:259},
+  5:  {3:4.5, 4:48, 5:450},
+  6:  {4:11, 5:350, 6:710},
+  7:  {4:7, 5:90, 6:400, 7:800},
+  8:  {4:5, 5:20, 6:270, 7:600, 8:900},
+  9:  {4:4, 5:11, 6:56, 7:500, 8:800, 9:1000},
+  10: {4:3.5, 5:8, 6:13, 7:63, 8:500, 9:800, 10:1000}
+};
+function kenoP(k, h){ return C(10,h) * C(30,k-h) / C(40,k); }
+
+/* WHICH TIER IS THE ONE YOU ARE WAITING FOR. Picking a count does not answer
+   that on its own, and it decides everything: the level length is the payout,
+   so the target sets the shape of the whole ladder.
+
+   The rule is the property BILLSKIE's own ladder has. His level is 350 spins
+   chasing a 350x that lands once in 494, which is a 50.8% chance of landing
+   inside the level it pays for. So: choose the tier whose own payout, used as a
+   level length, comes closest to an even chance of arriving within it. On six
+   picks that returns the 350x, which is where we started. On ten it returns a
+   tier you could actually sit through, rather than the 1000x that turns up once
+   in 847 million. */
+function kenoTiers(k){
+  var out = [];
+  for (var h = 0; h <= k; h++){
+    var pay = (KENO_PAYS[k] || {})[h];
+    if (pay) out.push({ hits: h, pay: pay, p: kenoP(k, h) });
+  }
+  return out;
+}
+function kenoStopRate(k, target){
+  var q = 0;
+  for (var h = target; h <= k; h++) if ((KENO_PAYS[k] || {})[h]) q += kenoP(k, h);
+  return q;
+}
+function kenoAutoTarget(k){
+  var t = kenoTiers(k), best = t.length ? t[t.length-1].hits : k, score = Infinity;
+  for (var i = 0; i < t.length; i++){
+    var q = kenoStopRate(k, t[i].hits);
+    var inLevel = 1 - Math.pow(1 - q, Math.max(1, Math.round(t[i].pay)));
+    var d = Math.abs(inLevel - 0.5);
+    if (d < score){ score = d; best = t[i].hits; }
+  }
+  return best;
+}
+function kenoRTP(k){
+  var s = 0, t = kenoTiers(k);
+  for (var i = 0; i < t.length; i++) s += t[i].p * t[i].pay;
+  return s;
+}
+
 
 /* ═══════════════════════════════ session ══════════════════════════════ */
 var S = {
@@ -1097,8 +1170,8 @@ function loadState(){
     var raw = localStorage.getItem(STORE);
     if (!raw) return;
     var d = JSON.parse(raw);
+    if (Array.isArray(d.picks) && d.picks.length > 0 && d.picks.length <= 10) S.picks = d.picks;
     if (d.form) writeForm(d.form);
-    if (Array.isArray(d.picks) && d.picks.length > 0 && d.picks.length <= 6) S.picks = d.picks;
     if (Array.isArray(d.history)) S.history = d.history;
     if (typeof d.balance === "number") S.balance = d.balance;
     if (typeof d.startBank === "number") S.startBank = d.startBank;
@@ -1111,7 +1184,10 @@ function loadState(){
 function readForm(){
   return {
     game:  $("gameSeg").querySelector("button.on").getAttribute("data-g"),
+    picks: +(($("pickSeg").querySelector("button.on") || {}).getAttribute
+              ? $("pickSeg").querySelector("button.on").getAttribute("data-k") : 6) || 6,
     mode:  $("bailSeg").querySelector("button.on").getAttribute("data-b"),
+    strat: $("stratSeg").querySelector("button.on").getAttribute("data-x"),
     lmult: +$("lmult").value || 350,
     base:  +$("base").value  || 1,
     stepx: +$("stepx").value || 2,
@@ -1123,7 +1199,9 @@ function readForm(){
   };
 }
 function writeForm(f){
+  setPicks(clamp(Math.round(f.picks || 6), 1, 10));
   setGame(f.game === "limbo" ? "limbo" : "keno");
+  setStrat(f.strat === "flat" ? "flat" : "mart");
   setBail(f.mode === "fixed" ? "fixed" : "broke");
   $("lmult").value = f.lmult; $("base").value = f.base; $("stepx").value = f.stepx;
   $("len1").value  = f.len1;  $("lenN").value = f.lenN; $("levels").value = f.count;
@@ -1142,12 +1220,25 @@ function derive(f){
     lenN: clamp(f.lenN, 1, 20000),
     count: clamp(f.count, 1, 12),
     mode: f.mode,
+    strat: f.strat === "flat" ? "flat" : "mart",
     bank: clamp(f.bank, 1, 1e9),
     walk: Math.max(0, f.walk),
-    /* the payout that ends a run, and how often it comes */
-    stop: f.game === "limbo" ? 0.99/lmult : KENO_STOP,
-    pay:  f.game === "limbo" ? lmult : 350
+    picks: clamp(Math.round(f.picks || 6), 1, 10)
   };
+  /* FLAT BETTING IS THIS SAME MACHINE WITH THE CLIMB REMOVED. One bet size,
+     one level long enough that the balance is always what ends the round -
+     so rounds, the history table and the chart all keep meaning exactly what
+     they meant, and the only thing that changes is that losing never raises
+     the stake. */
+  if (c.strat === "flat"){
+    c.stepx = 1;
+    c.len1 = c.lenN = Math.max(20000, Math.ceil(c.bank / c.base) + 10);
+    c.mode = "broke";
+  }
+  /* the payout that ends a round, and how often it comes */
+  c.target = c.game === "limbo" ? 0 : kenoAutoTarget(c.picks);
+  c.stop = c.game === "limbo" ? 0.99 / lmult : kenoStopRate(c.picks, c.target);
+  c.pay  = c.game === "limbo" ? lmult : (KENO_PAYS[c.picks] || {})[c.target];
   /* THE LADDER IS NOT CUT TO THE OPENING BALANCE. It used to be, and that made
      "ride until the balance is gone" a lie on keno: the 11x drip pays money
      back while you play, so a run could reach the end of a ladder priced at the
@@ -1238,14 +1329,16 @@ function draw10(){
   }
   return a.slice(0,10);
 }
-function kenoDraw(){
-  var d = draw10(), hits = 0;
+function kenoDraw(c){
+  var d = draw10(), hits = 0, k = c.picks;
   for (var i=0;i<d.length;i++) if (S.picks.indexOf(d[i]) !== -1) hits++;
+  var pay = (KENO_PAYS[k] || {})[hits] || 0;
   return {
     drawn: d, hits: hits, mult: 0,
-    stop: hits >= 5, consol: hits === 4,
-    pay: hits === 6 ? 710 : hits === 5 ? 350 : hits === 4 ? 11 : 0,
-    label: hits === 6 ? "6 of 6" : "5 of 6"
+    stop: pay > 0 && hits >= c.target,
+    consol: pay > 0 && hits < c.target,
+    pay: pay,
+    label: hits + " of " + k
   };
 }
 function limboDraw(c){
@@ -1280,7 +1373,7 @@ function step(){
   if (S.balance + r.net < bet - 1e-9){ finish("broke"); return; }
 
   r.staked += bet; r.done += 1; r.net = r.recovered - r.staked;
-  var out = c.game === "limbo" ? limboDraw(c) : kenoDraw();
+  var out = c.game === "limbo" ? limboDraw(c) : kenoDraw(c);
   r.last = out; S.hideDraw = false;
   S.nonce += 1;          /* one bet, one nonce */
   /* cleared on every spin, so pressing spin dismisses the popup and plays the
@@ -1308,7 +1401,8 @@ function step(){
     r.n4 += 1; r.recovered += bet * out.pay; r.net = r.recovered - r.staked;
     S.pop = { kind:"win", main: out.pay + "x", sub: "+" + m2(bet * out.pay), ending: false };
     S.popSounded = false;
-    say("11X", "4 of 6 paid " + money(bet*out.pay) + " " + DOT + " still " + money(r.net) + " down");
+    say(out.pay + "X", out.label + " paid " + money(bet*out.pay) + " " + DOT +
+                       " still " + money(r.net) + " down");
   }
 
   var after = levelAt(c, r.done);
@@ -1333,7 +1427,10 @@ function finish(why, out){
   if (why === "bail") say("BUST", c.total + " " + c.noun + "s, no hit. Gave up " + money(r.net) + ".");
   if (why === "broke") say("BROKE", "Out of money on " + c.noun + " " + r.done + ". Lost " + money(r.net) + ".");
   if (why === "quit") say("SYS", "Stopped on " + c.noun + " " + r.done + " at " + signed(r.net) + ".");
-  if (why === "hit" && out && out.hits === 6) say("SYS", "That was the 710x - it turns up once in 18,278.");
+  /* landing above the tier you were waiting for, whatever count you are on */
+  if (why === "hit" && out && out.pay > c.pay)
+    say("SYS", "That was the " + out.pay + "x - it turns up once in " +
+                num(Math.round(1/kenoP(c.picks, out.hits))) + ".");
 
   S.balance += r.net;
   S.history.push({
@@ -1356,8 +1453,36 @@ function setGame(g){
     b.classList.toggle("teal", on && g === "limbo");
   });
   $("limboOpts").hidden = g !== "limbo";
+  $("kenoOpts").hidden  = g !== "keno";
 }
 
+function setPicks(k){
+  var html = "";
+  for (var i = 1; i <= 10; i++){
+    html += '<button data-k="' + i + '"' + (i === k ? ' class="on"' : '') + '>' + i + '</button>';
+  }
+  $("pickSeg").innerHTML = html;
+  /* keep the board legal: too many picks for the new count, drop the oldest */
+  while (S.picks.length > k) S.picks.shift();
+  var pool = POOL.slice();
+  while (S.picks.length < k){
+    var v = pool[Math.floor(Math.random() * pool.length)];
+    if (S.picks.indexOf(v) === -1) S.picks.push(v);
+  }
+  S.picks.sort(function(a,b){ return a-b; });
+}
+function setStrat(x){
+  $$("#stratSeg button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-x") === x); });
+  var flat = x === "flat";
+  /* everything on this card except the bet size describes a climb */
+  $("stepWrap").hidden = flat;
+  $("lensRow").hidden  = flat;
+  $("bailWrap").hidden = flat;
+  if (flat) $("levelsWrap").hidden = true;
+  $("ladderTitle").textContent = flat ? "Flat betting" : "The Martingaler";
+  $("baseLab").textContent     = flat ? "Every bet" : "Initial bet";
+  $("resetLadder").hidden      = flat;
+}
 function setBail(m){
   $$("#bailSeg button").forEach(function(b){
     b.classList.toggle("on", b.getAttribute("data-b") === m);
@@ -1369,10 +1494,26 @@ function paintSetup(){
   S.cfg = c;
 
   $("levelsV").textContent = $("levels").value;
-  $("tLevels").textContent = num(levelAt(c, Math.max(0, c.afford - 1)) + 1);
-  $("tLevels").nextElementSibling.textContent = c.mode === "broke"
-    ? "before the money runs out" : "you chose to ride";
+  /* "levels climbed" is a number only a climb has. Flat betting answers the
+     question the tile is really for - how much of a run you get - with the
+     hits the money buys you. */
+  if (c.strat === "flat"){
+    $("tLevelsK").textContent = "Hits you'd expect";
+    $("tLevels").textContent  = (c.afford * c.stop).toFixed(c.afford * c.stop < 10 ? 1 : 0);
+    $("tLevelsD").textContent = "over the whole run";
+  } else {
+    $("tLevelsK").textContent = "Levels you'd climb";
+    $("tLevels").textContent = num(levelAt(c, Math.max(0, c.afford - 1)) + 1);
+    $("tLevelsD").textContent = c.mode === "broke"
+      ? "before the money runs out" : "you chose to ride";
+  }
   $("lchance").value = pct(0.99/c.lmult, 3);
+  /* THE TARGET IS PICKED FOR YOU and it decides every number on this screen,
+     so it is named rather than left implicit: the tier whose payout, used as a
+     level length, gives about an even chance of landing inside the level it
+     pays for. On six numbers that is BILLSKIE's 350x. */
+  $("pickInfo").innerHTML = "chasing <b>" + c.target + " of " + c.picks + "</b> " + DOT +
+    " pays <b>" + c.pay + "x</b> " + DOT + " 1 in " + num(Math.round(1/c.stop)) + " spins";
 
   var shown = fundedLevels(c, c.bank), html = "";
   for (var i=0;i<shown.length;i++){
@@ -1403,7 +1544,13 @@ function paintSetup(){
       " and you are starting with " + money(c.bank) + ", so you would run out of money partway up " +
       "level " + ladderAt(c, spinsAffordable(c)).level + " and lose the lot without ever reaching the top.";
   } else {
-    warn.innerHTML = "<b>You are risking " + money(c.cost) + " for a win worth " +
+    warn.innerHTML = c.strat === "flat"
+    ? "<b>Every bet is " + m2(c.levels[0].bet) + ", win or lose.</b> " +
+      money(c.bank) + " buys " + num(c.afford) + " of them, a hit pays " +
+      money(c.levels[0].payout) + ", and " + pct(c.reach) + " of runs get at least one. " +
+      "Nothing here chases a loss, so the balance drifts at the house edge instead of " +
+      "swinging - you lose slowly rather than all at once."
+    : "<b>You are risking " + money(c.cost) + " for a win worth " +
       money(c.levels[0].payout - c.levels[0].bet) + " at the very best.</b> " +
       "A hit on your first " + c.noun + " pays " + money(c.levels[0].payout) + " against " +
       m2(c.levels[0].bet) + " staked" +
@@ -1632,7 +1779,10 @@ function paintUpBet(){
   var ok = v >= 0.01 && v <= S.balance + 1e-9;
   $("roDoubleAmt").textContent = ok ? m2(v) + " a bet" : "more than you have";
   $("roDouble").disabled = !ok;
-  document.querySelector(".upgrid").hidden = !!(S.run && S.run.over && S.run.why === "broke");
+  /* Raising the stake after a loss is the martingale. Offering it on a flat
+     run offers the thing the flat run exists to not do. */
+  $("upgrid").hidden = c.strat === "flat" ||
+                       !!(S.run && S.run.over && S.run.why === "broke");
 }
 function paintResult(){
   var box = $("runover");
@@ -1644,7 +1794,7 @@ function paintResult(){
   $("roSpin").textContent = c.noun + " " + num(r.done);
 
   var mult = $("roMult");
-  mult.className = "mult" + (ok && r.last && r.last.pay === 710 ? " gold" : "");
+  mult.className = "mult" + (ok && r.last && r.last.pay > c.pay ? " gold" : "");
   mult.textContent = ok
     ? (r.last && r.last.pay ? r.last.pay + "x hit" : "Hit")
     : (r.why === "broke" ? "Bankrupt" : "No hit");
@@ -1696,7 +1846,7 @@ function paintResult(){
      inside one. Only offered when the balance can actually place that bet. */
   /* Default the field to the doubling, so the old behaviour is one click away,
      but let any opening bet the balance can cover be typed over it. */
-  var suggested = Math.min(up, S.balance);
+  var suggested = Math.min(c.strat === "flat" ? c.base * 2 : up, S.balance);
   $("roUpAmt").value = +suggested.toFixed(4);
   $("roUpAmt").max = +S.balance.toFixed(4);
   paintUpBet();
@@ -1789,18 +1939,19 @@ function paintPlay(){
 
   paintLevels(); paintOdds(); paintResult(); paintHistory();
 
-  /* the paytable is a 6-pick paytable, so 6 is not a preference */
-  var short = c.game === "keno" && S.picks.length < 6;
+  /* the board has to hold exactly the count the paytable is priced for */
+  var short = c.game === "keno" && S.picks.length < c.picks;
   var verb  = c.game === "limbo" ? "Roll" : "Spin";
   var dead  = r.over || short;
   if (short) stopAuto();
 
   $("btnSpin").disabled = dead; $("btnSpinN").disabled = dead; $("btnAuto").disabled = dead;
-  $("btnSpin").textContent = short ? "Pick " + (6 - S.picks.length) + " more" : verb;
+  $("btnSpin").textContent = short ? "Pick " + (c.picks - S.picks.length) + " more" : verb;
   $("btnSpinN").innerHTML = verb + " &times;" + num(batchSize());
   $("btnSpin").className = "primary" + (c.game === "limbo" ? " teal" : "");
   $("btnRandom").hidden = c.game !== "keno";
-  /* Random six is keno-only, so on limbo Auto would sit alone on its row. */
+  $("btnRandom").textContent = "Random " + c.picks;
+  /* Random N is keno-only, so on limbo Auto would sit alone on its row. */
   var batchRowAuto = c.game === "limbo";
   if (batchRowAuto && $("btnAuto").parentNode !== $("batchRow")) $("batchRow").appendChild($("btnAuto"));
   if (!batchRowAuto && $("btnAuto").parentNode !== $("extraRow")) $("extraRow").insertBefore($("btnAuto"), $("btnRandom"));
@@ -1828,9 +1979,19 @@ function sampleRound(c, rnd, bal){
     var prevEnd = last > 0 ? c.ends[last-1] : 0;
     var prevCum = last > 0 ? c.levels[last-1].cum : 0;
     staked = prevCum + (g - prevEnd) * c.levels[last].bet;
-    /* Not every stop pays 350x: about one in 37 is the 710x, and leaving it out
-       cost roughly ten bets a round - enough to fail the Wald check. */
-    var mult = (c.game === "keno" && rnd() < KENO_SIX_GIVEN_STOP) ? 710 : c.pay;
+    /* Not every stop pays the target: a rarer, richer tier above it can fire
+       instead, and leaving those out cost about ten bets a round on six picks -
+       enough to fail the Wald check. */
+    var mult = c.pay;
+    if (c.game === "keno"){
+      var u2 = rnd() * c.stop, acc = 0;
+      for (var hh = c.target; hh <= c.picks; hh++){
+        var pv = (KENO_PAYS[c.picks] || {})[hh];
+        if (!pv) continue;
+        acc += kenoP(c.picks, hh);
+        if (u2 <= acc){ mult = pv; break; }
+      }
+    }
     net = mult * c.levels[last].bet - staked;
   } else {
     g = reach;
@@ -1842,10 +2003,17 @@ function sampleRound(c, rnd, bal){
   if (c.game === "keno"){
     /* The spin that stopped the round cannot also have been a 4-hit. */
     var dripSpins = hit ? g - 1 : g;
-    var p4 = KENO_FOUR / (1 - q), drip = 0, seen = 0;
+    /* every paying tier below the target, as one expected-value-per-spin */
+    var dripEV = 0;
+    for (var dh = 0; dh < c.target; dh++){
+      var dp = (KENO_PAYS[c.picks] || {})[dh];
+      if (dp) dripEV += kenoP(c.picks, dh) * dp;
+    }
+    dripEV = dripEV / (1 - q);
+    var drip = 0, seen = 0;
     for (var j=0; j<c.levels.length && seen < dripSpins; j++){
       var played = Math.min(c.levels[j].len, dripSpins - seen); seen += played;
-      drip += poisson(played * p4, rnd) * 11 * c.levels[j].bet;
+      drip += played * dripEV * c.levels[j].bet;
     }
     net += drip;
   }
@@ -2141,7 +2309,15 @@ function paintStats(){
     tile("Half of runs get it by", num(median), c.noun + "s " + DOT + " " + minutes(median), "") +
     tile("1 run in 10 is still dry at", num(p90), c.noun + "s " + DOT + " " + minutes(p90), "red") +
     (isKeno
-      ? tile("4 of 6 pays 11x every", num(1/KENO_FOUR), "spins, to keep you there", "amber")
+      ? (function(){
+          /* the richest tier below the target - the one paying the drip */
+          var below = kenoTiers(c.picks).filter(function(x){ return x.hits < c.target; });
+          var d = below.length ? below[below.length-1] : null;
+          return d
+            ? tile(d.hits + " of " + c.picks + " pays " + d.pay + "x every", num(1/d.p),
+                   "spins, to keep you there", "amber")
+            : tile("Consolation prizes", "None", "every losing spin is a total loss", "amber");
+        })()
       : tile("Consolation prizes", "None", "every losing roll is a total loss", "tealc"));
 
   var marks = [50, 100, 200, Math.round(median), Math.round(mean), c.total, Math.round(p90)]
@@ -2211,6 +2387,21 @@ $$("#gameSeg button").forEach(function(b){
     }
     paintSetup();
   });
+});
+$("stratSeg").addEventListener("click", function(e){
+  var b = e.target.closest("button[data-x]"); if (!b) return;
+  setStrat(b.getAttribute("data-x"));
+  paintSetup();
+});
+$("pickSeg").addEventListener("click", function(e){
+  var b = e.target.closest("button[data-k]"); if (!b) return;
+  var k = +b.getAttribute("data-k");
+  setPicks(k);
+  /* the level length IS the payout, so a new target resizes the ladder */
+  var c0 = derive(readForm());
+  $("len1").value = Math.max(1, Math.round(c0.pay));
+  $("lenN").value = Math.max(1, Math.round(c0.pay / 2));
+  paintSetup();
 });
 $("lmult").addEventListener("input", function(){
   var M = clamp(+$("lmult").value || 350, 1.02, 1e6);
@@ -2327,18 +2518,18 @@ $("board").addEventListener("click", function(e){
   var t = e.target.closest(".kt"); if (!t) return;
   var v = +t.getAttribute("data-t"), at = S.picks.indexOf(v);
   if (at !== -1) S.picks.splice(at, 1);              /* click it again to take it off */
-  else if (S.picks.length < 6) S.picks.push(v);
-  else return;                                      /* six is the game - drop one first */
+  else if (S.picks.length < (S.cfg ? S.cfg.picks : 6)) S.picks.push(v);
+  else return;                                      /* the board is full - drop one first */
   S.picks.sort(function(a,b){ return a-b; });
   saveState(); paintPlay();
 });
 $("btnRandom").addEventListener("click", function(){
-  var pool = POOL.slice();
-  for (var i=0;i<6;i++){
+  var want = S.cfg ? S.cfg.picks : 6, pool = POOL.slice();
+  for (var i=0;i<want;i++){
     var j = i + Math.floor(Math.random()*(40-i));
     var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
   }
-  S.picks = pool.slice(0,6).sort(function(a,b){ return a-b; });
+  S.picks = pool.slice(0,want).sort(function(a,b){ return a-b; });
   S.hideDraw = true;                       /* a new six starts on a clean board */
   saveState(); paintPlay();
 });
@@ -2372,6 +2563,9 @@ if (!SHOW_DISCLAIMER)  $("disclaimer").hidden = true;
 if (!SHOW_RISK_BANNER) $("setupWarnCard").hidden = true;
 
 loadState();
+/* with a saved form, writeForm has already built this row */
+if (!$("pickSeg").querySelector("button.on")) setPicks(clamp(S.picks.length || 6, 1, 10));
+setStrat($("stratSeg").querySelector("button.on").getAttribute("data-x"));
 reseed();
 $$("#speedSeg button").forEach(function(o){ o.classList.toggle("on", o.getAttribute("data-s") === S.speed); });
 $("hdrSound").innerHTML = S.muted ? "&#9835;&nbsp; Sound off" : "&#9835;&nbsp; Sound on";
