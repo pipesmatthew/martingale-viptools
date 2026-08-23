@@ -348,7 +348,13 @@ no longer reach.
 
 ### The setup screen
 
-The mode is a **rail down the left**, not a row of buttons in the form. Two of
+The mode is a **rail down the left**, not a row of buttons in the form. Only
+Martingale is ever selected in it: the other two launch and leave, so nothing
+about them is ever "currently on". Marking one of them selected left the setup
+screen showing a mode that has no setup - a rail, and an empty page beside it -
+which is also what a reload used to do if the last session ended in a sandbox.
+The setup screen is always the ladder's, and the ladder's own balance and bet
+come back with it rather than the sandbox's $400,000. Two of
 the three leave the screen and one does not, and while they all looked like form
 controls there was no way to tell which was which - a rail cannot be confused
 with a form, so the distinction cannot come back the next time something is

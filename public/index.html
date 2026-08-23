@@ -224,10 +224,12 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 /* how fast Auto goes, with the rate it is going at now on the right of it.
    The scale is logarithmic - a slider that is linear in spins per second
    spends four fifths of its travel on speeds you cannot follow anyway. */
-.raterow{display:grid;grid-template-columns:auto minmax(0,1fr) 46px;gap:8px;align-items:center;
+/* the reading sits against its own label, not marooned at the far edge with a
+   slider's worth of empty space between it and anything that explains it */
+.raterow{display:grid;grid-template-columns:auto 26px minmax(0,1fr);gap:7px;align-items:center;
   margin-top:5px}
 .raterow label{font-size:11.5px;color:var(--faint);white-space:nowrap}
-.raterow b{font-size:11.5px;color:var(--accent);text-align:right}
+.raterow b{font-size:12.5px;font-weight:700;color:var(--accent);text-align:right}
 .balbig.editable{cursor:text}
 .balbig.editable:hover{color:var(--accent)}
 .seedrow{display:flex;align-items:center;justify-content:space-between;gap:8px;
@@ -253,9 +255,10 @@ button.ghost:hover{background:var(--button-hover);color:var(--fg)}
 .railbtn{appearance:none;cursor:pointer;font:inherit;text-align:left;background:var(--button);
   border:1px solid var(--border);color:var(--muted);padding:9px 11px;font-size:12.5px}
 .railbtn:hover{background:var(--button-hover);color:var(--fg)}
-.railbtn.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 .railbtn.go{color:var(--accent);border-color:#4a3a20}
 .railbtn.go:hover{background:#2a2118;color:var(--accent)}
+/* last, so a selected item cannot be overridden into amber-on-amber */
+.railbtn.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 .railsep{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
   font-weight:700;padding:8px 2px 3px}
 @media (max-width:860px){
@@ -763,9 +766,9 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             </div>
             <div class="raterow">
               <label for="autoRate">Bets/s</label>
+              <b class="n" id="autoRateV">4</b>
               <input type="range" id="autoRate" min="0" max="100" step="1" value="43"
                      aria-label="Speed">
-              <b class="n" id="autoRateV">4</b>
             </div>
             <div class="seedrow">
               <label for="seedVal" style="flex:none">Seed</label>
@@ -1258,7 +1261,7 @@ var S = {
   cfg: null, levels: [], ends: [], total: 0,
   startBank: 1400, balance: 1400,
   history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null, editingBal: false,
-  vol: "high", editingBet: false,
+  vol: "high", editingBet: false, strat: "mart",
   sbBets: 0, sbHits: 0, sbStaked: 0, sbBack: 0, sbTier: [], sbPicks: null,
   martBank: undefined, martBase: undefined, martGame: undefined,
   sbBank: undefined, sbBase: undefined,
@@ -1398,6 +1401,7 @@ function saveState(){
     localStorage.setItem(STORE, JSON.stringify({
       form: readForm(), optDefault: true, startBank: S.startBank, balance: S.balance,
       autoRate: +$("autoRate").value, stopWin: +$("stopWin").value, vol: S.vol,
+      martBank: S.martBank, martBase: S.martBase, sbBank: S.sbBank, sbBase: S.sbBase,
       history: S.history, picks: S.picks, muted: S.muted, seed: S.seed
     }));
   } catch (e) { /* private mode, quota - the page works without it */ }
@@ -1412,6 +1416,23 @@ function loadState(){
        form carrying an explicit false is not necessarily a preference - it is
        just what the old default wrote. Turn it on once, then respect it. */
     if (d.form && !d.optDefault) d.form.opt = true;
+    if (typeof d.martBank !== "undefined") S.martBank = d.martBank;
+    if (typeof d.martBase !== "undefined") S.martBase = d.martBase;
+    if (typeof d.sbBank  !== "undefined") S.sbBank  = d.sbBank;
+    if (typeof d.sbBase  !== "undefined") S.sbBase  = d.sbBase;
+    /* THE SETUP SCREEN IS ALWAYS THE LADDER'S. The sandbox is somewhere you go
+       by pressing a launch button, never a state to come back up in - restoring
+       it here left the rail with nothing selected and no form beside it. If the
+       last session ended in a sandbox, the ladder's own figures come back with
+       it rather than the sandbox's $400,000. */
+    if (d.form){
+      var wasFlat = d.form.strat === "flat";
+      d.form.strat = "mart";
+      if (wasFlat){
+        if (S.martBank !== undefined) d.form.bank = +S.martBank;
+        if (S.martBase !== undefined) d.form.base = +S.martBase;
+      }
+    }
     if (d.form) writeForm(d.form);
     if (Array.isArray(d.history)) S.history = d.history;
     if (typeof d.balance === "number") S.balance = d.balance;
@@ -1433,7 +1454,10 @@ function readForm(){
        way of saying "stop early", which the balance already says on its own,
        and every figure on the screen had to carry a second phrasing for it. */
     mode:  "broke",
-    strat: $("stratSeg").querySelector("button.on").getAttribute("data-x"),
+    /* Read from state rather than from which rail item looks selected: the two
+       sandbox items are actions, not modes, so nothing about them is ever
+       "currently on" for the form to read. */
+    strat: S.strat,
     opt:   $("optBet").checked,
     lmult: +$("lmult").value || 350,
     /* a zero here is a real answer - "no bet set" - so it must survive the
@@ -1824,7 +1848,7 @@ function setGame(g){
 
 function setPicks(k){
   /* the strategy decides which counts are on offer, so it decides this row */
-  var mart = $("stratSeg").querySelector("button.on").getAttribute("data-x") === "mart";
+  var mart = S.strat === "mart";
   var list = mart ? MART_PICKS : [1,2,3,4,5,6,7,8,9,10];
   if (list.indexOf(k) === -1) k = mart ? 6 : clamp(k, 1, 10);
   var html = "";
@@ -1860,19 +1884,16 @@ function paintGameOpts(){
   $("startCard").hidden = flat;
   /* the sandbox picks its game on the way in, so the game card is the ladder's */
 }
-function isFlat(){
-  var b = $("stratSeg").querySelector("button.on");
-  return !!b && b.getAttribute("data-x") === "flat";
-}
+function isFlat(){ return S.strat === "flat"; }
 function setStrat(x){
   /* THE TWO STRATEGIES KEEP THEIR OWN MONEY. They share one pair of inputs, so
      without this a sandbox run left its $400,000 and its zero bet sitting in
      the ladder's Balance card - you came back to a martingale you had never
      set up. Each side's figures are stashed on the way out and restored on the
      way in. */
-  var was = $("stratSeg").querySelector("button.on");
-  var prev = was && was.getAttribute("data-x");
-  if (prev && prev !== x){
+  var prev = S.strat;
+  S.strat = x;
+  if (prev !== x){
     if (x === "flat"){
       S.martBank = $("bank").value; S.martBase = $("base").value;
       $("bank").value = S.sbBank === undefined ? 400000 : S.sbBank;
@@ -1884,11 +1905,12 @@ function setStrat(x){
       if (S.martGame) setGame(S.martGame);
     }
   }
-  /* two of the three buttons are "flat", so the on-state is keyed by which
-     door it is rather than by the strategy alone */
-  var g0 = $("gameSeg").querySelector("button.on").getAttribute("data-g");
-  var key = x === "flat" ? "sb-" + g0 : "mart";
-  $$("#stratSeg button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-k") === key); });
+  /* ONLY MARTINGALE IS EVER SELECTED. The other two rail items launch and
+     leave; marking one of them "on" left the setup screen showing a mode that
+     has no setup - a rail, and nothing beside it. */
+  $$("#stratSeg button").forEach(function(b){
+    b.classList.toggle("on", b.getAttribute("data-k") === "mart" && x === "mart");
+  });
   var flat = x === "flat";
   /* everything on this card except the bet size describes a climb */
   $("stepWrap").hidden = flat;
@@ -3136,6 +3158,9 @@ $("btnBack").addEventListener("click", function(){
   stopAuto();
   $("runover").hidden = true;
   if (S.run && !S.run.over) finish("quit");
+  /* the sandbox has no setup, so going back to it would be going back to an
+     empty screen - the way back is always to the mode that has a form */
+  setStrat("mart");
   saveState();
   showView("setup");
   paintSetup();
@@ -3292,7 +3317,9 @@ if (!SHOW_RISK_BANNER) $("setupWarnCard").hidden = true;
 loadState();
 /* with a saved form, writeForm has already built this row */
 if (!$("pickSeg").querySelector("button.on")) setPicks(clamp(S.picks.length || 6, 1, 10));
-setStrat($("stratSeg").querySelector("button.on").getAttribute("data-x"));
+/* the setup screen always comes up as the ladder, and nothing else in the rail
+   is ever "on" to read a mode back out of */
+setStrat("mart");
 reseed();
 paintRate();
 $("hdrSound").innerHTML = S.muted ? "&#9835;&nbsp; Sound off" : "&#9835;&nbsp; Sound on";
