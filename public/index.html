@@ -79,6 +79,17 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
   border:1px solid var(--border);border-radius:0;padding:4px 13px;white-space:nowrap}
 .tab:hover{background:var(--button-hover);color:var(--fg)}
 .tab.is-active{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+
+/* ── the other tools ─────────────────────────────────────────────────────
+   The same strip in the same place on all three sites, so moving between
+   them is one habit rather than three. Only the OTHER tools are listed - the
+   brand already says which one you are on, and a self-link styled as active
+   would compete with the tab row's own active state, which is already amber. */
+.toolnav{display:flex;gap:3px}
+.toolnav a{font-size:11.5px;line-height:1.6;padding:2px 10px;white-space:nowrap;
+  border:1px solid var(--border);background:var(--button);color:var(--muted);
+  text-decoration:none}
+.toolnav a:hover{background:var(--button-hover);color:var(--fg);text-decoration:none}
 .live{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:12px;white-space:nowrap}
 /* ── what the board has actually paid ───────────────────────────────────
    Newest first, one row a hit, scrolling inside its own card so a long run
@@ -577,6 +588,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
     <button class="tab" role="tab" aria-selected="false" data-tab="stats">What usually happens</button>
   </nav>
   <div class="live">
+    <nav class="toolnav" aria-label="Other VIP Tools">
+    <a href="https://predictions.viptools.gg">Predictions</a>
+    <a href="https://giveaways.viptools.gg">Giveaways</a>
+  </nav>
     <button class="ghost" id="hdrSound" title="Sound">&#9835;&nbsp; Sound on</button>
     <button class="ghost" id="hdrEnd" hidden>End run</button>
   </div>
