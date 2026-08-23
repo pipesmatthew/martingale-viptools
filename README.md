@@ -180,6 +180,22 @@ columns take their natural height instead. It picks its numbers on the board, ho
 ten, and the count follows the board live. The stored balance and bet still
 drive the first round; changing them belongs at the board, and will go there.
 
+**Runs like yours** is the tile that says whether you have been lucky. Each
+pick count has one multiplier a run is really about - the tier people are there
+for, which is not always the tier that ends a round - and the tile gives the
+share of runs your length that would have seen it at least once, against how
+many you have actually had.
+
+| picks | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|
+| hits | 5 | 5 | 6 | 6 | 7 | 8 |
+| high | 450x | 350x | 400x | 270x | 500x | 500x |
+| medium | 390x | 180x | 400x | 67x | 100x | 100x |
+
+It is a hit count rather than a multiplier, so medium picks up its own tier for
+free. Ten numbers is the one that differs from the round-ending target: a round
+ends on seven hits, but the number people are waiting for is the eight.
+
 **The strip reports the board, not a ladder.** "Level 1 of 1" and "spin 20 of
 103 on this level" describe a plan that is not there. The five tiles are Bets,
 Hits, Return, Put in and Up/Down, counted run-long rather than round-long -
@@ -383,6 +399,14 @@ idea. A profit target is a *level*, not an *event*: once the run was above it,
 every single tick re-triggered the stop, so autoplay ran exactly one bet and
 halted, forever, until the field was cleared. Testing the win that just landed
 cannot get stuck that way, because it resets to zero on every spin.
+
+### A landed round rotates the seed
+
+On the ladder, a round that hits draws a new seed, the way a real site does -
+the next round is a fresh stream rather than a continuation of the one that just
+paid. The cost is real and worth stating: a hunt is no longer replayable end to
+end from its opening seed. Each round is replayable from the seed shown while it
+is running, and the nonce beside it counts the bets placed on it.
 
 ### Go back
 

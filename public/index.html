@@ -224,20 +224,29 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 /* how fast Auto goes, with the rate it is going at now on the right of it.
    The scale is logarithmic - a slider that is linear in spins per second
    spends four fifths of its travel on speeds you cannot follow anyway. */
-/* the reading sits against its own label, not marooned at the far edge with a
-   slider's worth of empty space between it and anything that explains it */
-.raterow{display:grid;grid-template-columns:auto 26px minmax(0,1fr);gap:7px;align-items:center;
+/* Label and reading are one block of a fixed width: the number always sits one
+   space after the word that names it, and the slider does not move when the
+   reading goes from one digit to two. */
+.raterow{display:grid;grid-template-columns:74px minmax(0,1fr);gap:8px;align-items:center;
   margin-top:5px}
 .raterow label{font-size:11.5px;color:var(--faint);white-space:nowrap}
-.raterow b{font-size:12.5px;font-weight:700;color:var(--accent);text-align:right}
-.balbig.editable{cursor:text}
-.balbig.editable:hover{color:var(--accent)}
+.raterow label b{font-size:12.5px;font-weight:700;color:var(--accent);margin-left:2px}
+/* both figures answer the hover the same way, because both take the same
+     click - the rule keys off being editable rather than off being the balance */
+.editable{cursor:text}
+.betbig.unset{color:var(--faint)}
+.editable:hover{color:var(--accent)}
 .seedrow{display:flex;align-items:center;justify-content:space-between;gap:8px;
   border-top:1px solid var(--border);margin-top:2px;padding-top:7px;
   font-size:11.5px;color:var(--faint)}
 .seedrow input,.seedrow button{font-size:11.5px;line-height:1.5;padding:3px 10px;
   height:26px;border-radius:0}
 .seedrow input{flex:1 1 auto;min-width:0;color:var(--fg-2);text-align:center}
+/* the nonce is the seed's own count, so it sits on the seed rather than on a
+   line of its own two rows away - and only when you ask for it */
+.nonce{flex:none;min-width:34px;text-align:right;font-size:11px;color:var(--faint);
+  opacity:0;transition:opacity .12s}
+#seedRow:hover .nonce{opacity:1}
 .seedrow button{flex:none;white-space:nowrap}
 .seedrow.noncerow{border-top:0;margin-top:0;padding-top:4px}
 .seedrow.noncerow b{color:var(--fg-2);font-weight:600}
@@ -471,7 +480,9 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 /* ───────────────────────────────────────────────────────────── limbo ── */
 .limbonum{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;
   letter-spacing:-.03em;line-height:1;text-align:center;padding:16px 0 8px;
-  font-size:clamp(38px,9vw,64px);color:var(--danger)}
+  font-size:clamp(38px,9vw,64px);color:var(--fg)}
+/* red is for a roll that came up short, not for the board sitting at rest */
+.limbonum.miss{color:var(--danger)}
 .limbonum.win{color:var(--green)}
 .limbotape{display:flex;gap:2px;align-items:flex-end;height:44px;overflow:hidden}
 .limbotape i{flex:1 1 0;min-width:2px;background:var(--track);display:block}
@@ -681,7 +692,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
       <div class="tile"><div class="k" id="kStk">Put in</div><div class="v" id="p-stk">$0</div>
         <div class="d" id="p-stkD">this round</div></div>
       <div class="tile"><div class="k" id="p-netK">Down</div><div class="v red" id="p-net">$0</div>
-        <div class="d">this run</div></div>
+        <div class="d" id="p-netD">this run</div></div>
     </div>
     </div>
 
@@ -765,14 +776,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <button class="ghost" id="btnRandom">Random 6</button>
             </div>
             <div class="raterow">
-              <label for="autoRate">Bets/s</label>
-              <b class="n" id="autoRateV">4</b>
+              <label for="autoRate">Bets/s <b class="n" id="autoRateV">4</b></label>
               <input type="range" id="autoRate" min="0" max="100" step="1" value="43"
                      aria-label="Speed">
             </div>
-            <div class="seedrow">
+            <div class="seedrow" id="seedRow" title="Bets placed on this seed">
               <label for="seedVal" style="flex:none">Seed</label>
               <input type="number" id="seedVal" value="0" min="1" step="1">
+              <b class="n nonce" id="nonceVal">0</b>
               <button class="ghost" id="btnSeed">New seed</button>
             </div>
             <div class="seedrow">
@@ -780,9 +791,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <input type="number" id="stopWin" value="0" min="0" step="100"
                      aria-label="Stop autoplay on a win of at least this much">
               <span class="n" id="stopWinNote" style="flex:none;color:var(--faint)">off</span>
-            </div>
-            <div class="seedrow noncerow">
-              <span>Nonce</span><b class="n" id="nonceVal">0</b>
             </div>
           </div>
         </div>
@@ -1212,6 +1220,12 @@ function kenoP(k, h){ return C(10,h) * C(30,k-h) / C(40,k); }
    numbers it returned a 3.5x consolation tier, and martingaling a 3.5x is not
    a strategy, it is a rounding error with extra steps. */
 var KENO_TARGET = { 1:1, 2:2, 3:3, 4:4, 5:5, 6:5, 7:6, 8:6, 9:7, 10:7 };
+
+/* THE ONE WORTH WAITING FOR, per pick count - the tier a run is really about,
+   which is not always the tier that ends a round. Ten numbers ends on 7 hits
+   but the number people are there for is the 8. Read against whichever
+   paytable is in force, so medium gets its own multipliers for free. */
+var HEADLINE = { 1:1, 2:2, 3:3, 4:4, 5:5, 6:5, 7:6, 8:6, 9:7, 10:8 };
 
 /* WHICH COUNTS CAN BE LADDERED AT ALL. A martingale is only a martingale if the
    level covers a real share of the wait for the tier it is priced against -
@@ -1832,6 +1846,11 @@ function finish(why, out){
   });
   S.ended = r;
   if (c.walk > 0 && S.balance >= c.walk) say("CASH", "You hit your walk-away number. " + money(S.balance) + ".");
+  /* A LANDED ROUND ROTATES THE SEED, the way a real site does - the next round
+     is a fresh stream rather than a continuation of the one that just paid.
+     The cost is that a hunt is no longer replayable end to end from its opening
+     seed; each round is replayable from the seed shown while it is running. */
+  if (why === "hit" && c.strat !== "flat") reseed();
   stopAuto();
   saveState();
 }
@@ -2428,10 +2447,14 @@ function paintPlay(){
     paintBoard();
   } else {
     paintTape();
-    var last = r.last ? r.last.mult : 1;
-    var win = last >= c.lmult;
+    /* A BOARD THAT HAS NOT ROLLED YET HAS NOT MISSED. The 1.00x it shows at
+       rest is a placeholder, not a result, and colouring it like a loss made
+       the game look lost before it was played. */
+    var rolled = !!(r.last && !S.hideDraw);
+    var last = rolled ? r.last.mult : 1;
+    var win = rolled && last >= c.lmult;
     $("l-num").innerHTML = last.toFixed(2) + '<span style="font-size:.5em">x</span>';
-    $("l-num").className = "limbonum" + (win ? " win" : "");
+    $("l-num").className = "limbonum" + (!rolled ? "" : win ? " win" : " miss");
     $("limboTargetNote").textContent = "target " + c.lmult.toFixed(2) + "x";
   }
 
@@ -2528,7 +2551,8 @@ function paintPlay(){
     if (!S.editingBal) $("balEdit").value = sbInfinite() ? 0 : +(S.balance + (r.over ? 0 : r.net)).toFixed(2);
     var betNow = c.levels[0].bet;
     $("betVal").textContent = betNow > 0 ? m2(betNow) : "not set";
-    $("betVal").style.color = betNow > 0 ? "" : "var(--faint)";
+    /* a class rather than an inline colour, so the hover rule can still win */
+    $("betVal").classList.toggle("unset", !(betNow > 0));
     if (!S.editingBet) $("betEdit").value = +betNow.toFixed(2);
   }
   /* the tally is only true for the board it was gathered on, so a change in how
@@ -2550,20 +2574,35 @@ function paintPlay(){
     $("kRound").textContent  = "Bets";
     $("p-round").textContent = num(S.sbBets);
     $("p-roundD").textContent = "this run";
-    $("kLevel").textContent  = "Hits";
-    $("p-level").textContent = num(S.sbHits);
-    $("p-levelD").textContent = S.sbBets ? pct(S.sbHits / S.sbBets) + " of bets" : "none yet";
+
+    /* HOW LUCKY YOU HAVE BEEN ON THE ONE THAT MATTERS. The share of runs this
+       long that would have seen the headline multiplier at least once, next to
+       how many you have actually had - short of it is unlucky, past it is not. */
+    var hp, hlab, mine;
+    if (c.game === "limbo"){
+      hp = 0.99 / c.lmult; hlab = c.lmult + "x"; mine = S.sbHits;
+    } else {
+      var hh = HEADLINE[c.picks], hpay = (KENO_PAYS[c.picks] || {})[hh] || 0;
+      hp = kenoP(c.picks, hh); hlab = multLabel(hpay); mine = S.sbTier[hh] || 0;
+    }
+    $("kLevel").textContent  = "Runs like yours";
+    $("p-level").textContent = S.sbBets ? pct(1 - Math.pow(1 - hp, S.sbBets)) : "—";
+    $("p-levelD").textContent = !S.sbBets ? "no bets yet"
+      : "experienced a " + hlab + " " + DOT + " you have " + (mine ? num(mine) : "none");
+
     $("kSpin").textContent   = "Return";
     $("p-spin").textContent  = S.sbStaked ? pct(S.sbBack / S.sbStaked) : "—";
-    $("p-spinD").textContent = pct(fair) + " is fair";
-    $("kStk").textContent    = "Put in";
+    $("p-spinD").textContent = pct(fair) + " theoretical RTP";
+    $("kStk").textContent    = "Wagered";
     $("p-stk").textContent   = money(S.sbStaked);
-    $("p-stkD").textContent  = "staked in total";
+    $("p-stkD").textContent  = "";
+    $("p-netD").textContent  = "on this balance";
   } else {
     $("kRound").textContent = "Round";
     $("kLevel").textContent = "Level";
     $("kStk").textContent   = "Put in";
     $("p-stkD").textContent = "this round";
+    $("p-netD").textContent = "this run";
   }
   /* Random N is keno-only, so on limbo Auto has the row to itself. */
   $("extraRow").classList.toggle("two", c.game !== "limbo");
