@@ -1757,6 +1757,10 @@ function spinsAffordable(c){
 function startRun(fresh){
   if (fresh){
     var c = derive(readForm());
+    /* THE SANDBOX OPENS EMPTY. Nothing has been chosen yet, so there is no
+       paytable to quote and no bet to place - the board fills as you click it,
+       rather than starting on whatever the last ladder happened to be using. */
+    if (c.strat === "flat" && c.game === "keno") S.picks = [];
     S.cfg = c; S.startBank = c.bank; S.balance = c.bank;
     S.history = [];
     S.cfg0 = c;                 /* the ladder this run opened on, for comparison */
@@ -2041,7 +2045,7 @@ function chanceLabel(p){
 }
 function paintPaytable(){
   var c = S.cfg;
-  var on = c && c.game === "keno" && c.strat === "flat";
+  var on = c && c.game === "keno" && c.strat === "flat" && S.picks.length > 0;
   $("paytableCard").hidden = !on;
   if (!on) return;
   var k = c.picks, bet = c.levels[0].bet, html = "";

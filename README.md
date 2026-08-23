@@ -184,8 +184,11 @@ simply stops taking them - the button reads "Out of balance", autoplay halts,
 and there is no bankrupt card and no closed run. Topping the balance up is one
 click on it. A ladder run still busts properly; that is what a ladder run is.
 
-**Random rolls ten** here rather than matching a pick count, since the count is
-whatever the board says.
+**It opens empty.** Nothing has been chosen yet, so there is no paytable to
+quote and no bet to place: the board starts with no tiles and no strip under it,
+and both fill in as you click. Clearing the board again takes the strip away
+with it. **Random rolls ten** rather than matching a pick count, since the count
+is whatever the board says.
 
 **Its board is a different board.** The ladder card under it and the "where you
 stand" odds panel are both readings of a ladder that is not there, so both go.
