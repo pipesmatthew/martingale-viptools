@@ -178,15 +178,29 @@ columns take their natural height instead. It picks its numbers on the board, ho
 ten, and the count follows the board live. The stored balance and bet still
 drive the first round; changing them belongs at the board, and will go there.
 
+**The strip reports the board, not a ladder.** "Level 1 of 1" and "spin 20 of
+103 on this level" describe a plan that is not there. The five tiles are Bets,
+Hits, Return, Put in and Up/Down, counted run-long rather than round-long -
+a sandbox round can be thousands of bets and is not the unit anyone is watching.
+Return is what has come back over what has gone in, against the exact RTP of the
+board you are playing, which is the number it converges to.
+
+**Hits lists every paying draw**, newest first, scrolling inside its own card so
+a long run cannot push the controls off screen. A draw better than the tier that
+ends a round is tinted. The list caps at 400 rows.
+
 **Running dry is not an ending.** There is no ladder to have failed and no plan
 to have run out of, so when the balance will not cover the next bet the board
 simply stops taking them - the button reads "Out of balance", autoplay halts,
 and there is no bankrupt card and no closed run. Topping the balance up is one
 click on it. A ladder run still busts properly; that is what a ladder run is.
 
-**It opens empty.** Nothing has been chosen yet, so there is no paytable to
-quote and no bet to place: the board starts with no tiles and no strip under it,
-and both fill in as you click. Clearing the board again takes the strip away
+**It opens empty**, at **$400,000** with the bet at **zero**. Nothing has been
+chosen yet, so there is no paytable to quote and no bet to place: the board
+starts with no tiles and no strip under it, and both fill in as you click. The
+button reads "Pick a number", then "Set a bet", then Spin. A zero bet has to
+survive `readForm`, which it did not - `+value || 1` turned it into a dollar and
+the board opened able to bet before anything had been chosen. Clearing the board again takes the strip away
 with it. **Random rolls ten** rather than matching a pick count, since the count
 is whatever the board says.
 
@@ -373,11 +387,18 @@ One slot over the board, three meanings, each with its own sound:
 
 | | colour | when |
 |---|---|---|
-| a payout | green | any win — the consolation tier, the target, or above it — with the amount |
-| **Level 2** | amber | the bet has doubled once |
-| **Level 3** and past it | red | the bet has doubled again |
+| a payout | green | any win — the consolation tier, the target, or above it — with the amount and how rare it was |
+| **Bet increased** | amber | the bet has doubled once |
+| **Bet increased** | red | the bet has doubled again |
 
-A level popup outranks a win on the same spin, because it is the bigger news.
+The payout popup prices what just landed: `1 in 7` for four of ten, `1 in 147`
+for six, `1 in 508` for BILLSKIE's 350x. It is the exact tier, the same number
+the paytable strip quotes on hover, because the popup names one outcome and so
+prices that outcome.
+
+The level popup says **Bet increased** and the two figures, since the level
+number is already on the strip and the number that just changed is what the
+popup is for. It outranks a win on the same spin, because it is the bigger news.
 Nothing needs dismissing: the next spin clears whatever is showing and plays, in
 one press.
 
@@ -387,6 +408,10 @@ There is no batch button. "Spin x25" was a second way to do what autoplay does,
 with a worse answer to the only question that matters mid-run, which is when to
 stop; the ladder still halts autoplay at a level change, because that is the
 moment the strategy costs you something.
+
+A single spin always turns its draw over at the same pace, about a second, and
+the slider has nothing to do with it: the slider decides how often a bet is
+placed, not how a bet is shown. Autoplay does not animate at all.
 
 The slider next to Auto sets the rate, with the rate it is running at now on its
 right. The scale is logarithmic - `10^(v/50)` spins a second, so 0 is one a

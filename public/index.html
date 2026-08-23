@@ -80,6 +80,25 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .tab:hover{background:var(--button-hover);color:var(--fg)}
 .tab.is-active{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 .live{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:12px;white-space:nowrap}
+/* ── what the board has actually paid ───────────────────────────────────
+   Newest first, one row a hit, scrolling inside its own card so a long run
+   cannot push the controls off the screen. */
+.hitlist{max-height:296px;overflow-y:auto;scrollbar-width:thin;
+  scrollbar-color:var(--track) transparent}
+.hitlist::-webkit-scrollbar{width:8px}
+.hitlist::-webkit-scrollbar-thumb{background:var(--track)}
+.hitlist::-webkit-scrollbar-track{background:transparent}
+.hitrow{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:9px;align-items:baseline;
+  padding:5px 12px;border-bottom:1px solid var(--border);font-family:var(--mono);
+  font-variant-numeric:tabular-nums;font-size:11.5px}
+.hitrow:last-child{border-bottom:0}
+.hitrow .hn{color:var(--faint);font-size:10.5px}
+.hitrow .ht{color:var(--muted)}
+.hitrow .ht b{color:var(--fg-2);font-weight:600}
+.hitrow .hm{color:var(--accent);font-weight:700}
+.hitrow.top{background:#221b12}
+.hitrow .ha{color:var(--green);font-weight:600;text-align:right}
+.hitempty{padding:12px;color:var(--faint);font-size:11.5px}
 .balin{width:100%;background:var(--bg-deep);border:1px solid var(--border);padding:1px 8px;
   color:var(--cream)}
 .balin:focus{outline:none;border-color:var(--accent)}
@@ -374,6 +393,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .pop .pmain{font-family:var(--mono);font-size:32px;font-weight:700;letter-spacing:-.025em;
   line-height:1;font-variant-numeric:tabular-nums}
 .pop .psub{font-size:12.5px;color:var(--fg-2);margin-top:5px;font-family:var(--mono)}
+/* a sentence does not want 32px mono tracking built for "710x" */
+.pop .pmain.words{font-family:var(--sans);font-size:19px;letter-spacing:0}
 .pop.win{background:#10241a;border:1px solid var(--green)}
 .pop.win .pmain{color:var(--green)}
 .pop.warn{background:#2a2010;border:1px solid var(--accent)}
@@ -548,7 +569,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardbody">
             <div class="grid2" style="margin-bottom:9px">
               <label class="f"><span id="baseLab">Initial bet</span>
-                <input type="number" id="base" value="1" min="0.01" step="0.5"></label>
+                <input type="number" id="base" value="1" min="0" step="0.5"></label>
               <label class="f" id="stepWrap"><span>Multiply by</span>
                 <input type="number" id="stepx" value="2" min="1" max="10" step="0.25"></label>
             </div>
@@ -614,16 +635,16 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
     <div class="playtop">
     <button class="ghost" id="btnBack">&larr;&nbsp; Go back</button>
     <div class="tiles six" id="pStrip">
-      <div class="tile"><div class="k">Round</div><div class="v cream" id="p-round">1</div>
+      <div class="tile"><div class="k" id="kRound">Round</div><div class="v cream" id="p-round">1</div>
         <div class="d" id="p-roundD">of this run</div></div>
-      <div class="tile"><div class="k">Level</div><div class="v amber" id="p-level">1</div>
+      <div class="tile" id="levelTile"><div class="k" id="kLevel">Level</div><div class="v amber" id="p-level">1</div>
         <div class="d" id="p-levelD">of 3 before you bankrupt</div></div>
       <div class="tile"><div class="k" id="kSpin">Spin</div><div class="v" id="p-spin">0</div>
         <div class="d" id="p-spinD">of 350 on this level</div></div>
       <div class="tile" id="betTile"><div class="k">Bet</div><div class="v" id="p-bet">$1.00</div>
         <div class="d" id="p-betD">per spin</div></div>
-      <div class="tile"><div class="k">Put in</div><div class="v" id="p-stk">$0</div>
-        <div class="d">this round</div></div>
+      <div class="tile"><div class="k" id="kStk">Put in</div><div class="v" id="p-stk">$0</div>
+        <div class="d" id="p-stkD">this round</div></div>
       <div class="tile"><div class="k" id="p-netK">Down</div><div class="v red" id="p-net">$0</div>
         <div class="d">this run</div></div>
     </div>
@@ -678,7 +699,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             <input class="balbig n balin" id="balEdit" type="number" min="0.01" step="10" hidden
                    aria-label="Balance">
             <label class="f" id="betEditWrap" hidden style="margin-top:8px"><span>Bet</span>
-              <input type="number" id="betEdit" min="0.01" step="0.5"></label>
+              <input type="number" id="betEdit" min="0" step="0.5"></label>
           </div>
         </div>
 
@@ -725,6 +746,16 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             </div>
           </div>
           <p class="callout" style="margin:0;border-top:1px solid var(--border)" id="oddsNote"></p>
+        </div>
+
+        <!-- every paying draw, newest first. Sandbox only: with no ladder to
+             narrate, what the board has actually done is the story. -->
+        <div class="card" id="hitsCard" hidden>
+          <div class="cardhead"><h2>Hits</h2><span class="grow"></span>
+            <span class="note" id="hitsNote">none yet</span></div>
+          <div class="cardbody" style="padding:0">
+            <div class="hitlist" id="hitList"></div>
+          </div>
         </div>
 
       </div>
@@ -1143,6 +1174,7 @@ var S = {
   cfg: null, levels: [], ends: [], total: 0,
   startBank: 1400, balance: 1400,
   history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null, editingBal: false,
+  sbBets: 0, sbHits: 0, sbStaked: 0, sbBack: 0, sbLog: [],
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
   speed: "normal", seed: 0, nonce: 0, rand: Math.random, hideDraw: false,
@@ -1156,18 +1188,13 @@ var S = {
 function rateSps(v){ return Math.max(1, Math.round(Math.pow(10, clamp(v,0,100)/50))); }
 function autoSps(){ return rateSps(+$("autoRate").value || 0); }
 
-/* ONE SPEED CONTROL, NOT TWO. The reveal is paced off the same slider that
-   paces autoplay: slow enough and the tiles turn over one at a time with their
-   noises, and past the threshold there is simply no room for an animation
-   between one spin and the next. Four a second is the last rate a ten-tile
-   draw fits inside; the reveal takes three quarters of the gap, so it always
-   finishes before the following spin starts. */
-var REVEAL_MAX_SPS = 4;
-function revealBudget(){ return autoSps() > REVEAL_MAX_SPS ? 0 : 1000 / autoSps() * 0.75; }
-function revealMs(steps){
-  var b = revealBudget();
-  return b ? Math.max(12, Math.round(b / steps)) : 0;
-}
+/* A SINGLE SPIN ALWAYS TURNS OVER AT THE SAME PACE - a second for the draw,
+   whatever the slider says. The slider is autoplay's: it decides how often a
+   bet is placed, not how a bet is shown. Tying the two together meant pressing
+   Spin once gave you an animation whose speed depended on a control you had
+   set for something else entirely. Autoplay does not animate at all. */
+var REVEAL_TOTAL = 750;
+function revealMs(steps){ return Math.max(12, Math.round(REVEAL_TOTAL / steps)); }
 
 /* mulberry32 has 32 bits of state and it shows: measured over 300 million
    draws it returns u <= 0.099 about 0.1% too often (combined z = 4.3 across
@@ -1306,7 +1333,10 @@ function readForm(){
     strat: $("stratSeg").querySelector("button.on").getAttribute("data-x"),
     opt:   $("optBet").classList.contains("on"),
     lmult: +$("lmult").value || 350,
-    base:  +$("base").value  || 1,
+    /* a zero here is a real answer - "no bet set" - so it must survive the
+       read. `|| 1` turned it into a dollar, and the sandbox opened able to bet
+       when nothing had been chosen. */
+    base:  $("base").value === "" ? 1 : +$("base").value,
     stepx: +$("stepx").value || 2,
     len1:  Math.round(+$("len1").value) || 350,
     lenN:  Math.round(+$("lenN").value) || 175,
@@ -1332,7 +1362,9 @@ function derive(f){
   var c = {
     game: f.game, lmult: lmult,
     noun: f.game === "limbo" ? "roll" : "spin",
-    base: clamp(f.base, 0.01, 1e6),
+    /* the sandbox opens with no bet set, the same way it opens with no tiles
+       chosen - zero is "not yet", and the board will not take it */
+    base: f.strat === "flat" ? clamp(f.base, 0, 1e6) : clamp(f.base, 0.01, 1e6),
     stepx: clamp(f.stepx, 1, 10),
     len1: clamp(f.len1, 1, 20000),
     lenN: clamp(f.lenN, 1, 20000),
@@ -1398,6 +1430,7 @@ function derive(f){
 function affordFrom(c, from, bal){
   var n = 0, left = bal, i = levelAt(c, from);
   if (i < 0) return 0;
+  if (!(c.levels[i].bet > 0)) return 0;      /* no bet set - nothing is afforded */
   var used = from - (i > 0 ? c.ends[i-1] : 0);
   for (; i < c.levels.length; i++){
     var room = c.levels[i].len - (n === 0 ? used : 0);
@@ -1416,6 +1449,7 @@ function fundedLevels(c, bal){
   var out = [], left = bal, cum = 0;
   for (var i=0; i<c.levels.length; i++){
     var bet = c.levels[i].bet, len = c.levels[i].len;
+    if (!(bet > 0)) break;                   /* no bet set - no level is funded */
     var can = Math.floor(left / bet + 1e-9);
     if (can <= 0) break;
     if (can < len) len = can;
@@ -1486,6 +1520,44 @@ function say(kind, msg){
   if (S.run.log.length > 80) S.run.log.pop();
 }
 
+/* 400 rows is more than anyone scrolls and cheap to keep; past that the
+   oldest go, because a sandbox left on autoplay would otherwise grow without
+   bound. */
+/* how rare the thing that just landed was. Keno quotes the exact tier, the
+   same number the paytable strip quotes on hover - the popup names one outcome,
+   so it prices that outcome. Limbo quotes reaching its target, which is the
+   only thing a roll can do. */
+function hitOdds(out){
+  var c = S.cfg;
+  var p = c.game === "limbo" ? 0.99 / c.lmult : kenoP(c.picks, out.hits);
+  return p > 0 ? "1 in " + num(Math.round(1 / p)) : "";
+}
+function logHit(out, bet, paid){
+  S.sbLog.unshift({ n: S.sbBets, label: out.label, pay: out.pay, amt: paid, bet: bet,
+                    top: S.cfg.game === "keno" && out.pay > S.cfg.pay });
+  if (S.sbLog.length > 400) S.sbLog.pop();
+}
+function paintHits(){
+  var c = S.cfg, on = c && c.strat === "flat";
+  $("hitsCard").hidden = !on;
+  if (!on) return;
+  $("hitsNote").textContent = S.sbHits
+    ? num(S.sbHits) + (S.sbHits === 1 ? " hit" : " hits")
+    : "none yet";
+  if (!S.sbLog.length){
+    $("hitList").innerHTML = '<div class="hitempty">Nothing has paid yet.</div>';
+    return;
+  }
+  var html = "";
+  for (var i=0;i<S.sbLog.length;i++){
+    var h = S.sbLog[i];
+    html += '<div class="hitrow' + (h.top ? " top" : "") + '">' +
+      '<span class="hn">#' + num(h.n) + '</span>' +
+      '<span class="ht"><b>' + h.label + '</b> ' + DOT + ' <span class="hm">' + h.pay + 'x</span></span>' +
+      '<span class="ha">' + money(h.amt) + '</span></div>';
+  }
+  $("hitList").innerHTML = html;
+}
 function step(){
   var c = S.cfg, r = S.run;
   if (!r || r.over) return;
@@ -1497,12 +1569,14 @@ function step(){
      failed and no plan to have run out of, so the board simply cannot take
      another bet until the balance is topped up - which is one click on the
      balance away. No bankrupt card, and the run stays open. */
+  if (!(bet > 0)) return;                    /* no bet set yet */
   if (S.balance + r.net < bet - 1e-9){
     if (c.strat !== "flat") finish("broke");
     return;
   }
 
   r.staked += bet; r.done += 1; r.net = r.recovered - r.staked;
+  S.sbBets += 1; S.sbStaked += bet;          /* run-long, across rounds */
   var out = c.game === "limbo" ? limboDraw(c) : kenoDraw(c);
   r.last = out; S.hideDraw = false;
   S.nonce += 1;          /* one bet, one nonce */
@@ -1519,9 +1593,11 @@ function step(){
 
   if (out.stop){
     var paid = bet * out.pay;
-    S.pop = { kind:"win", main: out.pay + "x", sub: "+" + m2(paid), ending: true };
+    S.pop = { kind:"win", main: out.pay + "x",
+              sub: "+" + m2(paid) + " " + DOT + " " + hitOdds(out), ending: true };
     S.popSounded = false;
     r.recovered += paid; r.payout = paid; r.net = r.recovered - r.staked;
+    S.sbHits += 1; S.sbBack += paid; logHit(out, bet, paid);
     say("HIT", out.label + " paid " + money(paid) + " on " + c.noun + " " + r.done +
                " " + DOT + " run ends " + signed(r.net));
     finish("hit", out);
@@ -1529,7 +1605,9 @@ function step(){
   }
   if (out.consol){
     r.n4 += 1; r.recovered += bet * out.pay; r.net = r.recovered - r.staked;
-    S.pop = { kind:"win", main: out.pay + "x", sub: "+" + m2(bet * out.pay), ending: false };
+    S.sbHits += 1; S.sbBack += bet * out.pay; logHit(out, bet, bet * out.pay);
+    S.pop = { kind:"win", main: out.pay + "x",
+              sub: "+" + m2(bet * out.pay) + " " + DOT + " " + hitOdds(out), ending: false };
     S.popSounded = false;
     say(out.pay + "X", out.label + " paid " + money(bet*out.pay) + " " + DOT +
                        " still " + money(r.net) + " down");
@@ -1541,8 +1619,11 @@ function step(){
     else {
       say("LEVEL", "Level " + (after+1) + " " + DOT + " bet goes to " + m2(c.levels[after].bet) +
                   " " + DOT + " " + money(r.staked) + " in so far");
+      /* the level number is on the strip already; what this popup is FOR is
+         the number that just changed */
       S.pop = { kind: after >= 2 ? "bad" : "warn",
-                main: "Level " + (after+1),
+                main: "Bet increased",
+                words: true,
                 sub: m2(c.levels[ri].bet) + " &rarr; " + m2(c.levels[after].bet),
                 levelUp: true };
       S.popSounded = false;
@@ -1759,8 +1840,17 @@ function startRun(fresh){
     var c = derive(readForm());
     /* THE SANDBOX OPENS EMPTY. Nothing has been chosen yet, so there is no
        paytable to quote and no bet to place - the board fills as you click it,
-       rather than starting on whatever the last ladder happened to be using. */
-    if (c.strat === "flat" && c.game === "keno") S.picks = [];
+       rather than starting on whatever the last ladder happened to be using.
+       Same reasoning for the bet: zero is "not yet", not "free". The balance
+       opens at $400,000 because a sandbox is for trying things, and a figure
+       you have to top up every few minutes is a chore rather than a tool. */
+    if (c.strat === "flat"){
+      if (c.game === "keno") S.picks = [];
+      $("bank").value = 400000;
+      $("base").value = 0;
+      c = derive(readForm());
+    }
+    S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbLog = [];
     S.cfg = c; S.startBank = c.bank; S.balance = c.bank;
     S.history = [];
     S.cfg0 = c;                 /* the ladder this run opened on, for comparison */
@@ -2068,7 +2158,9 @@ function canBet(){
   if (!c || !r || r.over) return false;
   var ri = levelAt(c, r.done);
   if (ri < 0) return false;
-  return S.balance + r.net >= c.levels[ri].bet - 1e-9;
+  var bet = c.levels[ri].bet;
+  if (!(bet > 0)) return false;
+  return S.balance + r.net >= bet - 1e-9;
 }
 function paintPlay(){
   var c = S.cfg, r = S.run;
@@ -2142,6 +2234,7 @@ function paintPlay(){
      one on the board would be saying it twice. */
   if (S.pop && !S.animating && !r.over){
     $("popMain").textContent = S.pop.main;
+    $("popMain").className = "pmain" + (S.pop.words ? " words" : "");
     $("popSub").innerHTML = S.pop.sub;
     pop.className = "pop " + S.pop.kind;
     pop.hidden = false;
@@ -2155,14 +2248,17 @@ function paintPlay(){
   var short = c.game === "keno" &&
               (c.strat === "flat" ? S.picks.length < 1 : S.picks.length < c.picks);
   var verb  = c.game === "limbo" ? "Roll" : "Spin";
-  /* the sandbox never ends for want of money, it just stops taking bets */
-  var dry   = c.strat === "flat" && !r.over && !canBet();
-  var dead  = r.over || short || dry;
-  if (short || dry) stopAuto();
+  /* the sandbox never ends for want of money, it just stops taking bets - and
+     it opens with no bet set at all, which is a different thing to say */
+  var noBet = c.strat === "flat" && !r.over && !(c.levels[0].bet > 0);
+  var dry   = c.strat === "flat" && !r.over && !noBet && !canBet();
+  var dead  = r.over || short || dry || noBet;
+  if (short || dry || noBet) stopAuto();
 
   $("btnSpin").disabled = dead; $("btnAuto").disabled = dead;
   $("btnSpin").textContent = short
     ? (c.strat === "flat" ? "Pick a number" : "Pick " + (c.picks - S.picks.length) + " more")
+    : noBet ? "Set a bet"
     : dry ? "Out of balance"
     : verb;
   $("btnSpin").className = "primary" + (c.game === "limbo" ? " teal" : "");
@@ -2198,6 +2294,32 @@ function paintPlay(){
     if (document.activeElement !== $("betEdit")) $("betEdit").value = +c.levels[0].bet.toFixed(2);
   }
   paintPaytable();
+  paintHits();
+  /* THE STRIP IS A LADDER READOUT and the sandbox has no ladder: "Level 1 of 1"
+     and "spin 20 of 103 on this level" are both describing a plan that is not
+     there. The five tiles report what the board has actually done instead, run
+     long rather than round long, since a sandbox round can be thousands of bets
+     and is not the unit anyone is watching. */
+  if (sand){
+    var fair = c.game === "limbo" ? 0.99 : kenoRTP(c.picks);
+    $("kRound").textContent  = "Bets";
+    $("p-round").textContent = num(S.sbBets);
+    $("p-roundD").textContent = "this run";
+    $("kLevel").textContent  = "Hits";
+    $("p-level").textContent = num(S.sbHits);
+    $("p-levelD").textContent = S.sbBets ? pct(S.sbHits / S.sbBets) + " of bets" : "none yet";
+    $("kSpin").textContent   = "Return";
+    $("p-spin").textContent  = S.sbStaked ? pct(S.sbBack / S.sbStaked) : "—";
+    $("p-spinD").textContent = pct(fair) + " is fair";
+    $("kStk").textContent    = "Put in";
+    $("p-stk").textContent   = money(S.sbStaked);
+    $("p-stkD").textContent  = "staked in total";
+  } else {
+    $("kRound").textContent = "Round";
+    $("kLevel").textContent = "Level";
+    $("kStk").textContent   = "Put in";
+    $("p-stkD").textContent = "this round";
+  }
   /* Random N is keno-only, so on limbo Auto has the row to itself. */
   $("extraRow").classList.toggle("two", c.game !== "limbo");
   $("nonceVal").textContent = num(S.nonce);
@@ -2721,7 +2843,7 @@ $("btnSpin").addEventListener("click", function(){
   if (S.animating) return;
   $("pop").hidden = true;        /* clears on the press, not at the end of the reveal */
   step();
-  var animate = !REDUCED && revealBudget() > 0 && S.run.last;
+  var animate = !REDUCED && S.run.last;
   if (animate && S.cfg.game === "keno" && S.run.last.drawn) revealDraw(paintPlay);
   else if (animate && S.cfg.game === "limbo") revealLimbo(paintPlay);
   else {
