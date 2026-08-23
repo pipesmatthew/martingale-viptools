@@ -273,8 +273,10 @@ is whatever the board says.
 
 **Its board is a different board.** The ladder card under it and the "where you
 stand" odds panel are both readings of a ladder that is not there, so both go.
-The bet leaves the stats strip - which drops to five tiles - and becomes a field
-under the balance. The balance itself stays exactly what it is on a ladder run,
+The bet leaves the stats strip - which drops to five tiles - and sits under the
+balance as the balance's smaller sibling: same face, same colour, hover it and
+click it and type over it. It is the same kind of thing, a number you own, so it
+behaves the same way. Unset it reads "not set" in grey rather than $0.00. The balance itself stays exactly what it is on a ladder run,
 the same big cream figure moving with every bet; clicking it hands you the
 number to type over. It was briefly a pair of bare input boxes, and that was
 wrong twice: it threw away the one reading you actually watch, and it showed the
@@ -544,7 +546,7 @@ tile at 1/s, 25ms at 3/s, 19ms at 4/s - and past four bets a second there is
 nothing left to see, so the draw lands at once. The reveal disables Spin but
 never Auto: you have to be able to stop it while it is running.
 
-The slider next to Auto sets the rate, with the rate it is running at now on its
+The slider is labelled **Bets/s**, with the rate it is running at now on its
 right. The scale is logarithmic - `25^(v/100)` bets a second, so it runs from
 one a second to twenty-five - because a slider linear in bets per second spends
 four fifths of its travel on speeds nobody can follow. It defaults to 43, which

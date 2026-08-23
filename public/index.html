@@ -118,6 +118,10 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .hitempty{padding:12px;color:var(--faint);font-size:11.5px}
 .balin{width:100%;background:var(--bg-deep);border:1px solid var(--border);padding:1px 8px;
   color:var(--cream)}
+/* the bet is the balance's smaller sibling - same face, same colour, same
+   hover-and-type - because it is the same kind of thing: a number you own */
+.betbig{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:21px;font-weight:700;
+  color:var(--cream);line-height:1.3}
 .balin:focus{outline:none;border-color:var(--accent)}
 
 /* ── what every outcome pays, and how often ──────────────────────────────
@@ -220,8 +224,9 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 /* how fast Auto goes, with the rate it is going at now on the right of it.
    The scale is logarithmic - a slider that is linear in spins per second
    spends four fifths of its travel on speeds you cannot follow anyway. */
-.raterow{display:grid;grid-template-columns:minmax(0,1fr) 52px;gap:8px;align-items:center;
+.raterow{display:grid;grid-template-columns:auto minmax(0,1fr) 46px;gap:8px;align-items:center;
   margin-top:5px}
+.raterow label{font-size:11.5px;color:var(--faint);white-space:nowrap}
 .raterow b{font-size:11.5px;color:var(--accent);text-align:right}
 .balbig.editable{cursor:text}
 .balbig.editable:hover{color:var(--accent)}
@@ -731,8 +736,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             <div class="balbig n" id="bal">$2,000.00</div>
             <input class="balbig n balin" id="balEdit" type="number" min="0" step="10" hidden
                    aria-label="Balance">
-            <label class="f" id="betEditWrap" hidden style="margin-top:8px"><span>Bet</span>
-              <input type="number" id="betEdit" min="0" step="0.5"></label>
+            <!-- the bet reads and behaves like the balance above it: a figure you
+                 hover, click, and type over -->
+            <div id="betEditWrap" hidden style="margin-top:9px">
+              <span class="lab">Bet</span>
+              <div class="betbig n editable" id="betVal">$0.00</div>
+              <input class="betbig n balin" id="betEdit" type="number" min="0" step="0.5" hidden
+                     aria-label="Bet">
+            </div>
           </div>
         </div>
 
@@ -751,9 +762,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <button class="ghost" id="btnRandom">Random 6</button>
             </div>
             <div class="raterow">
+              <label for="autoRate">Bets/s</label>
               <input type="range" id="autoRate" min="0" max="100" step="1" value="43"
                      aria-label="Speed">
-              <b class="n" id="autoRateV">4/s</b>
+              <b class="n" id="autoRateV">4</b>
             </div>
             <div class="seedrow">
               <label for="seedVal" style="flex:none">Seed</label>
@@ -1246,7 +1258,7 @@ var S = {
   cfg: null, levels: [], ends: [], total: 0,
   startBank: 1400, balance: 1400,
   history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null, editingBal: false,
-  vol: "high",
+  vol: "high", editingBet: false,
   sbBets: 0, sbHits: 0, sbStaked: 0, sbBack: 0, sbTier: [], sbPicks: null,
   martBank: undefined, martBase: undefined, martGame: undefined,
   sbBank: undefined, sbBase: undefined,
@@ -2485,11 +2497,17 @@ function paintPlay(){
     $("bal").hidden = false;
     $("balEdit").hidden = true;
   }
+  if (!sand || !S.editingBet){
+    $("betVal").hidden = false;
+    $("betEdit").hidden = true;
+  }
   if (sand){
     if (sbInfinite()) $("bal").textContent = "∞";
     if (!S.editingBal) $("balEdit").value = sbInfinite() ? 0 : +(S.balance + (r.over ? 0 : r.net)).toFixed(2);
-    /* never fight the keyboard: a field being typed into is left alone */
-    if (document.activeElement !== $("betEdit")) $("betEdit").value = +c.levels[0].bet.toFixed(2);
+    var betNow = c.levels[0].bet;
+    $("betVal").textContent = betNow > 0 ? m2(betNow) : "not set";
+    $("betVal").style.color = betNow > 0 ? "" : "var(--faint)";
+    if (!S.editingBet) $("betEdit").value = +betNow.toFixed(2);
   }
   /* the tally is only true for the board it was gathered on, so a change in how
      many numbers are picked starts it again. Swapping WHICH numbers does not:
@@ -2956,7 +2974,7 @@ function toggleAuto(){
   S.timer = setInterval(autoTick, Math.round(1000 / autoSps()));
 }
 function paintRate(){
-  $("autoRateV").textContent = autoSps() + "/s";
+  $("autoRateV").textContent = autoSps();
   /* a running autoplay picks up the new rate immediately rather than at the
      next start - the slider is useless if you have to stop to use it */
   if (S.timer){ clearInterval(S.timer); S.timer = setInterval(autoTick, Math.round(1000 / autoSps())); }
@@ -3206,15 +3224,27 @@ function commitBal(){
   sandboxRebuild(); saveState(); paintPlay();
 }
 $("balEdit").addEventListener("blur", commitBal);
+$("betVal").addEventListener("click", function(){
+  if (!S.cfg || S.cfg.strat !== "flat") return;
+  S.editingBet = true;
+  $("betVal").hidden = true; $("betEdit").hidden = false;
+  $("betEdit").focus(); $("betEdit").select();
+});
+function commitBet(){
+  if (!S.editingBet) return;
+  var v = +$("betEdit").value;
+  if (v >= 0) $("base").value = v;
+  S.editingBet = false;
+  sandboxRebuild(); saveState(); paintPlay();
+}
+$("betEdit").addEventListener("blur", commitBet);
+$("betEdit").addEventListener("keydown", function(e){
+  if (e.key === "Enter"){ e.preventDefault(); $("betEdit").blur(); }
+  if (e.key === "Escape"){ S.editingBet = false; paintPlay(); }
+});
 $("balEdit").addEventListener("keydown", function(e){
   if (e.key === "Enter"){ e.preventDefault(); $("balEdit").blur(); }
   if (e.key === "Escape"){ S.editingBal = false; paintPlay(); }
-});
-$("betEdit").addEventListener("input", function(){
-  var v = +$("betEdit").value;
-  if (!(v > 0)) return;
-  $("base").value = v;
-  sandboxRebuild(); saveState(); paintPlay();
 });
 $("btnRandom").addEventListener("click", function(){
   var want = !S.cfg ? 6 : S.cfg.strat === "flat" ? 10 : S.cfg.picks;
