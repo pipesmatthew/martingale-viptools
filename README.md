@@ -483,10 +483,11 @@ nothing left to see, so the draw lands at once. The reveal disables Spin but
 never Auto: you have to be able to stop it while it is running.
 
 The slider next to Auto sets the rate, with the rate it is running at now on its
-right. The scale is logarithmic - `10^(v/50)` spins a second, so 0 is one a
-second, 50 is ten and 100 is a hundred - because a slider linear in spins per
-second spends four fifths of its travel on speeds nobody can follow. It defaults
-to 63, which is 18/s, the fixed rate autoplay used to run at. Moving it while
+right. The scale is logarithmic - `25^(v/100)` bets a second, so it runs from
+one a second to twenty-five - because a slider linear in bets per second spends
+four fifths of its travel on speeds nobody can follow. It defaults to 43, which
+is 4/s: the fastest rate that still leaves room to turn the tiles over one at a
+time. Moving it while
 autoplay is running restarts the timer at the new period immediately; a slider
 you have to stop to use is not a slider.
 
