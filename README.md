@@ -124,6 +124,9 @@ The strategy choice is the first card on the setup screen, above the game and
 above the money, because it is the one decision that changes what every other
 control means - including which pick counts exist. It used to sit inside the
 ladder card, which put the choice of whether to have a ladder inside the ladder.
+It is two words in a segmented control, the same shape as the game choice - the
+options do not need explaining, and a paragraph under each one made the top of
+the screen look like documentation.
 
 It is the same machine with the climb taken out. **Flat bet**
 is one bet size, one level long enough that the balance is always what ends the

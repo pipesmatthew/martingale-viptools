@@ -177,14 +177,6 @@ button.primary:disabled:hover{background:var(--accent)}
 .seg > button{flex:1 1 0;text-align:center}
 .lab{display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
   font-weight:700;margin-bottom:4px}
-.choose{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.choose button{appearance:none;cursor:pointer;font:inherit;text-align:left;
-  background:var(--button);border:1px solid var(--border);color:var(--muted);padding:9px 11px}
-.choose button:hover{background:var(--button-hover)}
-.choose button.on{background:#2a2118;border-color:var(--accent)}
-.choose b{display:block;font-size:13px;font-weight:700;color:var(--fg);margin-bottom:2px}
-.choose button.on b{color:var(--accent)}
-.choose i{display:block;font-style:normal;font-size:11px;color:var(--faint);line-height:1.4}
 .picks{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
 .picks button{appearance:none;cursor:pointer;font-family:var(--mono);font-size:12.5px;
   background:var(--button);color:var(--muted);border:1px solid var(--border);padding:6px 0;font-weight:600}
@@ -442,11 +434,9 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="card">
           <div class="cardhead"><h2>How you bet</h2></div>
           <div class="cardbody">
-            <div class="choose" id="stratSeg" role="group" aria-label="Betting strategy">
-              <button data-x="mart" class="on"><b>Martingale</b>
-                <i>Double the stake every level that comes up dry, chasing one big multiplier.</i></button>
-              <button data-x="flat"><b>Flat bet</b>
-                <i>One stake, never changed. No round can take more than one bet off you.</i></button>
+            <div class="seg big" id="stratSeg" role="group" aria-label="Betting strategy">
+              <button data-x="mart" class="on">Martingale</button>
+              <button data-x="flat">Flat bet</button>
             </div>
           </div>
         </div>
