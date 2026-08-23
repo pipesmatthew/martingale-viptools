@@ -83,7 +83,18 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 /* ── what the board has actually paid ───────────────────────────────────
    Newest first, one row a hit, scrolling inside its own card so a long run
    cannot push the controls off the screen. */
-.hitlist{max-height:296px;overflow-y:auto;scrollbar-width:thin;
+/* THE COLUMNS END LEVEL WITHOUT ANYONE MEASURING THEM. Both stretch to the
+   taller one, and the hits card is the single flexible thing in the right
+   column - it absorbs whatever slack there is and scrolls the rest. The
+   min-height:0 down the chain is what lets it shrink below its content;
+   without it a flex item refuses to go under its intrinsic size and the
+   overflow reappears. This used to be two passes of getBoundingClientRect on
+   every repaint, which was right until the window changed size behind it. */
+#view-play .split{align-items:stretch}
+#view-play .split > div{display:flex;flex-direction:column;min-width:0}
+#hitsCard{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#hitsCard > .cardbody{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.hitlist{flex:1 1 auto;min-height:120px;overflow-y:auto;scrollbar-width:thin;
   scrollbar-color:var(--track) transparent}
 .hitlist::-webkit-scrollbar{width:8px}
 .hitlist::-webkit-scrollbar-thumb{background:var(--track)}
@@ -626,7 +637,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         </div>
         </div>
 
-        <div class="card"><div class="cardbody">
+        <div class="card" id="startCard"><div class="cardbody">
           <button class="primary" id="startBtn" style="width:100%;padding:8px">Start run</button>
           <p class="err" id="setupErr" hidden></p>
           <p class="hint" id="startHint" style="text-align:center"></p>
@@ -748,7 +759,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardhead"><h2>Where you stand</h2></div>
           <div class="cardbody stack">
             <div>
-              <div class="oddsrow"><span>Already got their hit by now</span>
+              <div class="oddsrow"><span id="oAlreadyLab">Already got their hit by now</span>
                 <b id="oAlready" style="color:var(--green)">0.0%</b></div>
               <div class="meter" style="margin-top:5px"><i class="greenb" id="bAlready" style="width:0%"></i></div>
             </div>
@@ -812,6 +823,11 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   </div>
 
   <div id="view-stats" hidden>
+
+    <!-- same button, same corner as the play screen, so leaving is always in
+         the same place whichever screen you are on -->
+    <div class="playtop"><button class="ghost" id="btnBackStats">&larr;&nbsp; Go back</button></div>
+
     <div class="card" id="histCard">
       <div class="cardhead"><h2>This run, round by round</h2><span class="grow"></span>
         <span class="note" id="histNote"></span>
@@ -1773,6 +1789,14 @@ function paintGameOpts(){
   var g = $("gameSeg").querySelector("button.on").getAttribute("data-g"), flat = isFlat();
   $("kenoOpts").hidden  = g !== "keno"  || flat;
   $("limboOpts").hidden = g !== "limbo" || flat;
+  /* THE SANDBOX HAS NOTHING TO SET UP, so a Start run button is a second click
+     asking you to confirm a screen with no decisions on it. The game buttons
+     launch it themselves and say so. */
+  $("startCard").hidden = flat;
+  $$("#gameSeg button").forEach(function(b){
+    var name = b.getAttribute("data-g") === "keno" ? "Simulate Keno" : "Simulate Limbo";
+    b.textContent = flat ? name + " (Launch)" : name;
+  });
 }
 function isFlat(){
   var b = $("stratSeg").querySelector("button.on");
@@ -2123,6 +2147,7 @@ function paintOdds(){
 
   $("oEndLab").textContent = "Chance of hitting " + c.pay + "x before " +
     (c.mode === "broke" ? "bankrupt" : "bail");
+  $("oAlreadyLab").textContent = "Already got their " + c.pay + "x by this bet";
   $("oEnd").textContent = pct(end);
   $("bEnd").style.width = (100*end) + "%";
   $("bEnd").className = end < 0.25 ? "redb" : "greenb";
@@ -2269,22 +2294,6 @@ function canBet(){
   if (!(bet > 0)) return false;
   if (sbInfinite()) return true;
   return S.balance + r.net >= bet - 1e-9;
-}
-/* The two play columns hold different things and end where their content
-   ends. The hits list is the one piece here that can be any height, so it gives
-   back whatever it is overhanging by - it never grows to fill, because a tall
-   empty list is worse than a short column. */
-function fitHits(){
-  var card = $("hitsCard");
-  if (card.hidden) return;
-  var L = document.querySelector("#view-play .split > div:first-child");
-  var R = document.querySelector("#view-play .split > div:last-child");
-  var list = $("hitList");
-  if (!L || !R) return;
-  list.style.maxHeight = "";
-  var natural = list.getBoundingClientRect().height;
-  var over = R.getBoundingClientRect().bottom - L.getBoundingClientRect().bottom;
-  list.style.maxHeight = over > 1 ? Math.max(120, Math.round(natural - over)) + "px" : "";
 }
 function paintPlay(){
   var c = S.cfg, r = S.run;
@@ -2442,7 +2451,6 @@ function paintPlay(){
   }
   paintPaytable();
   paintHits();
-  fitHits();
   /* THE STRIP IS A LADDER READOUT and the sandbox has no ladder: "Level 1 of 1"
      and "spin 20 of 103 on this level" are both describing a plan that is not
      there. The five tiles report what the board has actually done instead, run
@@ -2909,6 +2917,7 @@ function paintRate(){
 $$("#gameSeg button").forEach(function(b){
   b.addEventListener("click", function(){
     var g = b.getAttribute("data-g");
+    var launch = isFlat();
     setGame(g);
     if (g === "limbo"){                       /* the break-even ladder for this target */
       var M = clamp(+$("lmult").value || 350, 1.02, 1e6);
@@ -2918,6 +2927,7 @@ $$("#gameSeg button").forEach(function(b){
       $("len1").value = 350; $("lenN").value = 175;
     }
     paintSetup();
+    if (launch) startRun(true);
   });
 });
 /* THE LARGEST OPENING BET THAT STILL BUYS THREE LEVELS. Three levels cost
@@ -3058,7 +3068,9 @@ $("roEnd").addEventListener("click", function(){ $("runover").hidden = true; end
 $$("#bailSeg button").forEach(function(b){
   b.addEventListener("click", function(){ setBail(b.getAttribute("data-b")); paintSetup(); });
 });
-$("btnNewHunt").addEventListener("click", function(){ showView("setup"); paintSetup(); });
+function toSetup(){ showView("setup"); paintSetup(); }
+$("btnNewHunt").addEventListener("click", toSetup);
+$("btnBackStats").addEventListener("click", toSetup);
 $("btnResume").addEventListener("click", function(){
   if (S.run && S.run.over) startRun(false); else showView("play");
   paintPlay();

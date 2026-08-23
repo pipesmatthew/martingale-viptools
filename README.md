@@ -195,6 +195,10 @@ numbers are picked starts the tally again, since it is only true for the board
 it was gathered on - changing *which* numbers does not, the distribution being
 identical.
 
+**It launches from the game buttons.** There is nothing to set up, so a Start
+run button would be a second click confirming a screen with no decisions on it -
+the buttons read "Simulate Keno (Launch)" and go straight to the board.
+
 **Nothing ends.** A round is a ladder idea: it exists so a martingale knows when
 to start over. The sandbox has no ladder, so a win is paid and play carries on -
 no round-over card, no Next round, no End run - and the balance simply stops
@@ -313,7 +317,17 @@ cannot get stuck that way, because it resets to zero on every spin.
 ### Go back
 
 Top left of the play screen, beside the stats strip rather than on a line above
-it, matching its height. It returns to setup; a round
+it, matching its height - and in the same corner of the statistics screen, so
+leaving is always in the same place whichever screen you are on.
+
+The two play columns end level without anyone measuring them: both stretch to
+the taller, and the hits card is the single flexible thing in the right column,
+so it absorbs the slack and scrolls the rest. `min-height:0` down the chain is
+what lets it shrink below its content - without it a flex item refuses to go
+under its intrinsic size and the overflow comes back. This was two passes of
+`getBoundingClientRect` on every repaint, which was right until the window
+changed size behind it, at which point the column overhung by a hundred pixels
+and stayed that way. It returns to setup; a round
 still running is quit rather than left hanging, which costs what is staked on it,
 and the balance and history it earned come back with you. **Start run** always
 opens a fresh hunt from the setup figures, so going back is leaving the hunt.
