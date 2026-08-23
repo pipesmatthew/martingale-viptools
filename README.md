@@ -121,7 +121,9 @@ be 39px each, so Sandbox spills to the full row instead.
 
 ### Optimal bet
 
-A toggle in the ladder card head, **on by default**. Held down, the opening bet is refitted every
+A checkbox in the ladder card, **ticked by default**, reading "Automatically
+adjust bet to be optimal?". It was a button that filled in when active, which
+reads as "this is a thing you can click" rather than "this is currently on". Held down, the opening bet is refitted every
 time the ladder changes shape - a new pick count, a new balance, a different
 multiplier - to the largest bet the balance can carry three full levels of.
 Typing a bet by hand releases it, and does so before the repaint that would
