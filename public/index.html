@@ -2108,14 +2108,14 @@ function paintHistory(){
       ? "the middle run is still going after " + num(SURVIVAL_CAP) + " rounds"
       : "the middle run manages " + num(midRounds) + " rounds before it cannot cover the opening bet";
 
-    $("lastLab").textContent = "Runs that last " + num(spinsPlayed) + " " + base0.noun + "s";
+    $("lastLab").textContent = "Runs that last " + num(spinsPlayed) + " bets";
     $("lastVal").textContent = pct(lastP);
     $("lastVal").style.color = lastP < 0.5 ? "var(--accent)" : "var(--fg-2)";
     $("lastBar").style.width = (100*lastP) + "%";
     $("lastBar").className = lastP < 0.5 ? "" : "faintb";
     var midSpins = sv.spins[sv.spins.length >> 1];
     $("lastSub").textContent = (midRounds >= SURVIVAL_CAP ? "the middle run passes " : "the middle run lasts ") +
-      num(midSpins) + " " + base0.noun + "s";
+      num(midSpins) + " bets";
 
     $("luckBlock").hidden = false;
   } else {
