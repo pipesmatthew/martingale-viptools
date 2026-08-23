@@ -178,6 +178,21 @@ columns take their natural height instead. It picks its numbers on the board, ho
 ten, and the count follows the board live. The stored balance and bet still
 drive the first round; changing them belongs at the board, and will go there.
 
+**Its board is a different board.** The ladder card under it and the "where you
+stand" odds panel are both readings of a ladder that is not there, so both go.
+The bet leaves the stats strip - which drops to five tiles - and becomes a field
+you can type in, next to a balance you can also type in. Editing either rebuilds
+the config, so the next bet and every payout on the strip follow immediately;
+setting the balance also resets the baseline the run is measured against, since
+a profit line counted from a number you replaced is measuring nothing.
+
+**The paytable strip** takes the ladder's place under the board: one cell per
+possible number of hits, the multiplier over the count, and on hover the payout
+at your current bet and the exact chance of that outcome. The chance is
+P(exactly h hits), not h or better, because the cell describes one outcome. At
+ten picks that runs from 15.47% for a blank board down to 0.00000012% for all
+ten, and the eleven multipliers read 0x 0x 0x 0x 3.5x 8x 13x 63x 500x 800x 1K.
+
 It is the same machine with the climb taken out. **Sandbox**
 is one bet size, one level long enough that the balance is always what ends the
 round — so rounds, the history table and the balance chart keep meaning exactly

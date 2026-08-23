@@ -80,6 +80,41 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .tab:hover{background:var(--button-hover);color:var(--fg)}
 .tab.is-active{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 .live{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:12px;white-space:nowrap}
+.balin{width:100%;background:var(--bg-deep);border:1px solid var(--border);padding:1px 8px;
+  color:var(--cream)}
+.balin:focus{outline:none;border-color:var(--accent)}
+
+/* ── what every outcome pays, and how often ──────────────────────────────
+   One cell per possible number of hits, the multiplier over the count, and
+   the exact odds on hover. The probability is P(exactly h hits), not h or
+   better - the cell describes one outcome, so it quotes that outcome. */
+.paytable{display:grid;gap:3px}
+.pt{position:relative;text-align:center;cursor:default}
+.pt .pmult{background:var(--button);border:1px solid var(--border);border-bottom:0;
+  font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);padding:5px 2px}
+.pt.pays .pmult{color:var(--accent)}
+.pt .phits{background:var(--bg-deep);border:1px solid var(--border);padding:4px 2px;
+  font-family:var(--mono);font-size:11.5px;color:var(--faint);
+  display:flex;align-items:center;justify-content:center;gap:5px}
+.pt.pays .phits{color:var(--fg-2)}
+.pt .phits i{width:8px;height:8px;background:var(--track);display:block}
+.pt.pays .phits i{background:var(--green)}
+.pt:hover .pmult{background:var(--button-hover);color:var(--fg)}
+.pt .ptip{display:none;position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%);
+  z-index:30;background:var(--card);border:1px solid var(--border);padding:8px 10px;
+  grid-template-columns:auto auto;gap:10px;white-space:nowrap}
+.pt:hover .ptip{display:grid}
+.pt:first-child .ptip{left:0;transform:none}
+.pt:last-child .ptip{left:auto;right:0;transform:none}
+.ptip .pcol span{display:block;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--faint);font-weight:700;margin-bottom:3px}
+.ptip .pcol b{display:block;background:var(--bg-deep);border:1px solid var(--border);
+  padding:3px 8px;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--fg)}
+.pt .ptip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border:6px solid transparent;border-top-color:var(--border)}
+.pt:first-child .ptip::after{left:22px}
+.pt:last-child .ptip::after{left:auto;right:22px;transform:none}
+
 .balbig{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:30px;font-weight:700;
   letter-spacing:-.03em;line-height:1.05;color:var(--cream)}
 .balsub{font-size:11.5px;color:var(--faint);margin-top:4px}
@@ -568,14 +603,14 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
     <div class="playtop">
     <button class="ghost" id="btnBack">&larr;&nbsp; Go back</button>
-    <div class="tiles six">
+    <div class="tiles six" id="pStrip">
       <div class="tile"><div class="k">Round</div><div class="v cream" id="p-round">1</div>
         <div class="d" id="p-roundD">of this run</div></div>
       <div class="tile"><div class="k">Level</div><div class="v amber" id="p-level">1</div>
         <div class="d" id="p-levelD">of 3 before you bankrupt</div></div>
       <div class="tile"><div class="k" id="kSpin">Spin</div><div class="v" id="p-spin">0</div>
         <div class="d" id="p-spinD">of 350 on this level</div></div>
-      <div class="tile"><div class="k">Bet</div><div class="v" id="p-bet">$1.00</div>
+      <div class="tile" id="betTile"><div class="k">Bet</div><div class="v" id="p-bet">$1.00</div>
         <div class="d" id="p-betD">per spin</div></div>
       <div class="tile"><div class="k">Put in</div><div class="v" id="p-stk">$0</div>
         <div class="d">this round</div></div>
@@ -611,9 +646,16 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="playLadderCard">
           <div class="cardhead"><h2>The Martingaler</h2></div>
           <div class="cardbody"><div class="levels" id="playLevels"></div></div>
+        </div>
+
+        <!-- what every outcome on this board pays, and how often it comes.
+             Sandbox only: with no ladder to describe, this is what the space
+             under the board is for. -->
+        <div class="card" id="paytableCard" hidden>
+          <div class="cardbody" style="padding:6px"><div class="paytable" id="paytable"></div></div>
         </div>
 
       </div>
@@ -623,6 +665,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardhead"><h2>Balance</h2></div>
           <div class="cardbody">
             <div class="balbig n" id="bal">$2,000.00</div>
+            <input class="balbig n balin" id="balEdit" type="number" min="0.01" step="10" hidden
+                   aria-label="Balance">
+            <label class="f" id="betEditWrap" hidden style="margin-top:8px"><span>Bet</span>
+              <input type="number" id="betEdit" min="0.01" step="0.5"></label>
           </div>
         </div>
 
@@ -654,7 +700,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="oddsCard">
           <div class="cardhead"><h2>Where you stand</h2></div>
           <div class="cardbody stack">
             <div>
@@ -1951,6 +1997,38 @@ function paintResult(){
   box.hidden = false;
 }
 
+/* 1000x reads as 1K on the strip, the way the board itself writes it */
+function multLabel(v){
+  if (!v) return "0x";
+  return v >= 1000 ? (v / 1000) + "K" : v + "x";
+}
+/* the exact chance of exactly this many hits, at the precision the number
+   deserves - eight decimals covers everything down to 10 of 10 */
+function chanceLabel(p){
+  var v = 100 * p;
+  var t = v.toFixed(8);
+  if (t.indexOf(".") !== -1) t = t.replace(/0+$/, "").replace(/\.$/, "");
+  return t + "%";
+}
+function paintPaytable(){
+  var c = S.cfg;
+  var on = c && c.game === "keno" && c.strat === "flat";
+  $("paytableCard").hidden = !on;
+  if (!on) return;
+  var k = c.picks, bet = c.levels[0].bet, html = "";
+  for (var h = 0; h <= k; h++){
+    var pay = (KENO_PAYS[k] || {})[h] || 0;
+    html += '<div class="pt' + (pay ? " pays" : "") + '">' +
+      '<div class="pmult">' + multLabel(pay) + '</div>' +
+      '<div class="phits">' + h + '<i></i></div>' +
+      '<div class="ptip">' +
+        '<div class="pcol"><span>Payout</span><b>' + m2(pay * bet) + '</b></div>' +
+        '<div class="pcol"><span>Chance</span><b>' + chanceLabel(kenoP(k, h)) + '</b></div>' +
+      '</div></div>';
+  }
+  $("paytable").innerHTML = html;
+  $("paytable").style.gridTemplateColumns = "repeat(" + (k + 1) + ",1fr)";
+}
 function paintPlay(){
   var c = S.cfg, r = S.run;
   var ri = r.over ? -1 : levelAt(c, r.done);
@@ -2047,6 +2125,27 @@ function paintPlay(){
   $("btnSpin").className = "primary" + (c.game === "limbo" ? " teal" : "");
   $("btnRandom").hidden = c.game !== "keno";
   $("btnRandom").textContent = "Random " + c.picks;
+
+  /* THE SANDBOX BOARD DESCRIBES ITSELF, NOT A PLAN. The ladder card and the
+     "where you stand" odds are both readings of a ladder that is not there, so
+     they go; the paytable takes the ladder's place under the board. The bet
+     leaves the stats strip and becomes something you can type, next to a
+     balance you can also type. */
+  var sand = c.strat === "flat";
+  $("playLadderCard").hidden = sand;
+  $("oddsCard").hidden       = sand;
+  $("betTile").hidden        = sand;
+  $("pStrip").classList.toggle("six", !sand);
+  $("pStrip").classList.toggle("five", sand);
+  $("bal").hidden        = sand;
+  $("balEdit").hidden    = !sand;
+  $("betEditWrap").hidden = !sand;
+  if (sand){
+    /* never fight the keyboard: a field being typed into is left alone */
+    if (document.activeElement !== $("balEdit")) $("balEdit").value = +S.balance.toFixed(2);
+    if (document.activeElement !== $("betEdit")) $("betEdit").value = +c.levels[0].bet.toFixed(2);
+  }
+  paintPaytable();
   /* Random N is keno-only, so on limbo Auto would sit alone on its row. */
   var batchRowAuto = c.game === "limbo";
   if (batchRowAuto && $("btnAuto").parentNode !== $("batchRow")) $("batchRow").appendChild($("btnAuto"));
@@ -2673,6 +2772,27 @@ $("board").addEventListener("click", function(e){
     var f2 = readForm(); f2.bank = S.balance; S.cfg = derive(f2);
   }
   saveState(); paintPlay();
+});
+/* Editing either of these rebuilds the config, so the next bet and every
+   payout on the strip follow immediately. Setting the balance also resets the
+   baseline the run is measured against - in a sandbox "this is my balance now"
+   is the whole point, and a profit line counted from a number you replaced
+   would be measuring nothing. */
+function sandboxRebuild(){
+  if (!S.cfg || S.cfg.strat !== "flat") return;
+  var f = readForm(); f.bank = S.balance; S.cfg = derive(f);
+}
+$("balEdit").addEventListener("input", function(){
+  var v = +$("balEdit").value;
+  if (!(v > 0)) return;
+  S.balance = v; S.startBank = v;
+  sandboxRebuild(); saveState(); paintPlay();
+});
+$("betEdit").addEventListener("input", function(){
+  var v = +$("betEdit").value;
+  if (!(v > 0)) return;
+  $("base").value = v;
+  sandboxRebuild(); saveState(); paintPlay();
 });
 $("btnRandom").addEventListener("click", function(){
   var want = S.cfg ? S.cfg.picks : 6, pool = POOL.slice();
