@@ -62,43 +62,70 @@ a hunt is however many runs you play off one balance.
 5. From there, **Keep going** re-opens the table with your balance intact, or
    **Start over** returns to setup for a fresh hunt.
 
-### How many numbers, and which tier you are chasing
+### How many numbers, and which tier ends a round
 
 Keno runs on **1 to 10 picks**, each with Stake's high-risk paytable for that
 count. Every one of the ten returns between **98.65% and 99.01%** against the
-exact distribution — 2 picks is the outlier at 98.65%, and that is arithmetic
+exact distribution - 2 picks is the outlier at 98.65%, and that is arithmetic
 rather than a typo in the table.
 
 Changing the count raises a question the count does not answer: **which paying
-tier is the one you are waiting for.** It decides everything downstream, because
-the level length is the payout, so the target sets the shape of the whole
-ladder. The page chooses it and then says so on screen, under the selector.
+tier ends a round.** It decides everything downstream, because the level length
+is the payout, so the target sets the shape of the whole ladder.
 
-The rule is the property BILLSKIE's own ladder already has. His level is 350
-spins chasing a 350x that lands once in 494 — a 50.8% chance of arriving inside
-the level it pays for. So: **pick the tier whose own payout, used as a level
-length, comes closest to an even chance of landing within it.**
+| picks | 1 | 2 | 3 | 4 | 5 | **6** | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| target | 1/1 | 2/2 | 3/3 | 4/4 | 5/5 | **5/6** | 6/7 | 6/8 | 7/9 | 7/10 |
+| pays | 3.96x | 17.1x | 81.5x | 259x | 450x | **350x** | 400x | 270x | 500x | 63x |
 
-| picks | target | pays | 1 in |
-|---|---|---|---|
-| 1 | 1 of 1 | 3.96x | 4 |
-| 2 | 2 of 2 | 17.1x | 17 |
-| 3 | 3 of 3 | 81.5x | 82 |
-| 4 | 4 of 4 | 259x | 435 |
-| 5 | 4 of 5 | 48x | 100 |
-| **6** | **5 of 6** | **350x** | **494** |
-| 7 | 5 of 7 | 90x | 161 |
-| 8 | 4 of 8 | 5x | 11 |
-| 9 | 4 of 9 | 4x | 7 |
-| 10 | 4 of 10 | 3.5x | 5 |
+These are chosen, not derived. An earlier version picked the tier whose payout,
+used as a level length, came closest to an even chance of landing inside it -
+which is the property BILLSKIE's ladder has. On eight or more numbers that rule
+returned a 3.5x consolation tier, and martingaling a 3.5x is not a strategy.
 
-Six picks returns 350x, which is where the whole thing started. Ten returns a
-tier you could actually sit through rather than the 1000x that turns up once in
-847 million and would price a level nobody survives.
+Nothing on screen names the target. The ladder itself says it: a level is the
+payout long, and the round-over card tells you what hit.
+
+### Only 3, 4 and 6 can be laddered
+
+A martingale is only a martingale if the level covers a real share of the wait
+for the tier it is priced against - that is what makes a hit recover everything
+staked under it. Measured on the shipped engine, $1,400 at a $1 opening bet,
+riding until broke, 2,500 runs of up to 40 rounds each:
+
+| picks | target | level covers | rounds won | runs that lost everything |
+|---|---|---|---|---|
+| **3** | 3 of 3 - 81.5x | 99.0% | 93.4% | 69.4% |
+| **6** | 5 of 6 - 350x | 70.9% | 77.7% | 96.5% |
+| **4** | 4 of 4 - 259x | 59.5% | 74.7% | 97.8% |
+| 8 | 6 of 8 - 270x | 33.4% | 52.0% | 99.9% |
+| 5 | 5 of 5 - 450x | 17.2% | 29.2% | 100% |
+| 7 | 6 of 7 - 400x | 13.8% | 24.4% | 100% |
+| 9 | 7 of 9 - 500x | 9.8% | 18.7% | 100% |
+| 10 | 7 of 10 - 63x | 3.8% | 9.5% | 100% |
+
+Below the cliff the ladder loses most of its rounds, and since every game here
+returns 99% of turnover no matter how you bet it, a strategy that loses more
+rounds **and** stakes far more per round is strictly worse than flat betting.
+The Wald check makes that concrete: on 5, 7, 9 and 10 picks, three thousand runs
+out of three thousand ended at exactly minus the whole balance. Not usually -
+every one.
+
+So **martingale offers 3, 4 and 6**; flat betting offers all ten. Eight is the
+only close call and it is left out: a ladder that loses half its rounds is not
+the thing the word describes.
+
+The pick row keeps its ten columns in both strategies, so a button is the same
+size either way and the three martingale counts do not balloon to fill the row.
 
 ### Martingale, or flat
 
-The strategy toggle is the same machine with the climb taken out. **Flat bet**
+The strategy choice is the first card on the setup screen, above the game and
+above the money, because it is the one decision that changes what every other
+control means - including which pick counts exist. It used to sit inside the
+ladder card, which put the choice of whether to have a ladder inside the ladder.
+
+It is the same machine with the climb taken out. **Flat bet**
 is one bet size, one level long enough that the balance is always what ends the
 round — so rounds, the history table and the balance chart keep meaning exactly
 what they meant, and the only thing that changes is that losing never raises the

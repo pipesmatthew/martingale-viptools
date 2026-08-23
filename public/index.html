@@ -177,13 +177,19 @@ button.primary:disabled:hover{background:var(--accent)}
 .seg > button{flex:1 1 0;text-align:center}
 .lab{display:block;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
   font-weight:700;margin-bottom:4px}
+.choose{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.choose button{appearance:none;cursor:pointer;font:inherit;text-align:left;
+  background:var(--button);border:1px solid var(--border);color:var(--muted);padding:9px 11px}
+.choose button:hover{background:var(--button-hover)}
+.choose button.on{background:#2a2118;border-color:var(--accent)}
+.choose b{display:block;font-size:13px;font-weight:700;color:var(--fg);margin-bottom:2px}
+.choose button.on b{color:var(--accent)}
+.choose i{display:block;font-style:normal;font-size:11px;color:var(--faint);line-height:1.4}
 .picks{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
 .picks button{appearance:none;cursor:pointer;font-family:var(--mono);font-size:12.5px;
   background:var(--button);color:var(--muted);border:1px solid var(--border);padding:6px 0;font-weight:600}
 .picks button:hover{background:var(--button-hover);color:var(--fg)}
 .picks button.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
-.pickinfo{margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--muted)}
-.pickinfo b{color:var(--accent);font-weight:600}
 
 /* ───────────────────────────────────────────────────── panels & cards ── */
 .panel{display:none;padding:10px 12px 40px}
@@ -430,6 +436,21 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
   <div id="view-setup">
     <div class="split">
       <div>
+        <!-- THE PRIMITIVE DECISION. It is not a ladder setting - it decides
+             whether there is a ladder at all, which counts you may pick, and
+             what every control under it means. So it goes first. -->
+        <div class="card">
+          <div class="cardhead"><h2>How you bet</h2></div>
+          <div class="cardbody">
+            <div class="choose" id="stratSeg" role="group" aria-label="Betting strategy">
+              <button data-x="mart" class="on"><b>Martingale</b>
+                <i>Double the stake every level that comes up dry, chasing one big multiplier.</i></button>
+              <button data-x="flat"><b>Flat bet</b>
+                <i>One stake, never changed. No round can take more than one bet off you.</i></button>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="cardhead"><h2>Which game</h2></div>
           <div class="cardbody">
@@ -441,7 +462,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             <div id="kenoOpts" style="margin-top:11px">
               <span class="lab">Numbers picked</span>
               <div class="picks" id="pickSeg"></div>
-              <div class="pickinfo" id="pickInfo"></div>
             </div>
 
             <div id="limboOpts" hidden style="margin-top:11px">
@@ -471,11 +491,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardhead"><h2 id="ladderTitle">The Martingaler</h2><span class="grow"></span>
             <button class="ghost" id="resetLadder" style="font-size:11.5px;padding:2px 9px">Reset to BILLSKIE's</button></div>
           <div class="cardbody">
-            <div class="seg" id="stratSeg" role="group" aria-label="Betting strategy"
-                 style="margin-bottom:11px">
-              <button data-x="mart" class="on">Martingale</button>
-              <button data-x="flat">Flat bet</button>
-            </div>
             <div class="grid2" style="margin-bottom:9px">
               <label class="f"><span id="baseLab">Initial bet</span>
                 <input type="number" id="base" value="1" min="0.01" step="0.5"></label>
@@ -1003,17 +1018,40 @@ var KENO_PAYS = {
 };
 function kenoP(k, h){ return C(10,h) * C(30,k-h) / C(40,k); }
 
-/* WHICH TIER IS THE ONE YOU ARE WAITING FOR. Picking a count does not answer
-   that on its own, and it decides everything: the level length is the payout,
+/* WHICH TIER ENDS A ROUND, per pick count. The count does not answer this on
+   its own and it decides everything downstream: the level length IS the payout,
    so the target sets the shape of the whole ladder.
 
-   The rule is the property BILLSKIE's own ladder has. His level is 350 spins
-   chasing a 350x that lands once in 494, which is a 50.8% chance of landing
-   inside the level it pays for. So: choose the tier whose own payout, used as a
-   level length, comes closest to an even chance of arriving within it. On six
-   picks that returns the 350x, which is where we started. On ten it returns a
-   tier you could actually sit through, rather than the 1000x that turns up once
-   in 847 million. */
+   These are chosen, not derived. An earlier version picked the tier whose
+   payout, used as a level length, came closest to an even chance of landing
+   inside it - which is the property BILLSKIE's ladder has, but on eight or more
+   numbers it returned a 3.5x consolation tier, and martingaling a 3.5x is not
+   a strategy, it is a rounding error with extra steps. */
+var KENO_TARGET = { 1:1, 2:2, 3:3, 4:4, 5:5, 6:5, 7:6, 8:6, 9:7, 10:7 };
+
+/* WHICH COUNTS CAN BE LADDERED AT ALL. A martingale is only a martingale if the
+   level covers a real share of the wait for the tier it is priced against -
+   that is what makes a hit recover everything staked under it. Measured on the
+   shipped engine at $1,400 and a $1 opening bet, riding until broke:
+
+     picks   target      level covers    rounds won
+       3     3 of 3  81.5x     99.0%        93.4%
+       4     4 of 4   259x     59.5%        74.7%
+       6     5 of 6   350x     70.9%        77.7%
+     ------------------------------------------------ the cliff
+       8     6 of 8   270x     33.4%        52.0%
+       5     5 of 5   450x     17.2%        29.2%
+       7     6 of 7   400x     13.8%        24.4%
+       9     7 of 9   500x      9.8%        18.7%
+      10     7 of 10   63x      3.8%         9.5%
+
+   Below the cliff the ladder loses most of its rounds, and since every game
+   here returns 99% of turnover regardless, a strategy that loses more rounds
+   AND stakes more per round is strictly worse than flat betting. Those counts
+   are flat-bet only. */
+var MART_PICKS = [3, 4, 6];
+function martOK(k){ return MART_PICKS.indexOf(k) !== -1; }
+
 function kenoTiers(k){
   var out = [];
   for (var h = 0; h <= k; h++){
@@ -1026,16 +1064,6 @@ function kenoStopRate(k, target){
   var q = 0;
   for (var h = target; h <= k; h++) if ((KENO_PAYS[k] || {})[h]) q += kenoP(k, h);
   return q;
-}
-function kenoAutoTarget(k){
-  var t = kenoTiers(k), best = t.length ? t[t.length-1].hits : k, score = Infinity;
-  for (var i = 0; i < t.length; i++){
-    var q = kenoStopRate(k, t[i].hits);
-    var inLevel = 1 - Math.pow(1 - q, Math.max(1, Math.round(t[i].pay)));
-    var d = Math.abs(inLevel - 0.5);
-    if (d < score){ score = d; best = t[i].hits; }
-  }
-  return best;
 }
 function kenoRTP(k){
   var s = 0, t = kenoTiers(k);
@@ -1199,9 +1227,9 @@ function readForm(){
   };
 }
 function writeForm(f){
+  setStrat(f.strat === "flat" ? "flat" : "mart");
   setPicks(clamp(Math.round(f.picks || 6), 1, 10));
   setGame(f.game === "limbo" ? "limbo" : "keno");
-  setStrat(f.strat === "flat" ? "flat" : "mart");
   setBail(f.mode === "fixed" ? "fixed" : "broke");
   $("lmult").value = f.lmult; $("base").value = f.base; $("stepx").value = f.stepx;
   $("len1").value  = f.len1;  $("lenN").value = f.lenN; $("levels").value = f.count;
@@ -1236,7 +1264,7 @@ function derive(f){
     c.mode = "broke";
   }
   /* the payout that ends a round, and how often it comes */
-  c.target = c.game === "limbo" ? 0 : kenoAutoTarget(c.picks);
+  c.target = c.game === "limbo" ? 0 : KENO_TARGET[c.picks];
   c.stop = c.game === "limbo" ? 0.99 / lmult : kenoStopRate(c.picks, c.target);
   c.pay  = c.game === "limbo" ? lmult : (KENO_PAYS[c.picks] || {})[c.target];
   /* THE LADDER IS NOT CUT TO THE OPENING BALANCE. It used to be, and that made
@@ -1457,11 +1485,18 @@ function setGame(g){
 }
 
 function setPicks(k){
+  /* the strategy decides which counts are on offer, so it decides this row */
+  var mart = $("stratSeg").querySelector("button.on").getAttribute("data-x") === "mart";
+  var list = mart ? MART_PICKS : [1,2,3,4,5,6,7,8,9,10];
+  if (list.indexOf(k) === -1) k = mart ? 6 : clamp(k, 1, 10);
   var html = "";
-  for (var i = 1; i <= 10; i++){
-    html += '<button data-k="' + i + '"' + (i === k ? ' class="on"' : '') + '>' + i + '</button>';
+  for (var i = 0; i < list.length; i++){
+    html += '<button data-k="' + list[i] + '"' + (list[i] === k ? ' class="on"' : '') + '>' +
+            list[i] + '</button>';
   }
   $("pickSeg").innerHTML = html;
+  /* the row keeps ten columns whatever it offers, so a button is the same size
+     in both strategies and the three martingale counts do not balloon */
   /* keep the board legal: too many picks for the new count, drop the oldest */
   while (S.picks.length > k) S.picks.shift();
   var pool = POOL.slice();
@@ -1482,6 +1517,10 @@ function setStrat(x){
   $("ladderTitle").textContent = flat ? "Flat betting" : "The Martingaler";
   $("baseLab").textContent     = flat ? "Every bet" : "Initial bet";
   $("resetLadder").hidden      = flat;
+  /* martingale offers three counts, flat offers ten - and coming back to
+     martingale off 9 picks has to land somewhere legal */
+  var cur = $("pickSeg").querySelector("button.on");
+  setPicks(cur ? +cur.getAttribute("data-k") : 6);
 }
 function setBail(m){
   $$("#bailSeg button").forEach(function(b){
@@ -1508,12 +1547,7 @@ function paintSetup(){
       ? "before the money runs out" : "you chose to ride";
   }
   $("lchance").value = pct(0.99/c.lmult, 3);
-  /* THE TARGET IS PICKED FOR YOU and it decides every number on this screen,
-     so it is named rather than left implicit: the tier whose payout, used as a
-     level length, gives about an even chance of landing inside the level it
-     pays for. On six numbers that is BILLSKIE's 350x. */
-  $("pickInfo").innerHTML = "chasing <b>" + c.target + " of " + c.picks + "</b> " + DOT +
-    " pays <b>" + c.pay + "x</b> " + DOT + " 1 in " + num(Math.round(1/c.stop)) + " spins";
+
 
   var shown = fundedLevels(c, c.bank), html = "";
   for (var i=0;i<shown.length;i++){
@@ -2388,19 +2422,23 @@ $$("#gameSeg button").forEach(function(b){
     paintSetup();
   });
 });
+function priceLadder(){
+  /* the level length IS the payout, so the target resizes the ladder */
+  var c0 = derive(readForm());
+  $("len1").value = Math.max(1, Math.round(c0.pay));
+  $("lenN").value = Math.max(1, Math.round(c0.pay / 2));
+}
 $("stratSeg").addEventListener("click", function(e){
   var b = e.target.closest("button[data-x]"); if (!b) return;
   setStrat(b.getAttribute("data-x"));
+  priceLadder();
   paintSetup();
 });
 $("pickSeg").addEventListener("click", function(e){
   var b = e.target.closest("button[data-k]"); if (!b) return;
   var k = +b.getAttribute("data-k");
   setPicks(k);
-  /* the level length IS the payout, so a new target resizes the ladder */
-  var c0 = derive(readForm());
-  $("len1").value = Math.max(1, Math.round(c0.pay));
-  $("lenN").value = Math.max(1, Math.round(c0.pay / 2));
+  priceLadder();
   paintSetup();
 });
 $("lmult").addEventListener("input", function(){
