@@ -219,7 +219,9 @@ payout on the strip follow immediately; setting the balance also resets the
 baseline the run is measured against, since a profit line counted from a number
 you replaced is measuring nothing.
 
-**The paytable strip** takes the ladder's place under the board: one cell per
+**The paytable strip** sits under the board in both modes - what a draw pays
+and how often it comes is a fact about the board, not about the strategy on it -
+above the ladder card on a martingale run and alone in the sandbox. One cell per
 possible number of hits, the multiplier over the count, and on hover the payout
 at your current bet and the exact chance of that outcome. The chance is
 P(exactly h hits), not h or better, because the cell describes one outcome. At
@@ -411,7 +413,13 @@ moment the strategy costs you something.
 
 A single spin always turns its draw over at the same pace, about a second, and
 the slider has nothing to do with it: the slider decides how often a bet is
-placed, not how a bet is shown. Autoplay does not animate at all.
+placed, not how a bet is shown.
+
+Autoplay animates too, while there is room for it. The draw has to finish inside
+the gap before the next bet, so it takes three quarters of that gap - 75ms a
+tile at 1/s, 25ms at 3/s, 19ms at 4/s - and past four bets a second there is
+nothing left to see, so the draw lands at once. The reveal disables Spin but
+never Auto: you have to be able to stop it while it is running.
 
 The slider next to Auto sets the rate, with the rate it is running at now on its
 right. The scale is logarithmic - `10^(v/50)` spins a second, so 0 is one a
@@ -424,12 +432,9 @@ you have to stop to use is not a slider.
 ### Reveal speed and sound
 
 There is no Normal / Faster / Instant any more, because there is no second
-speed to set. The same slider paces the reveal: slow enough and keno turns its
-draw over one tile at a time with its noises, and past four spins a second there
-is no room for an animation between one spin and the next, so the draw lands at
-once. The reveal takes three quarters of the gap between spins, so it always
-finishes before the following spin starts - 75ms a tile at 1/s, 25ms at 3/s,
-19ms at 4/s, nothing above that. Limbo's climb is paced the same way.
+speed to set. The same slider paces the reveal: a single spin always takes about a
+second, and autoplay fits its reveal inside the gap before the next bet until
+there is no gap left to fit it in. Limbo's climb is paced the same way.
 
 Sound is synthesised with the Web Audio API - no files, no requests, nothing the
 CSP has to allow - and each hit in a draw rings a step higher.

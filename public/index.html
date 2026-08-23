@@ -677,17 +677,16 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           </div>
         </div>
 
+        <!-- what every outcome on this board pays, and how often it comes -->
+        <div class="card" id="paytableCard" hidden>
+          <div class="cardbody" style="padding:6px"><div class="paytable" id="paytable"></div></div>
+        </div>
+
         <div class="card" id="playLadderCard">
           <div class="cardhead"><h2>The Martingaler</h2></div>
           <div class="cardbody"><div class="levels" id="playLevels"></div></div>
         </div>
 
-        <!-- what every outcome on this board pays, and how often it comes.
-             Sandbox only: with no ladder to describe, this is what the space
-             under the board is for. -->
-        <div class="card" id="paytableCard" hidden>
-          <div class="cardbody" style="padding:6px"><div class="paytable" id="paytable"></div></div>
-        </div>
 
       </div>
 
@@ -1190,11 +1189,21 @@ function autoSps(){ return rateSps(+$("autoRate").value || 0); }
 
 /* A SINGLE SPIN ALWAYS TURNS OVER AT THE SAME PACE - a second for the draw,
    whatever the slider says. The slider is autoplay's: it decides how often a
-   bet is placed, not how a bet is shown. Tying the two together meant pressing
-   Spin once gave you an animation whose speed depended on a control you had
-   set for something else entirely. Autoplay does not animate at all. */
+   bet is placed, not how a bet is shown, and pressing Spin once should not give
+   you an animation paced by a control set for something else. */
 var REVEAL_TOTAL = 750;
 function revealMs(steps){ return Math.max(12, Math.round(REVEAL_TOTAL / steps)); }
+
+/* AUTOPLAY ANIMATES TOO, while there is room for it. The draw has to finish
+   inside the gap before the next bet, so it takes three quarters of that gap;
+   past four bets a second there is nothing left to see and the draw lands at
+   once. */
+var REVEAL_MAX_SPS = 4;
+function autoRevealMs(steps){
+  var sps = autoSps();
+  if (sps > REVEAL_MAX_SPS) return 0;
+  return Math.max(12, Math.round(1000 / sps * 0.75 / steps));
+}
 
 /* mulberry32 has 32 bits of state and it shows: measured over 300 million
    draws it returns u <= 0.099 about 0.1% too often (combined z = 4.3 across
@@ -1905,11 +1914,10 @@ function paintBoard(){
   $("board").classList.toggle("revealing", S.animating);
 }
 
-function revealLimbo(done){
+function revealLimbo(done, every){
   var target = S.run.last.mult, steps = 14, i = 0;
-  var every = revealMs(steps);
   S.animating = true;
-  $("btnSpin").disabled = true; $("btnAuto").disabled = true;
+  $("btnSpin").disabled = true;          /* not Auto - you must be able to stop */
   (function tick(){
     i += 1;
     var p = i / steps, eased = 1 - Math.pow(1 - p, 3);
@@ -1922,11 +1930,11 @@ function revealLimbo(done){
 
 /* Turns one draw over a tile at a time instead of all at once, whenever the
    speed leaves room for it. */
-function revealDraw(done){
+function revealDraw(done, every){
   var all = S.run.last.drawn;
   S.animating = true; S.revealUpto = 0;
   var hits = 0;
-  $("btnSpin").disabled = true; $("btnAuto").disabled = true;
+  $("btnSpin").disabled = true;          /* not Auto - you must be able to stop */
   (function next(){
     if (S.revealUpto >= all.length){
       S.animating = false; S.revealUpto = null;
@@ -1937,7 +1945,7 @@ function revealDraw(done){
     S.revealUpto += 1;
     paintBoard();
     if (S.picks.indexOf(v) !== -1){ hits += 1; ping(hits); }
-    setTimeout(next, revealMs(all.length));
+    setTimeout(next, every);
   })();
 }
 function paintTape(){
@@ -2135,7 +2143,9 @@ function chanceLabel(p){
 }
 function paintPaytable(){
   var c = S.cfg;
-  var on = c && c.game === "keno" && c.strat === "flat" && S.picks.length > 0;
+  /* every keno board has a paytable, ladder or not - what a draw pays and how
+     often it comes is a fact about the board, not about the strategy on it */
+  var on = c && c.game === "keno" && S.picks.length > 0;
   $("paytableCard").hidden = !on;
   if (!on) return;
   var k = c.picks, bet = c.levels[0].bet, html = "";
@@ -2727,10 +2737,15 @@ function stopAuto(){
   $("btnAuto").innerHTML = "Auto &#9654;";
 }
 function autoTick(){
+  if (S.animating) return;               /* the last draw is still turning over */
   if (!S.run || S.run.over || !canBet()){ stopAuto(); paintPlay(); return; }
   step();
   if (S.pop && S.pop.levelUp) stopAuto();
-  paintPlay();
+  var every = REDUCED || !S.run.last ? 0 : autoRevealMs(
+    S.cfg.game === "keno" ? (S.run.last.drawn || []).length || 1 : 14);
+  if (every && S.cfg.game === "keno" && S.run.last.drawn) revealDraw(paintPlay, every);
+  else if (every && S.cfg.game === "limbo") revealLimbo(paintPlay, every);
+  else paintPlay();
 }
 function toggleAuto(){
   if (S.timer){ stopAuto(); return; }
@@ -2844,8 +2859,8 @@ $("btnSpin").addEventListener("click", function(){
   $("pop").hidden = true;        /* clears on the press, not at the end of the reveal */
   step();
   var animate = !REDUCED && S.run.last;
-  if (animate && S.cfg.game === "keno" && S.run.last.drawn) revealDraw(paintPlay);
-  else if (animate && S.cfg.game === "limbo") revealLimbo(paintPlay);
+  if (animate && S.cfg.game === "keno" && S.run.last.drawn) revealDraw(paintPlay, revealMs(S.run.last.drawn.length));
+  else if (animate && S.cfg.game === "limbo") revealLimbo(paintPlay, revealMs(14));
   else {
     if (S.cfg.game === "limbo" && S.run.last) limboTick(S.run.last.mult, S.cfg.lmult);
     paintPlay();
