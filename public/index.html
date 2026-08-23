@@ -34,7 +34,8 @@
    A COLOUR IS A STATEMENT, NOT DECORATION, and the same colour never
    means two things on one screen:
        amber   the house colour - active, and the keno game
-       teal    the limbo game
+       teal    the limbo game (azure - hue 205, near the complement of amber;
+               it was #3d9a9a, which went green beside a warm accent)
        green   it landed / you are up
        red     it did not / you are down
        cream   this one is yours (your balance, your row)
@@ -44,7 +45,7 @@
   --bg:#131316; --bg-deep:#131316; --card:#1b1b1f; --border:#2c2c32;
   --button:#242429; --button-hover:#2f2f37; --track:#3a3a42;
   --fg:#f0f0f2; --fg-2:#e6e6ea; --muted:#a4a4ad; --faint:#8b8b93;
-  --accent:#ffb454; --live:#e53935; --cream:#e8e2c4; --teal:#3d9a9a;
+  --accent:#ffb454; --live:#e53935; --cream:#e8e2c4; --teal:#4d9de0;
   --green:#4ade80; --danger:#e06c5a;
   --gold:#ffc94a; --silver:#aab3c0; --bronze:#b0703a; --tick:#9a9086;
   --sans:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
@@ -162,7 +163,7 @@ button.ghost.amber{color:var(--accent);border-color:#4a3a20}
 button.ghost.amber:hover{color:var(--accent);background:#2a2118}
 button.primary{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 button.primary:hover{filter:brightness(1.07)}
-button.primary.teal{background:var(--teal);border-color:var(--teal);color:#08191a}
+button.primary.teal{background:var(--teal);border-color:var(--teal);color:#0c1620}
 button:disabled{opacity:.35;cursor:default}
 button:disabled:hover{background:var(--button);color:var(--muted);filter:none}
 button.primary:disabled:hover{background:var(--accent)}
@@ -171,7 +172,7 @@ button.primary:disabled:hover{background:var(--accent)}
   color:var(--muted);border:1px solid var(--border);border-radius:0;padding:3px 14px;white-space:nowrap}
 .seg button:hover{background:var(--button-hover);color:var(--fg)}
 .seg button.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
-.seg button.on.teal{background:var(--teal);border-color:var(--teal);color:#08191a}
+.seg button.on.teal{background:var(--teal);border-color:var(--teal);color:#0c1620}
 .seg.big{gap:5px}
 .seg.big button{flex:1 1 0;padding:9px 10px;font-size:13.5px;font-weight:600}
 /* every segmented group divides its row evenly - buttons sized by their own
@@ -210,6 +211,7 @@ button.primary:disabled:hover{background:var(--accent)}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:5px}
 
 /* ───────────────────────────────────────────────────────────── tiles ── */
+.backrow{margin-bottom:5px}
 .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;grid-auto-rows:1fr;
   background:var(--border);border:1px solid var(--border);overflow:hidden;margin-bottom:5px}
 .tiles.six{grid-template-columns:repeat(6,1fr)}
@@ -252,7 +254,7 @@ td.empty{color:var(--faint);text-align:center;padding:20px}
 .pill.dry{background:var(--button);color:var(--faint)}
 .pill.bust{background:#2a1714;color:var(--danger)}
 .pill.amber{background:#2e2313;color:var(--accent)}
-.pill.tealp{background:#12292a;color:var(--teal)}
+.pill.tealp{background:#111f2c;color:var(--teal)}
 
 /* ─────────────────────────────────────────────────────────── controls ── */
 label.f{display:block}
@@ -344,7 +346,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .levels > .level:last-child.fill{grid-column:1/-1}
 .level{border:1px solid var(--border);background:var(--bg-deep);padding:7px 9px;min-width:0}
 .level.here{border-color:var(--accent);background:#221b0f}
-.level.here.teal{border-color:var(--teal);background:#12292a}
+.level.here.teal{border-color:var(--teal);background:#111f2c}
 .level.spent{opacity:.45}
 .level .rk{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--faint);font-weight:700}
@@ -384,7 +386,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .callout{margin:0;padding:11px 14px;background:#2e2313;border-left:2px solid var(--accent);
   font-size:12.5px;color:var(--fg-2)}
 .callout.warn{background:#2a1714;border-left-color:var(--danger)}
-.callout.tealc{background:#12292a;border-left-color:var(--teal)}
+.callout.tealc{background:#111f2c;border-left-color:var(--teal)}
 .callout b{color:var(--fg);font-weight:700}
 .prose{margin:0 0 11px;color:var(--fg-2);font-size:13.5px;max-width:74ch}
 .prose:last-child{margin-bottom:0}
@@ -481,7 +483,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="card">
           <div class="cardhead"><h2 id="ladderTitle">The Martingaler</h2><span class="grow"></span>
             <button class="ghost amber" id="optBet" style="font-size:11.5px;padding:2px 9px">Optimal bet</button>
-            <button class="ghost" id="resetLadder" style="font-size:11.5px;padding:2px 9px">Reset to BILLSKIE's</button></div>
+</div>
           <div class="cardbody">
             <div class="grid2" style="margin-bottom:9px">
               <label class="f"><span id="baseLab">Initial bet</span>
@@ -545,6 +547,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
   <!-- ── play it ─────────────────────────────────────────────────── -->
   <div id="view-play" hidden>
+
+    <div class="backrow"><button class="ghost" id="btnBack">&larr;&nbsp; Go back</button></div>
 
     <div class="tiles six">
       <div class="tile"><div class="k">Round</div><div class="v cream" id="p-round">1</div>
@@ -916,8 +920,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         happening on screen while you wait.</p>
       </div>
     </div>
-    <div class="card" style="margin:0;border-color:#1e4142">
-      <div class="cardhead" style="border-bottom-color:#1e4142"><h2 style="color:var(--teal)">Pick limbo if&hellip;</h2></div>
+    <div class="card" style="margin:0;border-color:#1f3d55">
+      <div class="cardhead" style="border-bottom-color:#1f3d55"><h2 style="color:var(--teal)">Pick limbo if&hellip;</h2></div>
       <div class="cardbody">
         <p class="prose">you'd rather win more often and be done sooner. 350x comes up every 353 rolls instead
         of every 494, so nearly nine runs in ten end well and a typical run is 70 rolls shorter. The price is
@@ -1245,6 +1249,11 @@ function derive(f){
     walk: Math.max(0, f.walk),
     picks: clamp(Math.round(f.picks || 6), 1, 10)
   };
+  /* IN THE SANDBOX THE BOARD IS THE SETTING. There is no pick row to read, so
+     the count is however many tiles are on the board right now. */
+  if (c.strat === "flat" && c.game === "keno"){
+    c.picks = clamp(S.picks.length || 6, 1, 10);
+  }
   /* FLAT BETTING IS THIS SAME MACHINE WITH THE CLIMB REMOVED. One bet size,
      one level long enough that the balance is always what ends the round -
      so rounds, the history table and the chart all keep meaning exactly what
@@ -1473,7 +1482,7 @@ function setGame(g){
     b.classList.toggle("teal", on && g === "limbo");
   });
   $("limboOpts").hidden = g !== "limbo";
-  $("kenoOpts").hidden  = g !== "keno";
+  $("kenoOpts").hidden  = g !== "keno" || isFlat();
 }
 
 function setPicks(k){
@@ -1501,6 +1510,10 @@ function setPicks(k){
   }
   S.picks.sort(function(a,b){ return a-b; });
 }
+function isFlat(){
+  var b = $("stratSeg").querySelector("button.on");
+  return !!b && b.getAttribute("data-x") === "flat";
+}
 function setStrat(x){
   $$("#stratSeg button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-x") === x); });
   var flat = x === "flat";
@@ -1511,8 +1524,10 @@ function setStrat(x){
   if (flat) $("levelsWrap").hidden = true;
   $("ladderTitle").textContent = flat ? "Sandbox" : "The Martingaler";
   $("baseLab").textContent     = flat ? "Every bet" : "Initial bet";
-  $("resetLadder").hidden      = flat;
   $("optBet").hidden           = flat;
+  /* the sandbox picks its numbers on the board, so the row has nothing to say */
+  $("kenoOpts").hidden = flat ||
+    $("gameSeg").querySelector("button.on").getAttribute("data-g") !== "keno";
   /* martingale offers three counts, flat offers ten - and coming back to
      martingale off 9 picks has to land somewhere legal */
   var cur = $("pickSeg").querySelector("button.on");
@@ -1969,14 +1984,17 @@ function paintPlay(){
 
   paintLevels(); paintOdds(); paintResult(); paintHistory();
 
-  /* the board has to hold exactly the count the paytable is priced for */
-  var short = c.game === "keno" && S.picks.length < c.picks;
+  /* the ladder is priced for an exact count; the sandbox only needs one number */
+  var short = c.game === "keno" &&
+              (c.strat === "flat" ? S.picks.length < 1 : S.picks.length < c.picks);
   var verb  = c.game === "limbo" ? "Roll" : "Spin";
   var dead  = r.over || short;
   if (short) stopAuto();
 
   $("btnSpin").disabled = dead; $("btnSpinN").disabled = dead; $("btnAuto").disabled = dead;
-  $("btnSpin").textContent = short ? "Pick " + (c.picks - S.picks.length) + " more" : verb;
+  $("btnSpin").textContent = !short ? verb
+    : c.strat === "flat" ? "Pick a number"
+    : "Pick " + (c.picks - S.picks.length) + " more";
   $("btnSpinN").innerHTML = verb + " &times;" + num(batchSize());
   $("btnSpin").className = "primary" + (c.game === "limbo" ? " teal" : "");
   $("btnRandom").hidden = c.game !== "keno";
@@ -2473,12 +2491,6 @@ $("lmult").addEventListener("input", function(){
   $(id).addEventListener("input", paintSetup);
 });
 $("levels").addEventListener("input", paintSetup);
-$("resetLadder").addEventListener("click", function(){
-  setGame("keno");
-  $("base").value = 1; $("stepx").value = 2; $("len1").value = 350; $("lenN").value = 175;
-  $("levels").value = 3; $("lmult").value = 350;
-  paintSetup();
-});
 $("startBtn").addEventListener("click", function(){
   var c = derive(readForm());
   if (c.levels[0].bet > c.bank){
@@ -2531,6 +2543,17 @@ $("hdrSound").addEventListener("click", function(){
   saveState();
 });
 $("hdrEnd").addEventListener("click", endHunt);
+/* Back to the setup screen. A round still running is quit rather than left
+   hanging - the money already staked on it is gone, which is what quitting a
+   round costs, and the balance and the history it earned come back with you. */
+$("btnBack").addEventListener("click", function(){
+  stopAuto();
+  $("runover").hidden = true;
+  if (S.run && !S.run.over) finish("quit");
+  saveState();
+  showView("setup");
+  paintSetup();
+});
 $("roNext").addEventListener("click", function(){ $("runover").hidden = true; startRun(false); });
 $("roUpAmt").addEventListener("input", paintUpBet);
 $("roDouble").addEventListener("click", function(){
@@ -2578,9 +2601,13 @@ $("board").addEventListener("click", function(e){
   var t = e.target.closest(".kt"); if (!t) return;
   var v = +t.getAttribute("data-t"), at = S.picks.indexOf(v);
   if (at !== -1) S.picks.splice(at, 1);              /* click it again to take it off */
-  else if (S.picks.length < (S.cfg ? S.cfg.picks : 6)) S.picks.push(v);
+  else if (S.picks.length < (S.cfg && S.cfg.strat !== "flat" ? S.cfg.picks : 10)) S.picks.push(v);
   else return;                                      /* the board is full - drop one first */
   S.picks.sort(function(a,b){ return a-b; });
+  /* in the sandbox the count IS the board, so the config follows it */
+  if (S.cfg && S.cfg.strat === "flat"){
+    var f2 = readForm(); f2.bank = S.balance; S.cfg = derive(f2);
+  }
   saveState(); paintPlay();
 });
 $("btnRandom").addEventListener("click", function(){
@@ -2590,7 +2617,10 @@ $("btnRandom").addEventListener("click", function(){
     var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
   }
   S.picks = pool.slice(0,want).sort(function(a,b){ return a-b; });
-  S.hideDraw = true;                       /* a new six starts on a clean board */
+  S.hideDraw = true;                       /* a fresh board starts clean */
+  if (S.cfg && S.cfg.strat === "flat"){
+    var f2 = readForm(); f2.bank = S.balance; S.cfg = derive(f2);
+  }
   saveState(); paintPlay();
 });
 $("board").addEventListener("keydown", function(e){

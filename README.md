@@ -155,6 +155,11 @@ It is two words in a segmented control, the same shape as the game choice - the
 options do not need explaining, and a paragraph under each one made the top of
 the screen look like documentation.
 
+**The sandbox has no setup options.** It picks its numbers on the board -
+however many you like, whenever you like, from one to ten - so the pick row and
+the optimal-bet button are not shown for it, and the count follows the board
+live. The rest of its controls will live inside the sandbox itself.
+
 It is the same machine with the climb taken out. **Sandbox**
 is one bet size, one level long enough that the balance is always what ends the
 round — so rounds, the history table and the balance chart keep meaning exactly
@@ -201,6 +206,13 @@ and the "chance before you'd give up" figure would name a bail-out point it can
 no longer reach.
 
 "A level I pick" restores the old fixed cap.
+
+### Go back
+
+Top left of the play screen, above the stats strip. It returns to setup; a round
+still running is quit rather than left hanging, which costs what is staked on it,
+and the balance and history it earned come back with you. **Start run** always
+opens a fresh hunt from the setup figures, so going back is leaving the hunt.
 
 ### The run-over popup
 
@@ -371,8 +383,11 @@ file's rules hold here:
 - **Dark only, deliberately.** No light palette is defined, and every colour is
   stated outright rather than inherited.
 - **A colour is a statement, not decoration**, and never means two things on one
-  screen: amber is active and is keno, teal is limbo, green means it landed, red
-  means it did not, cream means this one is yours.
+  screen: amber is active and is keno, azure is limbo, green means it landed,
+  red means it did not, cream means this one is yours.
+- Limbo's azure is `#4d9de0`. It was `#3d9a9a`, a desaturated teal at hue 180
+  that went slightly green beside a warm amber; azure sits at hue 205, close to
+  amber's straight complement, so the two read as opposed rather than adjacent.
 
 If `vipzone.css` changes, this file does not follow automatically. The tokens
 are copied, not imported — on purpose, so this site cannot be broken by a
