@@ -185,9 +185,28 @@ a sandbox round can be thousands of bets and is not the unit anyone is watching.
 Return is what has come back over what has gone in, against the exact RTP of the
 board you are playing, which is the number it converges to.
 
-**Hits lists every paying draw**, newest first, scrolling inside its own card so
-a long run cannot push the controls off screen. A draw better than the tier that
-ends a round is tinted. The list caps at 400 rows.
+**Hits vs expected** is a bar a tier, showing how often each one should have
+landed against how often it did. Expected is just bets x P(exactly h hits) - the
+same exact figure the paytable quotes on hover. Every row is scaled to put
+expected at the halfway tick, so a bar reaching the tick is par and one past it
+is running hot; the rows cannot share a scale, because on ten numbers four of
+them lands once in seven and all ten once in 847 million. Changing how many
+numbers are picked starts the tally again, since it is only true for the board
+it was gathered on - changing *which* numbers does not, the distribution being
+identical.
+
+**Nothing ends.** A round is a ladder idea: it exists so a martingale knows when
+to start over. The sandbox has no ladder, so a win is paid and play carries on -
+no round-over card, no Next round, no End run - and the balance simply stops
+taking bets when it cannot cover one.
+
+**A balance of zero means unlimited**, so autoplay can be left on a question that
+needs a million bets. It is a setting rather than an accident: the sandbox
+cannot lose its way to exactly nothing, because it stops before it gets there.
+
+**Limbo dials its own target**, under the number it governs, with the chance per
+roll beside it. A ladder's target is priced into the ladder and cannot move
+mid-run; a sandbox target is just a dial.
 
 **Running dry is not an ending.** There is no ladder to have failed and no plan
 to have run out of, so when the balance will not cover the next bet the board
@@ -277,6 +296,12 @@ no longer reach.
 
 "A level I pick" restores the old fixed cap.
 
+### Stop at profit
+
+A figure in the play controls, on both games. It stops **autoplay**, not the
+board: a number you typed is a plan for the machine that is betting on its own,
+and a bet you press yourself is still yours to press. Zero is off.
+
 ### Go back
 
 Top left of the play screen, beside the stats strip rather than on a line above
@@ -284,6 +309,14 @@ it, matching its height. It returns to setup; a round
 still running is quit rather than left hanging, which costs what is staked on it,
 and the balance and history it earned come back with you. **Start run** always
 opens a fresh hunt from the setup figures, so going back is leaving the hunt.
+
+### A round ends the moment it cannot continue
+
+The affordability check used to run at the top of the next spin, which meant the
+bankrupt card arrived one press late - the board sat on a balance that plainly
+could not cover the next bet, with a Spin button still offering to take it. The
+check now runs at the end of the spin that spent the money. The sandbox is
+exempt, because there running dry is not an ending.
 
 ### The run-over popup
 
@@ -390,17 +423,18 @@ One slot over the board, three meanings, each with its own sound:
 | | colour | when |
 |---|---|---|
 | a payout | green | any win — the consolation tier, the target, or above it — with the amount and how rare it was |
-| **Bet increased** | amber | the bet has doubled once |
-| **Bet increased** | red | the bet has doubled again |
+| **Level 2** | amber | the bet has doubled once |
+| **Level 3** and past it | amber to deep red, a shade grimmer each level |
 
 The payout popup prices what just landed: `1 in 7` for four of ten, `1 in 147`
 for six, `1 in 508` for BILLSKIE's 350x. It is the exact tier, the same number
 the paytable strip quotes on hover, because the popup names one outcome and so
 prices that outcome.
 
-The level popup says **Bet increased** and the two figures, since the level
-number is already on the strip and the number that just changed is what the
-popup is for. It outranks a win on the same spin, because it is the bigger news.
+The level popup announces **Level N** with the bet change under it, and its
+colour walks from amber at the first raise to a deep red by the sixth - where
+the bet is 32 times the one you opened with and a friendly colour would be
+lying about it. It outranks a win on the same spin, because it is the bigger news.
 Nothing needs dismissing: the next spin clears whatever is showing and plays, in
 one press.
 

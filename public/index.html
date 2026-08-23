@@ -88,16 +88,22 @@ h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fa
 .hitlist::-webkit-scrollbar{width:8px}
 .hitlist::-webkit-scrollbar-thumb{background:var(--track)}
 .hitlist::-webkit-scrollbar-track{background:transparent}
-.hitrow{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:9px;align-items:baseline;
-  padding:5px 12px;border-bottom:1px solid var(--border);font-family:var(--mono);
-  font-variant-numeric:tabular-nums;font-size:11.5px}
-.hitrow:last-child{border-bottom:0}
-.hitrow .hn{color:var(--faint);font-size:10.5px}
-.hitrow .ht{color:var(--muted)}
-.hitrow .ht b{color:var(--fg-2);font-weight:600}
-.hitrow .hm{color:var(--accent);font-weight:700}
-.hitrow.top{background:#221b12}
-.hitrow .ha{color:var(--green);font-weight:600;text-align:right}
+.exprow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 9px;
+  padding:7px 12px;border-bottom:1px solid var(--border)}
+.exprow:last-child{border-bottom:0}
+.exprow .el{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.exprow .el b{color:var(--fg-2);font-weight:600}
+.exprow .ev{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11.5px;
+  text-align:right;white-space:nowrap}
+.exprow .ev b{color:var(--fg);font-weight:700}
+.exprow .ev span{color:var(--faint);margin-left:6px}
+.ebar{grid-column:1/-1;position:relative;height:7px;background:var(--bg-deep);
+  border:1px solid var(--border)}
+.ebar i{display:block;height:100%;background:var(--accent)}
+.ebar i.over{background:var(--green)}
+/* the halfway tick is what "expected" looks like */
+.ebar u{position:absolute;left:50%;top:-3px;bottom:-3px;width:2px;background:var(--cream);
+  text-decoration:none}
 .hitempty{padding:12px;color:var(--faint);font-size:11.5px}
 .balin{width:100%;background:var(--bg-deep);border:1px solid var(--border);padding:1px 8px;
   color:var(--cream)}
@@ -668,6 +674,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardbody">
             <div class="limbonum" id="l-num">1.00<span style="font-size:.5em">x</span></div>
             <div class="limbotape" id="l-tape"></div>
+            <!-- sandbox only: with no ladder priced against it, the target is
+                 just a dial, and it belongs under the number it governs -->
+            <div class="seedrow" id="lTargetRow" hidden>
+              <label for="lTarget" style="flex:none">Target</label>
+              <input type="number" id="lTarget" value="350" min="1.02" max="1000000" step="10">
+              <span class="n" id="lTargetChance" style="flex:none;color:var(--muted)">0.283%</span>
+            </div>
           </div>
         </div>
 
@@ -695,7 +708,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <div class="cardhead"><h2>Balance</h2></div>
           <div class="cardbody">
             <div class="balbig n" id="bal">$2,000.00</div>
-            <input class="balbig n balin" id="balEdit" type="number" min="0.01" step="10" hidden
+            <input class="balbig n balin" id="balEdit" type="number" min="0" step="10" hidden
                    aria-label="Balance">
             <label class="f" id="betEditWrap" hidden style="margin-top:8px"><span>Bet</span>
               <input type="number" id="betEdit" min="0" step="0.5"></label>
@@ -710,14 +723,20 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <button class="ghost" id="btnRandom">Random 6</button>
             </div>
             <div class="raterow">
-              <input type="range" id="autoRate" min="0" max="100" step="1" value="63"
+              <input type="range" id="autoRate" min="0" max="100" step="1" value="50"
                      aria-label="Speed">
-              <b class="n" id="autoRateV">18/s</b>
+              <b class="n" id="autoRateV">4/s</b>
             </div>
             <div class="seedrow">
               <label for="seedVal" style="flex:none">Seed</label>
               <input type="number" id="seedVal" value="0" min="1" step="1">
               <button class="ghost" id="btnSeed">New seed</button>
+            </div>
+            <div class="seedrow">
+              <label for="stopProfit" style="flex:none">Stop at</label>
+              <input type="number" id="stopProfit" value="0" min="0" step="100"
+                     aria-label="Stop autoplay at this profit">
+              <span class="n" id="stopProfitNote" style="flex:none;color:var(--faint)">off</span>
             </div>
             <div class="seedrow noncerow">
               <span>Nonce</span><b class="n" id="nonceVal">0</b>
@@ -750,8 +769,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <!-- every paying draw, newest first. Sandbox only: with no ladder to
              narrate, what the board has actually done is the story. -->
         <div class="card" id="hitsCard" hidden>
-          <div class="cardhead"><h2>Hits</h2><span class="grow"></span>
-            <span class="note" id="hitsNote">none yet</span></div>
+          <div class="cardhead"><h2>Hits vs expected</h2><span class="grow"></span>
+            <span class="note" id="hitsNote">no bets yet</span></div>
           <div class="cardbody" style="padding:0">
             <div class="hitlist" id="hitList"></div>
           </div>
@@ -1173,7 +1192,8 @@ var S = {
   cfg: null, levels: [], ends: [], total: 0,
   startBank: 1400, balance: 1400,
   history: [], run: null, ended: null, picks: [3,7,12,19,26,34], timer: null, editingBal: false,
-  sbBets: 0, sbHits: 0, sbStaked: 0, sbBack: 0, sbLog: [],
+  sbBets: 0, sbHits: 0, sbStaked: 0, sbBack: 0, sbTier: [], sbPicks: null,
+  martBank: undefined, martBase: undefined, sbBank: undefined, sbBase: undefined,
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
   speed: "normal", seed: 0, nonce: 0, rand: Math.random, hideDraw: false,
@@ -1181,10 +1201,10 @@ var S = {
 };
 
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
-/* the slider is 0-100 and reads as a rate: 10^(v/50) spins a second, so 0 is
-   one a second, 50 is ten, and 100 is a hundred. 63 is 18/s, the fixed rate
-   autoplay used to run at. */
-function rateSps(v){ return Math.max(1, Math.round(Math.pow(10, clamp(v,0,100)/50))); }
+/* the slider is 0-100 and reads as a rate: 15^(v/100) bets a second, so it
+   runs from one a second to fifteen. Logarithmic, because the interesting half
+   of that range is the slow half - the half you can actually watch. */
+function rateSps(v){ return Math.max(1, Math.round(Math.pow(15, clamp(v,0,100)/100))); }
 function autoSps(){ return rateSps(+$("autoRate").value || 0); }
 
 /* A SINGLE SPIN ALWAYS TURNS OVER AT THE SAME PACE - a second for the draw,
@@ -1308,7 +1328,7 @@ function saveState(){
   try {
     localStorage.setItem(STORE, JSON.stringify({
       form: readForm(), optDefault: true, startBank: S.startBank, balance: S.balance,
-      autoRate: +$("autoRate").value,
+      autoRate: +$("autoRate").value, stopProfit: +$("stopProfit").value,
       history: S.history, picks: S.picks, muted: S.muted, seed: S.seed
     }));
   } catch (e) { /* private mode, quota - the page works without it */ }
@@ -1329,6 +1349,7 @@ function loadState(){
     if (typeof d.startBank === "number") S.startBank = d.startBank;
     if (typeof d.muted === "boolean") S.muted = d.muted;
     if (typeof d.autoRate === "number") $("autoRate").value = clamp(d.autoRate, 0, 100);
+    if (typeof d.stopProfit === "number") $("stopProfit").value = Math.max(0, d.stopProfit);
   } catch (e) { /* corrupt or unavailable - start fresh */ }
 }
 
@@ -1529,9 +1550,6 @@ function say(kind, msg){
   if (S.run.log.length > 80) S.run.log.pop();
 }
 
-/* 400 rows is more than anyone scrolls and cheap to keep; past that the
-   oldest go, because a sandbox left on autoplay would otherwise grow without
-   bound. */
 /* how rare the thing that just landed was. Keno quotes the exact tier, the
    same number the paytable strip quotes on hover - the popup names one outcome,
    so it prices that outcome. Limbo quotes reaching its target, which is the
@@ -1541,29 +1559,54 @@ function hitOdds(out){
   var p = c.game === "limbo" ? 0.99 / c.lmult : kenoP(c.picks, out.hits);
   return p > 0 ? "1 in " + num(Math.round(1 / p)) : "";
 }
-function logHit(out, bet, paid){
-  S.sbLog.unshift({ n: S.sbBets, label: out.label, pay: out.pay, amt: paid, bet: bet,
-                    top: S.cfg.game === "keno" && out.pay > S.cfg.pay });
-  if (S.sbLog.length > 400) S.sbLog.pop();
+
+/* THE COLOUR GETS GRIMMER AS THE LADDER GETS TALLER. Amber at the first raise,
+   walking to a deep red by the sixth - where the bet is 32 times the one you
+   opened with, and a friendly colour would be lying about it. */
+function levelTint(lv){
+  var t = Math.min(1, Math.max(0, (lv - 2) / 4));
+  var a = [255,180,84], b = [201,38,60], out = [], dark = [];
+  for (var i=0;i<3;i++){
+    var v = Math.round(a[i] + (b[i] - a[i]) * t);
+    out.push(v);
+    dark.push(Math.round(14 + v * 0.11));     /* the same hue, sunk into the card */
+  }
+  return { fg: "rgb(" + out.join(",") + ")", bg: "rgb(" + dark.join(",") + ")" };
+}
+
+/* HOW OFTEN EACH TIER SHOULD HAVE LANDED, AND HOW OFTEN IT DID. Expected is
+   just bets x P(exactly h hits) - the same exact figure the paytable strip
+   quotes on hover - and the bar is what actually happened against it. */
+function expLabel(v){
+  if (v >= 100) return num(Math.round(v));
+  if (v >= 10)  return v.toFixed(1);
+  return v.toFixed(2);
 }
 function paintHits(){
-  var c = S.cfg, on = c && c.strat === "flat";
+  var c = S.cfg, on = c && c.strat === "flat" && c.game === "keno" && S.picks.length > 0;
   $("hitsCard").hidden = !on;
   if (!on) return;
-  $("hitsNote").textContent = S.sbHits
-    ? num(S.sbHits) + (S.sbHits === 1 ? " hit" : " hits")
-    : "none yet";
-  if (!S.sbLog.length){
-    $("hitList").innerHTML = '<div class="hitempty">Nothing has paid yet.</div>';
+  var k = c.picks, tiers = kenoTiers(k);
+  $("hitsNote").textContent = num(S.sbBets) + (S.sbBets === 1 ? " bet" : " bets");
+  if (!S.sbBets){
+    $("hitList").innerHTML = '<div class="hitempty">Nothing has been bet yet.</div>';
     return;
   }
   var html = "";
-  for (var i=0;i<S.sbLog.length;i++){
-    var h = S.sbLog[i];
-    html += '<div class="hitrow' + (h.top ? " top" : "") + '">' +
-      '<span class="hn">#' + num(h.n) + '</span>' +
-      '<span class="ht"><b>' + h.label + '</b> ' + DOT + ' <span class="hm">' + h.pay + 'x</span></span>' +
-      '<span class="ha">' + money(h.amt) + '</span></div>';
+  for (var i=0;i<tiers.length;i++){
+    var t = tiers[i], exp = S.sbBets * t.p, got = S.sbTier[t.hits] || 0;
+    /* EVERY ROW IS SCALED TO PUT EXPECTED AT THE HALFWAY TICK, so a bar
+       reaching the tick is exactly par and one past it is running hot. The
+       rows cannot share a scale: on ten numbers, four of them lands once in
+       seven and all ten once in 847 million, and one scale for both is one
+       full bar beside ten invisible ones. */
+    var w = exp > 0 ? Math.min(100, 50 * got / exp) : (got ? 100 : 0);
+    html += '<div class="exprow">' +
+      '<div class="el"><b>' + t.hits + ' of ' + k + '</b> ' + DOT + ' ' + multLabel(t.pay) + '</div>' +
+      '<div class="ev"><b>' + num(got) + '</b><span>vs ' + expLabel(exp) + '</span></div>' +
+      '<div class="ebar"><i' + (got >= exp ? ' class="over"' : '') +
+        ' style="width:' + w.toFixed(1) + '%"></i><u></u></div>' +
+      '</div>';
   }
   $("hitList").innerHTML = html;
 }
@@ -1579,7 +1622,7 @@ function step(){
      another bet until the balance is topped up - which is one click on the
      balance away. No bankrupt card, and the run stays open. */
   if (!(bet > 0)) return;                    /* no bet set yet */
-  if (S.balance + r.net < bet - 1e-9){
+  if (!sbInfinite() && S.balance + r.net < bet - 1e-9){
     if (c.strat !== "flat") finish("broke");
     return;
   }
@@ -1606,15 +1649,25 @@ function step(){
               sub: "+" + m2(paid) + " " + DOT + " " + hitOdds(out), ending: true };
     S.popSounded = false;
     r.recovered += paid; r.payout = paid; r.net = r.recovered - r.staked;
-    S.sbHits += 1; S.sbBack += paid; logHit(out, bet, paid);
-    say("HIT", out.label + " paid " + money(paid) + " on " + c.noun + " " + r.done +
-               " " + DOT + " run ends " + signed(r.net));
-    finish("hit", out);
-    return;
+    S.sbHits += 1; S.sbBack += paid;
+    S.sbTier[out.hits] = (S.sbTier[out.hits] || 0) + 1;
+    /* IN THE SANDBOX A WIN IS PAID AND PLAY GOES ON. A round is a ladder idea -
+       it exists so a martingale knows when to start over - and the sandbox has
+       no ladder, so there is nothing for a hit to end and no round-over card to
+       show. Every bet stands on its own. */
+    if (c.strat === "flat"){
+      say("HIT", out.label + " paid " + money(paid) + " on " + c.noun + " " + r.done);
+    } else {
+      say("HIT", out.label + " paid " + money(paid) + " on " + c.noun + " " + r.done +
+                 " " + DOT + " run ends " + signed(r.net));
+      finish("hit", out);
+      return;
+    }
   }
   if (out.consol){
     r.n4 += 1; r.recovered += bet * out.pay; r.net = r.recovered - r.staked;
-    S.sbHits += 1; S.sbBack += bet * out.pay; logHit(out, bet, bet * out.pay);
+    S.sbHits += 1; S.sbBack += bet * out.pay;
+    S.sbTier[out.hits] = (S.sbTier[out.hits] || 0) + 1;
     S.pop = { kind:"win", main: out.pay + "x",
               sub: "+" + m2(bet * out.pay) + " " + DOT + " " + hitOdds(out), ending: false };
     S.popSounded = false;
@@ -1628,15 +1681,27 @@ function step(){
     else {
       say("LEVEL", "Level " + (after+1) + " " + DOT + " bet goes to " + m2(c.levels[after].bet) +
                   " " + DOT + " " + money(r.staked) + " in so far");
-      /* the level number is on the strip already; what this popup is FOR is
-         the number that just changed */
-      S.pop = { kind: after >= 2 ? "bad" : "warn",
-                main: "Bet increased",
-                words: true,
-                sub: m2(c.levels[ri].bet) + " &rarr; " + m2(c.levels[after].bet),
+      /* the level is the headline and the bet is the detail, and the colour
+         says how far up the ladder that is */
+      var lv = after + 1, tint = levelTint(lv);
+      S.pop = { kind: "warn",
+                main: "Level " + lv,
+                sub: "Bet increased " + m2(c.levels[ri].bet) + " &rarr; " + m2(c.levels[after].bet),
+                tint: tint.fg, bg: tint.bg,
                 levelUp: true };
       S.popSounded = false;
     }
+  }
+
+  /* A ROUND THAT CANNOT PAY FOR ITS NEXT BET IS ALREADY OVER. Finding that out
+     at the top of the following step meant the bankrupt card arrived one press
+     late, with the board sitting on a balance that plainly could not continue
+     and a Spin button still offering to. The sandbox is exempt: there, running
+     dry is not an ending. */
+  if (!r.over && c.strat !== "flat"){
+    var nx = levelAt(c, r.done);
+    if (nx < 0) finish("bail");
+    else if (S.balance + r.net < c.levels[nx].bet - 1e-9) finish("broke");
   }
 }
 
@@ -1706,6 +1771,24 @@ function isFlat(){
   return !!b && b.getAttribute("data-x") === "flat";
 }
 function setStrat(x){
+  /* THE TWO STRATEGIES KEEP THEIR OWN MONEY. They share one pair of inputs, so
+     without this a sandbox run left its $400,000 and its zero bet sitting in
+     the ladder's Balance card - you came back to a martingale you had never
+     set up. Each side's figures are stashed on the way out and restored on the
+     way in. */
+  var was = $("stratSeg").querySelector("button.on");
+  var prev = was && was.getAttribute("data-x");
+  if (prev && prev !== x){
+    if (x === "flat"){
+      S.martBank = $("bank").value; S.martBase = $("base").value;
+      $("bank").value = S.sbBank === undefined ? 400000 : S.sbBank;
+      $("base").value = S.sbBase === undefined ? 0 : S.sbBase;
+    } else {
+      S.sbBank = $("bank").value; S.sbBase = $("base").value;
+      if (S.martBank !== undefined) $("bank").value = S.martBank;
+      if (S.martBase !== undefined) $("base").value = S.martBase;
+    }
+  }
   $$("#stratSeg button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-x") === x); });
   var flat = x === "flat";
   /* everything on this card except the bet size describes a climb */
@@ -1855,11 +1938,11 @@ function startRun(fresh){
        you have to top up every few minutes is a chore rather than a tool. */
     if (c.strat === "flat"){
       if (c.game === "keno") S.picks = [];
-      $("bank").value = 400000;
-      $("base").value = 0;
+      $("bank").value = 400000; $("base").value = 0;
+      S.sbBank = 400000; S.sbBase = 0;
       c = derive(readForm());
     }
-    S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbLog = [];
+    S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = []; S.sbPicks = null;
     S.cfg = c; S.startBank = c.bank; S.balance = c.bank;
     S.history = [];
     S.cfg0 = c;                 /* the ladder this run opened on, for comparison */
@@ -2032,7 +2115,8 @@ function paintOdds(){
   $("bUp").style.width = (100*everUp) + "%";
   $("bUp").className = everUp < 0.5 ? "" : "faintb";
 
-  $("oEndLab").textContent = c.mode === "broke" ? "Chance before bankrupt" : "Chance before bail";
+  $("oEndLab").textContent = "Chance of hitting " + c.pay + "x before " +
+    (c.mode === "broke" ? "bankrupt" : "bail");
   $("oEnd").textContent = pct(end);
   $("bEnd").style.width = (100*end) + "%";
   $("bEnd").className = end < 0.25 ? "redb" : "greenb";
@@ -2162,6 +2246,13 @@ function paintPaytable(){
   $("paytable").innerHTML = html;
   $("paytable").style.gridTemplateColumns = "repeat(" + (k + 1) + ",1fr)";
 }
+/* A BALANCE OF ZERO MEANS UNLIMITED, in the sandbox only. It is a deliberate
+   setting rather than an accident: the sandbox cannot lose its way to exactly
+   nothing, because it stops taking bets before it gets there. Set it and the
+   board never runs dry, so you can leave autoplay running on a question that
+   needs a million bets to answer. */
+function sbInfinite(){ return !!(S.cfg && S.cfg.strat === "flat" && S.startBank === 0); }
+
 /* whether the money in hand covers the next bet */
 function canBet(){
   var c = S.cfg, r = S.run;
@@ -2170,7 +2261,24 @@ function canBet(){
   if (ri < 0) return false;
   var bet = c.levels[ri].bet;
   if (!(bet > 0)) return false;
+  if (sbInfinite()) return true;
   return S.balance + r.net >= bet - 1e-9;
+}
+/* The two play columns hold different things and end where their content
+   ends. The hits list is the one piece here that can be any height, so it gives
+   back whatever it is overhanging by - it never grows to fill, because a tall
+   empty list is worse than a short column. */
+function fitHits(){
+  var card = $("hitsCard");
+  if (card.hidden) return;
+  var L = document.querySelector("#view-play .split > div:first-child");
+  var R = document.querySelector("#view-play .split > div:last-child");
+  var list = $("hitList");
+  if (!L || !R) return;
+  list.style.maxHeight = "";
+  var natural = list.getBoundingClientRect().height;
+  var over = R.getBoundingClientRect().bottom - L.getBoundingClientRect().bottom;
+  list.style.maxHeight = over > 1 ? Math.max(120, Math.round(natural - over)) + "px" : "";
 }
 function paintPlay(){
   var c = S.cfg, r = S.run;
@@ -2247,6 +2355,11 @@ function paintPlay(){
     $("popMain").className = "pmain" + (S.pop.words ? " words" : "");
     $("popSub").innerHTML = S.pop.sub;
     pop.className = "pop " + S.pop.kind;
+    /* the graded level colours are computed, so they are set here rather than
+       through a class - and cleared again for every popup that is not one */
+    pop.style.borderColor    = S.pop.tint || "";
+    pop.style.background     = S.pop.bg   || "";
+    $("popMain").style.color = S.pop.tint || "";
     pop.hidden = false;
   } else {
     pop.hidden = true;
@@ -2275,6 +2388,17 @@ function paintPlay(){
   $("btnRandom").hidden = c.game !== "keno";
   $("btnRandom").textContent = "Random " + (c.strat === "flat" ? 10 : c.picks);
 
+  /* the sandbox dials its own limbo target; a ladder's target is priced into
+     the ladder and cannot move mid-run */
+  $("lTargetRow").hidden = !(c.game === "limbo" && c.strat === "flat");
+  if (c.game === "limbo" && c.strat === "flat"){
+    if (document.activeElement !== $("lTarget")) $("lTarget").value = c.lmult;
+    $("lTargetChance").textContent = pct(0.99 / c.lmult, 3);
+  }
+  /* what a profit stop is worth saying: the figure, or that there is not one */
+  var sp = +$("stopProfit").value || 0;
+  $("stopProfitNote").textContent = sp > 0 ? "profit" : "off";
+
   /* THE SANDBOX BOARD DESCRIBES ITSELF, NOT A PLAN. The ladder card and the
      "where you stand" odds are both readings of a ladder that is not there, so
      they go; the paytable takes the ladder's place under the board. The bet
@@ -2299,12 +2423,21 @@ function paintPlay(){
     $("balEdit").hidden = true;
   }
   if (sand){
-    if (!S.editingBal) $("balEdit").value = +(S.balance + (r.over ? 0 : r.net)).toFixed(2);
+    if (sbInfinite()) $("bal").textContent = "∞";
+    if (!S.editingBal) $("balEdit").value = sbInfinite() ? 0 : +(S.balance + (r.over ? 0 : r.net)).toFixed(2);
     /* never fight the keyboard: a field being typed into is left alone */
     if (document.activeElement !== $("betEdit")) $("betEdit").value = +c.levels[0].bet.toFixed(2);
   }
+  /* the tally is only true for the board it was gathered on, so a change in how
+     many numbers are picked starts it again. Swapping WHICH numbers does not:
+     the distribution is identical. */
+  if (c.game === "keno" && S.sbPicks !== c.picks){
+    S.sbPicks = c.picks;
+    S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = [];
+  }
   paintPaytable();
   paintHits();
+  fitHits();
   /* THE STRIP IS A LADDER READOUT and the sandbox has no ladder: "Level 1 of 1"
      and "spin 20 of 103 on this level" are both describing a plan that is not
      there. The five tiles report what the board has actually done instead, run
@@ -2736,10 +2869,23 @@ function stopAuto(){
   if (S.timer){ clearInterval(S.timer); S.timer = null; }
   $("btnAuto").innerHTML = "Auto &#9654;";
 }
+/* the run's profit as it stands, mid-round included */
+function runProfit(){
+  var r = S.run;
+  return S.balance + (r && !r.over ? r.net : 0) - S.startBank;
+}
 function autoTick(){
   if (S.animating) return;               /* the last draw is still turning over */
   if (!S.run || S.run.over || !canBet()){ stopAuto(); paintPlay(); return; }
   step();
+  /* STOP AT PROFIT halts autoplay, not the board. A number you typed is a plan
+     for the machine that is betting on its own; a bet you press yourself is
+     still yours to press. */
+  var stopAt = +$("stopProfit").value || 0;
+  if (stopAt > 0 && runProfit() >= stopAt - 1e-9){
+    stopAuto();
+    say("SYS", "Stopped at " + money(runProfit()) + " profit.");
+  }
   if (S.pop && S.pop.levelUp) stopAuto();
   var every = REDUCED || !S.run.last ? 0 : autoRevealMs(
     S.cfg.game === "keno" ? (S.run.last.drawn || []).length || 1 : 14);
@@ -2868,6 +3014,18 @@ $("btnSpin").addEventListener("click", function(){
 });
 $("btnAuto").addEventListener("click", toggleAuto);
 $("autoRate").addEventListener("input", function(){ paintRate(); saveState(); });
+$("stopProfit").addEventListener("input", function(){
+  $("stopProfitNote").textContent = (+$("stopProfit").value || 0) > 0 ? "profit" : "off";
+  saveState();
+});
+$("lTarget").addEventListener("input", function(){
+  var v = clamp(+$("lTarget").value || 350, 1.02, 1e6);
+  $("lmult").value = v;
+  if (S.cfg && S.cfg.strat === "flat"){
+    var f = readForm(); f.bank = S.balance; S.cfg = derive(f);
+  }
+  saveState(); paintPlay();
+});
 $("hdrSound").addEventListener("click", function(){
   S.muted = !S.muted;
   $("hdrSound").innerHTML = S.muted ? "&#9835;&nbsp; Sound off" : "&#9835;&nbsp; Sound on";
@@ -2958,10 +3116,10 @@ function commitBal(){
      done so far - so the stored balance is solved back from it, and the run's
      baseline moves with it. A profit line counted from a number you replaced
      would be measuring nothing. */
-  if (v > 0){
+  if (v >= 0){
     var live = S.run && !S.run.over ? S.run.net : 0;
     S.balance = v - live;
-    S.startBank = v;
+    S.startBank = v;                       /* zero here is "no limit" */
   }
   S.editingBal = false;
   sandboxRebuild(); saveState(); paintPlay();
