@@ -121,12 +121,14 @@ be 39px each, so Sandbox spills to the full row instead.
 
 ### Optimal bet
 
-A toggle in the ladder card head. Held down, the opening bet is refitted every
+A toggle in the ladder card head, **on by default**. Held down, the opening bet is refitted every
 time the ladder changes shape - a new pick count, a new balance, a different
 multiplier - to the largest bet the balance can carry three full levels of.
 Typing a bet by hand releases it, and does so before the repaint that would
 otherwise write over what was just typed. The state persists with the rest of
-the settings. Three levels cost
+the settings; a save written before the toggle existed carries an explicit
+`false` that is not a preference, so it is turned on once and respected after
+that. Three levels cost
 `len1 + lenN x (step + step^2)` bets - 1,400 of them on the default ladder,
 which is exactly why $1,400 at $1 is the default.
 
@@ -159,10 +161,11 @@ It is two words in a segmented control, the same shape as the game choice - the
 options do not need explaining, and a paragraph under each one made the top of
 the screen look like documentation.
 
-**The sandbox has no setup options.** It picks its numbers on the board -
-however many you like, whenever you like, from one to ten - so the pick row and
-the optimal-bet button are not shown for it, and the count follows the board
-live. The rest of its controls will live inside the sandbox itself.
+**The sandbox has no setup screen at all** - no balance, no bet, no pick row,
+no optimal-bet toggle. Choosing it leaves two cards standing: the strategy and
+the game. It picks its numbers on the board, however many you like from one to
+ten, and the count follows the board live. The stored balance and bet still
+drive the first round; changing them belongs at the board, and will go there.
 
 It is the same machine with the climb taken out. **Sandbox**
 is one bet size, one level long enough that the balance is always what ends the
@@ -213,7 +216,8 @@ no longer reach.
 
 ### Go back
 
-Top left of the play screen, above the stats strip. It returns to setup; a round
+Top left of the play screen, beside the stats strip rather than on a line above
+it, matching its height. It returns to setup; a round
 still running is quit rather than left hanging, which costs what is staked on it,
 and the balance and history it earned come back with you. **Start run** always
 opens a fresh hunt from the setup figures, so going back is leaving the hunt.
