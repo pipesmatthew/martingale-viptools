@@ -2970,13 +2970,12 @@ $$("#gameSeg button").forEach(function(b){
   b.addEventListener("click", function(){
     var g = b.getAttribute("data-g");
     setGame(g);
-    if (g === "limbo"){                       /* the break-even ladder for this target */
-      var M = clamp(+$("lmult").value || 350, 1.02, 1e6);
-      $("len1").value = Math.max(1, Math.round(M));
-      $("lenN").value = Math.max(1, Math.round(M/2));
-    } else {
-      $("len1").value = 350; $("lenN").value = 175;
-    }
+    /* THE BREAK-EVEN LADDER FOR WHATEVER THIS GAME IS NOW CHASING. This used to
+       hard-code 350 and 175 for keno - the six-pick numbers - so choosing Keno
+       while three numbers were selected built a 350-spin level against an
+       81.5x target and quoted a 100% win rate off it. priceLadder reads the
+       target that is actually in force. */
+    priceLadder();
     paintSetup();
   });
 });
