@@ -642,7 +642,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
       </div>
       <div class="bal"><span class="k">Balance</span>
         <span class="v"><span id="roFrom">$2,000</span> <i>&rarr;</i> <span id="roTo">$2,165</span></span></div>
-      <div class="stat">
+      <div class="stat" id="roStat">
         <div class="row"><span id="roStatLab">Runs that get this far</span>
           <b id="roStatVal">57.5%</b></div>
         <div class="meter"><i id="roStatBar" style="width:57.5%"></i></div>
@@ -1665,22 +1665,24 @@ function paintResult(){
     lab = T <= 1 ? "Runs that ever get this high" : "Runs that ever reach " + money(S.balance);
     tone = "var(--green)";
   } else if (r.why === "broke"){
-    /* The bar used to plot spins-completed-over-ladder-length while the label
-       beside it talked about the bet that could not be covered - a number and
-       a sentence describing different things. Running out of money in this mode
-       IS the no-hit ending, so it takes the same figure as one. */
-    share = 1 - c.reach;
-    lab = "Rounds that end this way";
-    tone = "var(--danger)";
+    /* Nothing here. The balance line above says it went from something to
+       nothing, and the headline says bankrupt - a bar underneath was measuring
+       spins-through-the-ladder while its label talked about the bet that could
+       not be covered, and no honest figure was going to make that row earn its
+       place. */
+    share = null;
   } else {
     share = 1 - c.reach;
     lab = "Rounds that end this way"; tone = "var(--danger)";
   }
-  $("roStatLab").textContent = lab;
-  $("roStatVal").textContent = pct(share);
-  $("roStatVal").style.color = tone;
-  $("roStatBar").style.width = (100*share) + "%";
-  $("roStatBar").style.background = tone;
+  $("roStat").hidden = (share === null);
+  if (share !== null){
+    $("roStatLab").textContent = lab;
+    $("roStatVal").textContent = pct(share);
+    $("roStatVal").style.color = tone;
+    $("roStatBar").style.width = (100*share) + "%";
+    $("roStatBar").style.background = tone;
+  }
 
   var base = c.base, up = c.base * c.stepx;
   /* A round that stopped because the money would not cover its next bet ends
