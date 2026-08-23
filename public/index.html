@@ -728,13 +728,13 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
         <div class="card">
           <div class="cardbody playpad">
-            <button class="primary" id="btnSpin">Spin</button>
+            <button class="primary" id="btnSpin">Place Bet</button>
             <div class="playgrid two" id="extraRow">
               <button class="ghost" id="btnAuto">Auto &#9654;</button>
               <button class="ghost" id="btnRandom">Random 6</button>
             </div>
             <div class="raterow">
-              <input type="range" id="autoRate" min="0" max="100" step="1" value="50"
+              <input type="range" id="autoRate" min="0" max="100" step="1" value="43"
                      aria-label="Speed">
               <b class="n" id="autoRateV">4/s</b>
             </div>
@@ -1217,10 +1217,11 @@ var S = {
 };
 
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
-/* the slider is 0-100 and reads as a rate: 15^(v/100) bets a second, so it
-   runs from one a second to fifteen. Logarithmic, because the interesting half
-   of that range is the slow half - the half you can actually watch. */
-function rateSps(v){ return Math.max(1, Math.round(Math.pow(15, clamp(v,0,100)/100))); }
+/* the slider is 0-100 and reads as a rate: 25^(v/100) bets a second, so it
+   runs from one a second to twenty-five. Logarithmic, because the interesting
+   half of that range is the slow half - the half you can actually watch. 43 is
+   4/s, the fastest rate that still leaves room to turn the tiles over. */
+function rateSps(v){ return Math.max(1, Math.round(Math.pow(25, clamp(v,0,100)/100))); }
 function autoSps(){ return rateSps(+$("autoRate").value || 0); }
 
 /* A SINGLE SPIN ALWAYS TURNS OVER AT THE SAME PACE - a second for the draw,
@@ -2385,7 +2386,9 @@ function paintPlay(){
   /* the ladder is priced for an exact count; the sandbox only needs one number */
   var short = c.game === "keno" &&
               (c.strat === "flat" ? S.picks.length < 1 : S.picks.length < c.picks);
-  var verb  = c.game === "limbo" ? "Roll" : "Spin";
+  /* one verb for both games - the button places a bet whichever way the
+     result is drawn, and "Roll"/"Spin" only ever said how it is animated */
+  var verb  = "Place Bet";
   /* the sandbox never ends for want of money, it just stops taking bets - and
      it opens with no bet set at all, which is a different thing to say */
   var noBet = c.strat === "flat" && !r.over && !(c.levels[0].bet > 0);
