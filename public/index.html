@@ -317,6 +317,32 @@ button.ghost:hover{background:var(--button-hover);color:var(--fg)}
 .chk input{accent-color:var(--accent);width:15px;height:15px;flex:none;cursor:pointer;margin:0}
 .chk:hover span{color:var(--fg-2)}
 .chk input:checked + span{color:var(--fg-2)}
+/* ── restore the balance you typed ───────────────────────────────────────
+   Built on .railbtn.go rather than button.primary: amber text on the ordinary
+   button ground, a warmed border and a warmed hover. A filled amber block
+   sitting in the Balance header would outrank the balance itself, which is the
+   one figure on the card that matters.
+
+   THE MARK IS CONSTRUCTED, NOT DRAWN BY EYE. A 300 degree arc on a circle of
+   r=5.4 centred in a SQUARE 16x16 viewBox, both endpoints placed exactly on
+   that circle - if they sit at even slightly different radii the renderer fits
+   an ELLIPSE through them instead, which is what makes a hand-traced loop look
+   subtly squashed. The arc ends at due west, where the tangent is exactly
+   vertical, so the arrowhead points straight up and its barbs are symmetric
+   about the tip. It is sized square too: a circular path in a non-square box
+   is still an ellipse on screen. */
+.restore{
+  font:inherit;font-size:11.5px;cursor:pointer;border-radius:0;
+  padding:2px 8px;border:1px solid #4a3a20;
+  background:var(--button);color:var(--accent);
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.restore:hover{background:#2a2118}
+.restore .amt{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600}
+.restore svg{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;
+  stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.restore:disabled{opacity:.35;cursor:default;color:var(--muted);border-color:var(--border)}
+.restore:disabled:hover{background:var(--button)}
+
 button.primary{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
 button.primary:hover{filter:brightness(1.07)}
 button.primary.teal{background:var(--teal);border-color:var(--teal);color:#0c1620}
@@ -773,7 +799,16 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
       <div>
         <div class="card">
-          <div class="cardhead"><h2>Balance</h2></div>
+          <div class="cardhead"><h2>Balance</h2>
+            <span class="grow"></span>
+            <!-- sandbox only, and only once a balance has been typed: there is
+                 nothing to go back to before that -->
+            <button class="restore" id="balRestore" type="button" hidden
+                    title="Put the balance back and start the count again">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.3 3.323A5.4 5.4 0 1 1 2.6 8"/><path d="M1.258 9.99 2.6 8 3.942 9.99"/></svg>
+              <span class="amt" id="balRestoreAmt">$0</span>
+            </button>
+          </div>
           <div class="cardbody">
             <div class="balbig n" id="bal">$2,000.00</div>
             <input class="balbig n balin" id="balEdit" type="number" min="0" step="10" hidden
@@ -1307,6 +1342,9 @@ var S = {
   sbBets: 0, sbHits: 0, sbStaked: 0, sbBack: 0, sbTier: [], sbPicks: null,
   martBank: undefined, martBase: undefined, martGame: undefined,
   sbBank: undefined, sbBase: undefined,
+  /* the last balance typed by hand, which is what the restore button goes back
+     to - undefined until something has actually been typed */
+  typedBal: undefined,
   /* revealUpto null = show the whole draw; a number = mid-reveal */
   revealUpto: null, animating: false, muted: false,
   speed: "normal", seed: 0, nonce: 0, rand: Math.random, hideDraw: false,
@@ -1465,6 +1503,7 @@ function saveState(){
       form: readForm(), optDefault: true, startBank: S.startBank, balance: S.balance,
       autoRate: +$("autoRate").value, stopWin: +$("stopWin").value, vol: S.vol,
       martBank: S.martBank, martBase: S.martBase, sbBank: S.sbBank, sbBase: S.sbBase,
+      typedBal: S.typedBal,
       history: S.history, picks: S.picks, muted: S.muted, seed: S.seed
     }));
   } catch (e) { /* private mode, quota - the page works without it */ }
@@ -1483,6 +1522,7 @@ function loadState(){
     if (typeof d.martBase !== "undefined") S.martBase = d.martBase;
     if (typeof d.sbBank  !== "undefined") S.sbBank  = d.sbBank;
     if (typeof d.sbBase  !== "undefined") S.sbBase  = d.sbBase;
+    if (typeof d.typedBal !== "undefined") S.typedBal = d.typedBal;
     /* THE SETUP SCREEN IS ALWAYS THE LADDER'S. The sandbox is somewhere you go
        by pressing a launch button, never a state to come back up in - restoring
        it here left the rail with nothing selected and no form beside it. If the
@@ -2651,6 +2691,7 @@ function paintPlay(){
      ROUND ends; on a flat run that is thousands of bets away, so it sat frozen
      at the opening figure while the money visibly went. */
   $("bal").classList.toggle("editable", sand);
+  paintRestore();
   /* cleared out here rather than inside the sandbox branch, or a ladder run
      after a sandbox one draws its figures in the sans face */
   $("bal").classList.toggle("word", sbInfinite());
@@ -3500,12 +3541,51 @@ function commitBal(){
   if (v >= 0 && Math.abs(v - was) > 1e-9){
     S.balance = v - live;
     S.startBank = v;                       /* zero here is "no limit" */
+    S.typedBal = v;                        /* what the restore button goes back to */
     resetSessionStats();
   }
   S.editingBal = false;
   sandboxRebuild(); saveState(); paintPlay();
 }
 $("balEdit").addEventListener("blur", commitBal);
+
+/* PUTTING THE BALANCE BACK IS THE SAME EVENT AS TYPING IT, reached by a button
+   instead of by retyping the number - so it does exactly what commitBal does
+   and nothing more. The live net is carried across the same way, the run
+   baseline moves with the balance so the profit tile reads zero from here, and
+   the session count starts again because every tile is measured against the
+   money that was in play.
+
+   WHAT IT DELIBERATELY DOES NOT TOUCH: the picks, the bet, the paytable and the
+   seed. Restoring the balance is for running the same experiment again, and
+   everything that defines the experiment has to survive it. */
+function restoreBal(){
+  if (S.typedBal === undefined) return;
+  var live = S.run && !S.run.over ? S.run.net : 0;
+  if (Math.abs(S.balance + live - S.typedBal) < 1e-9) return;   /* already there */
+  S.balance   = S.typedBal - live;
+  S.startBank = S.typedBal;
+  resetSessionStats();
+  sandboxRebuild(); saveState(); paintPlay();
+}
+
+/* The button is HIDDEN until a balance has been typed, because before that
+   there is no figure to go back to and a permanently disabled control in the
+   card header is just clutter. Once there is one it stays put and greys out
+   when pressing it would do nothing - a control that appeared and vanished as
+   the balance drifted past its own starting figure would be worse. */
+function paintRestore(){
+  var b = $("balRestore");
+  if (!S.cfg || S.cfg.strat !== "flat" || S.typedBal === undefined){
+    b.hidden = true;
+    return;
+  }
+  b.hidden = false;
+  $("balRestoreAmt").textContent = money(S.typedBal);
+  var live = S.run && !S.run.over ? S.run.net : 0;
+  b.disabled = Math.abs(S.balance + live - S.typedBal) < 1e-9;
+}
+$("balRestore").addEventListener("click", restoreBal);
 $("betVal").addEventListener("click", function(){
   if (!S.cfg || S.cfg.strat !== "flat") return;
   S.editingBet = true;

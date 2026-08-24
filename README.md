@@ -228,6 +228,34 @@ editor is a true no-op - which it was not before: it used to re-base the run
 baseline every time it ran, so merely looking at the balance silently zeroed
 the profit tile while the balance itself did not move.
 
+### Putting it back
+
+A button in the Balance card header returns the balance to the last figure you
+typed, and starts the count again with it. Its label is the amount, so it
+doubles as a readout of the figure the session is being measured against - the
+thing the profit tile means by "on this balance".
+
+It is **hidden until a balance has been typed**, because before that there is
+nothing to go back to and a permanently disabled control in a card header is
+just clutter. After that it stays put and greys out when pressing it would do
+nothing, rather than appearing and vanishing as the balance drifts past its own
+starting figure.
+
+Pressing it is the same event as retyping the number, so it runs the same path
+and nothing more. What it deliberately leaves alone is the picks, the bet, the
+paytable and the seed: restoring the balance is for running the same experiment
+again, and everything that defines the experiment has to survive it.
+
+The mark is constructed rather than drawn: a 300 degree arc on a circle of
+r=5.4 centred in a **square** 16x16 viewBox, with both endpoints placed exactly
+on that circle. If they sit at even slightly different radii the renderer fits
+an *ellipse* through them instead, which is what makes a hand-traced loop look
+subtly squashed - measured at 1.2% out of round before the endpoints were
+computed properly, and 0.03% after. The arc ends at due west, where the tangent
+is exactly vertical, so the arrowhead points straight up with its barbs
+symmetric about the tip. The rendered box is square too: a circular path in a
+non-square box is still an ellipse on screen.
+
 **It launches from the mode rail.** Keno and Limbo sit under Sandbox in the
 rail and go straight to the board - one press to choose the game, the strategy
 and to start. There is nothing to set up on the way, so the whole form is the
