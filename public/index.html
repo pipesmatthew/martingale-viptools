@@ -885,7 +885,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
           <input type="number" id="roUpAmt" value="2" min="0.01" step="0.5"
                  aria-label="New opening bet">
         </div>
-        <button class="btn" id="roEnd">End run</button>
+        <button class="btn" id="roEnd">Visualize run</button>
       </div>
     </div>
   </div>
@@ -931,8 +931,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
     </div>
 
     <div class="card"><div class="cardbody" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
-      <button class="primary" id="btnNewHunt">Start over</button>
-      <button class="ghost" id="btnResume">Keep going</button>
+      <button class="primary" id="btnResume">Keep going</button>
+      <button class="ghost" id="btnNewHunt">End run</button>
     </div></div>
   </div>
 </div>
@@ -2138,7 +2138,18 @@ function endHunt(){
   if (S.run && !S.run.over) finish("quit");
   showView("stats");
   paintHistory();
-  $("btnResume").hidden = !(S.run && S.cfg && S.balance >= S.cfg.levels[0].bet);
+  paintStatsActions();
+}
+
+/* Continue or end, decided here rather than in the modal, and whichever is
+   actually available carries the emphasis: a balance that cannot cover another
+   opening bet has nothing to continue, so ending becomes the primary and the
+   only button on screen. */
+function paintStatsActions(){
+  var canGo = !!(S.run && S.cfg && S.balance >= S.cfg.levels[0].bet);
+  $("btnResume").hidden = !canGo;
+  $("btnResume").className = canGo ? "primary" : "ghost";
+  $("btnNewHunt").className = canGo ? "ghost" : "primary";
 }
 
 function paintBoard(){
@@ -2366,10 +2377,17 @@ function paintResult(){
   $("roUpAmt").max = +S.balance.toFixed(4);
   paintUpBet();
 
+  /* The button opens the run's paths; it does not end anything, because the
+     run is already over by the time this modal is up - finish() ran before it
+     was shown. Carrying on or stopping is chosen on the other side of it, next
+     to the history that informs the choice, so the session's running total
+     goes in the title rather than on the face of a button that no longer
+     cashes anything out. */
   var net = S.balance - S.startBank;
-  $("roEnd").textContent = net > 0.005  ? "End run, take " + money(net) + " profit"
-                         : net < -0.005 ? "End run, down " + money(-net)
-                         : "End run";
+  $("roEnd").textContent = "Visualize run";
+  $("roEnd").title = net > 0.005  ? "Up " + money(net) + " this session"
+                   : net < -0.005 ? "Down " + money(-net) + " this session"
+                   : "Level with where the session started";
   box.hidden = false;
 }
 
