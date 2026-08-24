@@ -804,8 +804,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <button class="ghost" id="btnRandom">Random 6</button>
             </div>
             <div class="raterow">
-              <label for="autoRate">Bets/s <b class="n" id="autoRateV">4</b></label>
-              <input type="range" id="autoRate" min="0" max="100" step="1" value="32"
+              <label for="autoRate">Bets/s <b class="n" id="autoRateV">15</b></label>
+              <input type="range" id="autoRate" min="0" max="100" step="1" value="63"
                      aria-label="Speed">
             </div>
             <div class="seedrow" id="seedRow" title="Bets placed on this seed">
@@ -1316,9 +1316,15 @@ var S = {
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
 /* the slider is 0-100 and reads as a rate: 75^(v/100) bets a second, so it
    runs from one a second to seventy-five. Logarithmic, because the interesting
-   half of that range is the slow half - the half you can actually watch. 32 is
-   4/s, the fastest rate that still leaves room to turn the tiles over, and is
-   the slider's default for that reason.
+   half of that range is the slow half - the half you can actually watch.
+
+   IT DEFAULTS TO 63, WHICH IS 15/s, AND THAT IS PAST THE ANIMATION. 32 is 4/s
+   and used to be the default because 4/s is the fastest rate that still leaves
+   room to turn the tiles over one at a time - above REVEAL_MAX_SPS the draw
+   lands at once. The default is a sampling rate now rather than a watching
+   one: the sandbox is where you go to put thousands of bets through a board,
+   and opening at a speed chosen to make the animation legible meant everybody
+   reached for the slider first. Drag it back below 4 and the reveal returns.
 
    RAISING THE TOP MOVES EVERY MARK ON THE SLIDER, because the scale is the
    base. 4/s sat at 43 while the top was 25 and sits at 32 now; a saved
@@ -1339,6 +1345,11 @@ function revealMs(steps){ return Math.max(12, Math.round(REVEAL_TOTAL / steps));
    inside the gap before the next bet, so it takes three quarters of that gap;
    past four bets a second there is nothing left to see and the draw lands at
    once. */
+/* What the sandbox's bet opens at. Named rather than typed in the two places
+   that set it, because they have to agree: one is the sandbox's own opening
+   state and the other is the first switch into it from the ladder. */
+var SANDBOX_BASE = 1000;
+
 var REVEAL_MAX_SPS = 4;
 function autoRevealMs(steps){
   /* Nothing is being watched, and a hidden tab's timers are throttled anyway -
@@ -1967,7 +1978,7 @@ function setStrat(x){
     if (x === "flat"){
       S.martBank = $("bank").value; S.martBase = $("base").value;
       $("bank").value = S.sbBank === undefined ? 400000 : S.sbBank;
-      $("base").value = S.sbBase === undefined ? 0 : S.sbBase;
+      $("base").value = S.sbBase === undefined ? SANDBOX_BASE : S.sbBase;
     } else {
       S.sbBank = $("bank").value; S.sbBase = $("base").value;
       if (S.martBank !== undefined) $("bank").value = S.martBank;
@@ -2109,16 +2120,20 @@ function spinsAffordable(c){
 function startRun(fresh){
   if (fresh){
     var c = derive(readForm());
-    /* THE SANDBOX OPENS EMPTY. Nothing has been chosen yet, so there is no
-       paytable to quote and no bet to place - the board fills as you click it,
-       rather than starting on whatever the last ladder happened to be using.
-       Same reasoning for the bet: zero is "not yet", not "free". The balance
-       opens at $400,000 because a sandbox is for trying things, and a figure
-       you have to top up every few minutes is a chore rather than a tool. */
+    /* THE SANDBOX OPENS WITH AN EMPTY BOARD AND A REAL BET. Nothing has been
+       picked yet, so there is no paytable to quote and the board fills as you
+       click it rather than starting on whatever the last ladder was using.
+
+       The bet used to open at zero on the reasoning that zero is "not yet",
+       not "free" - but zero is also the one value that cannot place a bet, so
+       the sandbox opened unable to do the thing it exists for, and every visit
+       began by typing a number. It opens at SANDBOX_BASE now. The balance is
+       unlimited to match: a sandbox is for trying things, and a figure you
+       have to top up every few minutes is a chore rather than a tool. */
     if (c.strat === "flat"){
       if (c.game === "keno") S.picks = [];
-      $("bank").value = 0; $("base").value = 0;
-      S.sbBank = 0; S.sbBase = 0;
+      $("bank").value = 0; $("base").value = SANDBOX_BASE;
+      S.sbBank = 0; S.sbBase = SANDBOX_BASE;
       c = derive(readForm());
     }
     resetSessionStats(); S.sbPicks = null;

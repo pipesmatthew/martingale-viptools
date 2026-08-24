@@ -608,10 +608,17 @@ never Auto: you have to be able to stop it while it is running.
 The slider is labelled **Bets/s**, with the rate it is running at now on its
 right. The scale is logarithmic - `75^(v/100)` bets a second, so it runs from
 one a second to seventy-five - because a slider linear in bets per second spends
-four fifths of its travel on speeds nobody can follow. It defaults to 32, which
-is 4/s: the fastest rate that still leaves room to turn the tiles over one at a
-time. Moving it while autoplay is running takes effect on the next tick; the
+four fifths of its travel on speeds nobody can follow. It defaults to 63, which
+is 15/s. Moving it while autoplay is running takes effect on the next tick; the
 loop reads the slider every time it fires, so there is nothing to restart.
+
+**The default is past the animation, deliberately.** 4/s is the fastest rate
+that still leaves room to turn the tiles over one at a time, and it used to be
+where the slider opened for exactly that reason. But the sandbox is where you
+go to put thousands of bets through a board, and opening at a speed chosen to
+make the reveal legible meant reaching for the slider before doing anything
+else. It is a sampling rate now rather than a watching one. Drag it back below
+4/s and the draw animates again.
 
 Raising the top from 25 to 75 moved every mark on the slider, because the top
 *is* the scale. 4/s sat at 43 and sits at 32 now, which is why the default in
