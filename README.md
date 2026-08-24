@@ -591,13 +591,32 @@ nothing left to see, so the draw lands at once. The reveal disables Spin but
 never Auto: you have to be able to stop it while it is running.
 
 The slider is labelled **Bets/s**, with the rate it is running at now on its
-right. The scale is logarithmic - `25^(v/100)` bets a second, so it runs from
-one a second to twenty-five - because a slider linear in bets per second spends
-four fifths of its travel on speeds nobody can follow. It defaults to 43, which
+right. The scale is logarithmic - `75^(v/100)` bets a second, so it runs from
+one a second to seventy-five - because a slider linear in bets per second spends
+four fifths of its travel on speeds nobody can follow. It defaults to 32, which
 is 4/s: the fastest rate that still leaves room to turn the tiles over one at a
-time. Moving it while
-autoplay is running restarts the timer at the new period immediately; a slider
-you have to stop to use is not a slider.
+time. Moving it while autoplay is running takes effect on the next tick; the
+loop reads the slider every time it fires, so there is nothing to restart.
+
+Raising the top from 25 to 75 moved every mark on the slider, because the top
+*is* the scale. 4/s sat at 43 and sits at 32 now, which is why the default in
+the markup moved with it. A saved `autoRate` from before the change therefore
+reads faster than it used to - 43 is 6/s now - which is visible, because the
+rate is printed next to the slider.
+
+**Autoplay keeps its rate in a background tab.** The loop is scheduled on
+wall-clock time rather than on timer fires: each fire asks how much time has
+actually passed and places the bets that time bought. That matters because a
+hidden page's timers are throttled - to roughly one fire a second, and to one a
+*minute* once it has been hidden for five - so a loop that assumed it was woken
+on schedule would quietly run at a fraction of its rate with nothing on screen
+to say so. Throttling now changes the shape of the work (fewer, larger batches)
+and not the rate. Inside a batch the draw animation and the per-bet repaint are
+suppressed and the panel is painted once at the end, since nobody is watching.
+
+The catch-up is bounded at 90 seconds of debt, and anything past that is
+dropped rather than banked: a laptop that slept for an hour should not wake up
+and replay the hour.
 
 ### Reveal speed and sound
 

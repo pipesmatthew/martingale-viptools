@@ -805,7 +805,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
             </div>
             <div class="raterow">
               <label for="autoRate">Bets/s <b class="n" id="autoRateV">4</b></label>
-              <input type="range" id="autoRate" min="0" max="100" step="1" value="43"
+              <input type="range" id="autoRate" min="0" max="100" step="1" value="32"
                      aria-label="Speed">
             </div>
             <div class="seedrow" id="seedRow" title="Bets placed on this seed">
@@ -1314,11 +1314,18 @@ var S = {
 };
 
 /* ── sound, synthesised: no files, no requests, nothing to load ────────── */
-/* the slider is 0-100 and reads as a rate: 25^(v/100) bets a second, so it
-   runs from one a second to twenty-five. Logarithmic, because the interesting
-   half of that range is the slow half - the half you can actually watch. 43 is
-   4/s, the fastest rate that still leaves room to turn the tiles over. */
-function rateSps(v){ return Math.max(1, Math.round(Math.pow(25, clamp(v,0,100)/100))); }
+/* the slider is 0-100 and reads as a rate: 75^(v/100) bets a second, so it
+   runs from one a second to seventy-five. Logarithmic, because the interesting
+   half of that range is the slow half - the half you can actually watch. 32 is
+   4/s, the fastest rate that still leaves room to turn the tiles over, and is
+   the slider's default for that reason.
+
+   RAISING THE TOP MOVES EVERY MARK ON THE SLIDER, because the scale is the
+   base. 4/s sat at 43 while the top was 25 and sits at 32 now; a saved
+   autoRate from before this change therefore reads FASTER than it did (43 is
+   now 6/s). Nothing is broken by that - the rate is printed next to the
+   slider - but it is why the default value in the markup moved too. */
+function rateSps(v){ return Math.max(1, Math.round(Math.pow(75, clamp(v,0,100)/100))); }
 function autoSps(){ return rateSps(+$("autoRate").value || 0); }
 
 /* A SINGLE SPIN ALWAYS TURNS OVER AT THE SAME PACE - a second for the draw,
@@ -1334,6 +1341,9 @@ function revealMs(steps){ return Math.max(12, Math.round(REVEAL_TOTAL / steps));
    once. */
 var REVEAL_MAX_SPS = 4;
 function autoRevealMs(steps){
+  /* Nothing is being watched, and a hidden tab's timers are throttled anyway -
+     so an animation here would not play, it would just stall the batch. */
+  if (document.hidden) return 0;
   var sps = autoSps();
   if (sps > REVEAL_MAX_SPS) return 0;
   return Math.max(12, Math.round(1000 / sps * 0.75 / steps));
@@ -2465,6 +2475,12 @@ function canBet(){
 }
 function paintPlay(){
   var c = S.cfg, r = S.run;
+  /* THERE MAY BE NOTHING TO DRAW YET. autoTick's own guard calls this when
+     there is no run - press Auto before Start and it does exactly that - and
+     every line below dereferences `r`, so it threw a TypeError on the spot and
+     took paintResult() down with it. Predates the wall-clock loop; found while
+     testing it, and reproduced on the previous build to be sure. */
+  if (!c || !r) return;
   var ri = r.over ? -1 : levelAt(c, r.done);
   var bet = ri < 0 ? 0 : c.levels[ri].bet;
 
@@ -3083,7 +3099,7 @@ function paintStats(){
 
 /* ═══════════════════════════════ auto-play ════════════════════════════ */
 function stopAuto(){
-  if (S.timer){ clearInterval(S.timer); S.timer = null; }
+  if (S.timer){ clearTimeout(S.timer); S.timer = null; }
   $("btnAuto").innerHTML = "Auto &#9654;";
 }
 function autoTick(){
@@ -3099,23 +3115,92 @@ function autoTick(){
     say("SYS", "Stopped on a " + money(S.run.lastPaid) + " win.");
   }
   if (S.pop && S.pop.levelUp) stopAuto();
-  var every = REDUCED || !S.run.last ? 0 : autoRevealMs(
+  var every = REDUCED || autoQuiet || !S.run.last ? 0 : autoRevealMs(
     S.cfg.game === "keno" ? (S.run.last.drawn || []).length || 1 : 14);
   if (every && S.cfg.game === "keno" && S.run.last.drawn) revealDraw(paintPlay, every);
   else if (every && S.cfg.game === "limbo") revealLimbo(paintPlay, every);
-  else paintPlay();
+  else if (!autoQuiet) paintPlay();
+}
+
+/* ── autoplay's clock ──────────────────────────────────────────────────── */
+/* IT RUNS ON WALL-CLOCK TIME, NOT ON TIMER FIRES, so a backgrounded tab keeps
+   its rate. This was setInterval(autoTick, 1000/sps), which is precisely what
+   browsers throttle: a hidden page's timers are clamped to roughly one fire a
+   second, and to one a MINUTE once it has been hidden for five. At 75 bets a
+   second that is a 75x slowdown the moment you look at another tab, and
+   nothing on screen would say so - you would come back to a run that had
+   quietly gone nowhere.
+
+   So each fire asks how much time has ACTUALLY passed and places the bets that
+   time bought, instead of assuming it was woken on schedule. Throttling then
+   changes the shape of the work - fewer, larger batches - and not the rate.
+
+   The catch-up is bounded. AUTO_MAX_CATCHUP_SEC of debt is honoured and the
+   rest is DROPPED rather than banked: a laptop that slept for an hour should
+   not wake and replay the hour, and a quarter of a million bets in one turn
+   would lock the page solid while it tried.
+
+   Inside a batch nobody is watching, so `autoQuiet` suppresses the draw
+   animation and the per-bet repaint, and the panel is painted once at the end.
+   Without that a 4,500-bet catch-up would do 4,500 DOM repaints to arrive at a
+   single final state. */
+var AUTO_MAX_CATCHUP_SEC = 90;
+var autoQuiet = false;
+
+function autoPump(){
+  if (!S.timer) return;
+  var now = Date.now(), sps = autoSps();
+
+  if (S.animating){
+    /* The last draw is still turning over. The old loop simply skipped these
+       fires, so this time was never owed - banking it would have autoplay
+       burst to "catch up" on time it deliberately sat out. */
+    S.autoLast = now;
+  } else {
+    S.autoOwed += (now - S.autoLast) / 1000 * sps;
+    S.autoLast  = now;
+    var n = Math.floor(S.autoOwed);
+    S.autoOwed -= n;
+    var cap = Math.max(1, Math.ceil(sps * AUTO_MAX_CATCHUP_SEC));
+    if (n > cap){ n = cap; S.autoOwed = 0; }
+    if (n > 1) autoQuiet = true;
+    try {
+      for (var i = 0; i < n; i++){
+        /* autoTick can stop autoplay itself - bankrupt, stop-on-hit, a level
+           up - and can start a reveal. Either ends the batch. */
+        if (!S.timer || S.animating) break;
+        autoTick();
+      }
+    } finally {
+      if (autoQuiet){ autoQuiet = false; paintPlay(); }
+    }
+  }
+  if (S.timer) S.timer = setTimeout(autoPump, Math.max(1, Math.round(1000 / sps)));
 }
 function toggleAuto(){
   if (S.timer){ stopAuto(); return; }
   $("btnAuto").innerHTML = "Stop &#9632;";
-  S.timer = setInterval(autoTick, Math.round(1000 / autoSps()));
+  S.autoLast = Date.now();
+  S.autoOwed = 0;
+  S.timer = setTimeout(autoPump, Math.max(1, Math.round(1000 / autoSps())));
 }
 function paintRate(){
   $("autoRateV").textContent = autoSps();
-  /* a running autoplay picks up the new rate immediately rather than at the
-     next start - the slider is useless if you have to stop to use it */
-  if (S.timer){ clearInterval(S.timer); S.timer = setInterval(autoTick, Math.round(1000 / autoSps())); }
+  /* Nothing to restart: autoPump reads the rate on every fire, so a running
+     autoplay picks the slider up immediately. It used to have to tear the
+     interval down and build a new one to do that. */
 }
+
+/* Coming back to the tab should not wait out a throttled timer that was
+   scheduled a minute ago - clear it and pump now. The pump is idempotent about
+   time (it pays out whatever the clock says is owed), so an early fire costs
+   nothing. */
+document.addEventListener("visibilitychange", function(){
+  if (!document.hidden && S.timer){
+    clearTimeout(S.timer);
+    S.timer = setTimeout(autoPump, 0);
+  }
+});
 
 /* ═══════════════════════════════ wiring ═══════════════════════════════ */
 $$("#gameSeg button").forEach(function(b){
