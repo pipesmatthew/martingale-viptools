@@ -1739,6 +1739,19 @@ function expLabel(v){
   if (v >= 10)  return v.toFixed(1);
   return v.toFixed(2);
 }
+/* THE SESSION COUNT, AND EVERY REASON TO THROW IT AWAY.
+   sbBets/sbHits/sbStaked/sbBack/sbTier are what the five sandbox tiles and the
+   HITS VS EXPECTED table are drawn from - bets, return, wagered, and how the
+   tier counts compare to their expectations. They are a count of ONE set of
+   conditions, so anything that changes the conditions has to clear them or the
+   page quotes a figure from before the change beside a label describing after
+   it. There are four such changes now (a new run, the picks, the paytable, the
+   balance) and they used to reset these by hand in four places, which is three
+   opportunities for one of them to drift - one already had, omitting sbTier. */
+function resetSessionStats(){
+  S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = [];
+}
+
 function paintHits(){
   var c = S.cfg, on = c && c.strat === "flat" && c.game === "keno" && S.picks.length > 0;
   $("hitsCard").hidden = !on;
@@ -2108,7 +2121,7 @@ function startRun(fresh){
       S.sbBank = 0; S.sbBase = 0;
       c = derive(readForm());
     }
-    S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = []; S.sbPicks = null;
+    resetSessionStats(); S.sbPicks = null;
     S.cfg = c; S.startBank = c.bank; S.balance = c.bank;
     /* THE SANDBOX OPENS UNLIMITED. Zero is the flag for it, and the bank is
        clamped to at least 1 on the way through derive, so it is set here rather
@@ -2652,7 +2665,7 @@ function paintPlay(){
      the distribution is identical. */
   if (c.game === "keno" && S.sbPicks !== c.picks){
     S.sbPicks = c.picks;
-    S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = [];
+    resetSessionStats();
   }
   paintPaytable();
   paintHits();
@@ -3324,7 +3337,7 @@ $("volSel").addEventListener("change", function(){
   S.vol = $("volSel").value === "med" ? "med" : "high";
   /* a different paytable is a different game: what has been counted so far was
      counted under the old one */
-  S.sbBets = 0; S.sbHits = 0; S.sbStaked = 0; S.sbBack = 0; S.sbTier = [];
+  resetSessionStats();
   if (S.cfg && S.cfg.strat === "flat"){
     var f = readForm(); f.bank = S.balance; S.cfg = derive(f);
   }
@@ -3453,10 +3466,26 @@ function commitBal(){
      done so far - so the stored balance is solved back from it, and the run's
      baseline moves with it. A profit line counted from a number you replaced
      would be measuring nothing. */
-  if (v >= 0){
-    var live = S.run && !S.run.over ? S.run.net : 0;
+  var live = S.run && !S.run.over ? S.run.net : 0;
+  var was  = S.balance + live;             /* the figure the field was showing */
+  /* A NEW BALANCE IS A NEW SESSION. Every tile is measured against the money
+     that was in play - the profit tile says "on this balance" in as many words
+     - so carrying the old bet count, return and hit tallies across a balance
+     you have just replaced quotes one session's results under another
+     session's heading. Same reasoning as the paytable switch.
+
+     ONLY ON AN ACTUAL CHANGE, and that guard covers the whole commit rather
+     than just the reset. This runs on BLUR, so clicking the balance to read it
+     and then clicking anywhere else fires it with the value untouched. Wiping
+     a few thousand bets because somebody looked at the figure would be worse
+     than never resetting at all - and the old code had a quieter version of
+     the same fault: it re-based startBank every time it ran, so opening and
+     closing the editor silently zeroed the profit tile while the balance
+     itself did not move. Doing nothing when nothing was typed fixes both. */
+  if (v >= 0 && Math.abs(v - was) > 1e-9){
     S.balance = v - live;
     S.startBank = v;                       /* zero here is "no limit" */
+    resetSessionStats();
   }
   S.editingBal = false;
   sandboxRebuild(); saveState(); paintPlay();

@@ -213,6 +213,21 @@ numbers are picked starts the tally again, since it is only true for the board
 it was gathered on - changing *which* numbers does not, the distribution being
 identical.
 
+**Editing the balance starts the tally again too.** Every tile is measured
+against the money that was in play - the profit tile says "on this balance" in
+as many words - so a bet count, a return and a set of hit tallies gathered on
+one balance have no business sitting under the heading of another. There are
+four things that clear the count now: a new run, the number of picks, the
+paytable, and the balance.
+
+Only an actual change does it. The balance commits on blur, so clicking the
+figure to read it and then clicking anywhere else fires the same code path with
+nothing typed, and throwing away a few thousand bets because somebody looked at
+the balance would be worse than never resetting at all. Opening and closing the
+editor is a true no-op - which it was not before: it used to re-base the run
+baseline every time it ran, so merely looking at the balance silently zeroed
+the profit tile while the balance itself did not move.
+
 **It launches from the mode rail.** Keno and Limbo sit under Sandbox in the
 rail and go straight to the board - one press to choose the game, the strategy
 and to start. There is nothing to set up on the way, so the whole form is the
