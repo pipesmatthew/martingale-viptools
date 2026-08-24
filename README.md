@@ -636,17 +636,29 @@ never Auto: you have to be able to stop it while it is running.
 The slider is labelled **Bets/s**, with the rate it is running at now on its
 right. The scale is logarithmic - `75^(v/100)` bets a second, so it runs from
 one a second to seventy-five - because a slider linear in bets per second spends
-four fifths of its travel on speeds nobody can follow. It defaults to 63, which
-is 15/s. Moving it while autoplay is running takes effect on the next tick; the
-loop reads the slider every time it fires, so there is nothing to restart.
+four fifths of its travel on speeds nobody can follow. Moving it while autoplay
+is running takes effect on the next tick; the loop reads the slider every time
+it fires, so there is nothing to restart.
 
-**The default is past the animation, deliberately.** 4/s is the fastest rate
-that still leaves room to turn the tiles over one at a time, and it used to be
-where the slider opened for exactly that reason. But the sandbox is where you
-go to put thousands of bets through a board, and opening at a speed chosen to
-make the reveal legible meant reaching for the slider before doing anything
-else. It is a sampling rate now rather than a watching one. Drag it back below
-4/s and the draw animates again.
+**The two modes open at different speeds, and keep their own.** The ladder
+opens at 32, which is 4/s: the fastest rate that still turns the tiles over one
+at a time, which is the whole point of watching a ladder run. The sandbox opens
+at 63, which is 15/s and deliberately past the animation - it is where
+thousands of bets go through a board, so its default is a sampling rate rather
+than a watching one. Drag either below 4/s and the draw animates again.
+
+The rate is stashed per mode alongside the bank and the bet, so changing it in
+one does not disturb the other.
+
+**A markup default would not have worked**, and this is worth remembering
+because it is invisible in testing: `loadState` restores a saved `autoRate`
+over whatever the markup says, so a default written into the HTML is only ever
+seen by somebody with no saved state - which is nobody who has used the page
+before. Setting it in the markup and then verifying against a cleared
+localStorage tests the change into existence and proves nothing. Going through
+`setStrat` works because `sbRate` is absent from every state saved before it
+existed, so an existing visitor picks the default up the first time they open
+the sandbox.
 
 Raising the top from 25 to 75 moved every mark on the slider, because the top
 *is* the scale. 4/s sat at 43 and sits at 32 now, which is why the default in

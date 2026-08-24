@@ -839,8 +839,8 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
               <button class="ghost" id="btnRandom">Random 6</button>
             </div>
             <div class="raterow">
-              <label for="autoRate">Bets/s <b class="n" id="autoRateV">15</b></label>
-              <input type="range" id="autoRate" min="0" max="100" step="1" value="63"
+              <label for="autoRate">Bets/s <b class="n" id="autoRateV">4</b></label>
+              <input type="range" id="autoRate" min="0" max="100" step="1" value="32"
                      aria-label="Speed">
             </div>
             <div class="seedrow" id="seedRow" title="Bets placed on this seed">
@@ -1341,7 +1341,7 @@ var S = {
   vol: "high", editingBet: false, strat: "mart",
   sbBets: 0, sbHits: 0, sbStaked: 0, sbBack: 0, sbTier: [], sbPicks: null,
   martBank: undefined, martBase: undefined, martGame: undefined,
-  sbBank: undefined, sbBase: undefined,
+  sbBank: undefined, sbBase: undefined, sbRate: undefined, martRate: undefined,
   /* the last balance typed by hand, which is what the restore button goes back
      to - undefined until something has actually been typed */
   typedBal: undefined,
@@ -1387,6 +1387,21 @@ function revealMs(steps){ return Math.max(12, Math.round(REVEAL_TOTAL / steps));
    that set it, because they have to agree: one is the sandbox's own opening
    state and the other is the first switch into it from the ladder. */
 var SANDBOX_BASE = 1000;
+
+/* And what its autoplay opens at: slider 63, which is 15/s on the 75^(v/100)
+   scale. Past REVEAL_MAX_SPS on purpose - the sandbox is where thousands of
+   bets go through a board, so its default is a sampling rate, while the
+   ladder keeps 32 (4/s), the fastest rate that still turns the tiles over one
+   at a time. The two modes want different speeds, so they get one each rather
+   than sharing a number that is wrong for one of them.
+
+   IT HAS TO BE STASHED PER MODE RATHER THAN SET IN THE MARKUP. loadState
+   restores a saved autoRate over whatever the markup says, so a markup default
+   is only ever seen by somebody with no saved state - which is nobody who has
+   used the page before. Going through setStrat means sbRate is undefined in
+   every state saved before this, and every existing visitor therefore gets the
+   new default the first time they open the sandbox. */
+var SANDBOX_RATE = 63;
 
 var REVEAL_MAX_SPS = 4;
 function autoRevealMs(steps){
@@ -1503,7 +1518,7 @@ function saveState(){
       form: readForm(), optDefault: true, startBank: S.startBank, balance: S.balance,
       autoRate: +$("autoRate").value, stopWin: +$("stopWin").value, vol: S.vol,
       martBank: S.martBank, martBase: S.martBase, sbBank: S.sbBank, sbBase: S.sbBase,
-      typedBal: S.typedBal,
+      typedBal: S.typedBal, sbRate: S.sbRate, martRate: S.martRate,
       history: S.history, picks: S.picks, muted: S.muted, seed: S.seed
     }));
   } catch (e) { /* private mode, quota - the page works without it */ }
@@ -1523,6 +1538,8 @@ function loadState(){
     if (typeof d.sbBank  !== "undefined") S.sbBank  = d.sbBank;
     if (typeof d.sbBase  !== "undefined") S.sbBase  = d.sbBase;
     if (typeof d.typedBal !== "undefined") S.typedBal = d.typedBal;
+    if (typeof d.sbRate   !== "undefined") S.sbRate   = d.sbRate;
+    if (typeof d.martRate !== "undefined") S.martRate = d.martRate;
     /* THE SETUP SCREEN IS ALWAYS THE LADDER'S. The sandbox is somewhere you go
        by pressing a launch button, never a state to come back up in - restoring
        it here left the rail with nothing selected and no form beside it. If the
@@ -2017,14 +2034,21 @@ function setStrat(x){
   if (prev !== x){
     if (x === "flat"){
       S.martBank = $("bank").value; S.martBase = $("base").value;
+      S.martRate = $("autoRate").value;
       $("bank").value = S.sbBank === undefined ? 400000 : S.sbBank;
       $("base").value = S.sbBase === undefined ? SANDBOX_BASE : S.sbBase;
+      $("autoRate").value = S.sbRate === undefined ? SANDBOX_RATE : S.sbRate;
     } else {
       S.sbBank = $("bank").value; S.sbBase = $("base").value;
+      S.sbRate = $("autoRate").value;
       if (S.martBank !== undefined) $("bank").value = S.martBank;
       if (S.martBase !== undefined) $("base").value = S.martBase;
+      if (S.martRate !== undefined) $("autoRate").value = S.martRate;
       if (S.martGame) setGame(S.martGame);
     }
+    /* the slider moved, so the figure printed beside it has to move with it -
+       and a running autoplay reads the slider on its next tick either way */
+    paintRate();
   }
   /* ONLY MARTINGALE IS EVER SELECTED. The other two rail items launch and
      leave; marking one of them "on" left the setup screen showing a mode that
