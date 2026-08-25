@@ -22,12 +22,19 @@ services:
     buildCommand: ""
     staticPublishPath: ./public
 
-    # Anything that is not a file we published still gets the page rather than
-    # a 404, so a mistyped or shared-with-a-path link lands somewhere useful.
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    # NO CATCH-ALL REWRITE, and that is deliberate.
+    #
+    # This used to rewrite /* to /index.html so a mistyped or shared-with-a-path
+    # link landed on the page rather than a 404. The cost was that EVERY path
+    # answered 200 with HTML - including /.env, /wp-admin/ and /config.json,
+    # which are the paths automated scanners probe hardest. A host that never
+    # 404s is the signature of a catch-all redirector or a compromised box, and
+    # a user reported viptools.gg blocked as "Suspicious" by a mobile security
+    # product while this was in place.
+    #
+    # Nothing here needs it. Routing is hash-based (location.hash), and a
+    # fragment never reaches the server, so deep links were never being served
+    # by this rule in the first place - it only ever caught typos.
 
     headers:
       - path: /*

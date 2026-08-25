@@ -1,0 +1,9 @@
+# viptools.gg - the martingale simulator
+#
+# Everything here is public and static. Nothing is hidden, so nothing is
+# disallowed; this file exists so a crawler that asks gets an answer rather
+# than a 404, and so the sitemap has somewhere to be announced.
+User-agent: *
+Allow: /
+
+Sitemap: https://martingale.viptools.gg/sitemap.xml
