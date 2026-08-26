@@ -1,0 +1,3565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keno Idle</title>
+<meta name="color-scheme" content="dark">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="VIP Tools">
+<meta property="og:title" content="Keno Idle">
+<meta property="og:url" content="https://keno.viptools.gg/">
+<meta name="twitter:card" content="summary">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23131316'/%3E%3Crect x='5' y='5' width='9' height='9' fill='%23ffb454'/%3E%3Crect x='18' y='5' width='9' height='9' fill='%232c2c32'/%3E%3Crect x='5' y='18' width='9' height='9' fill='%232c2c32'/%3E%3Crect x='18' y='18' width='9' height='9' fill='%23ffb454'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   THE PALETTE IS THE HOUSE PALETTE, lifted from martingale.viptools.gg,
+   which lifted it from vipzone.css. Square corners, dark only, and a
+   colour never means two things on one screen:
+       amber   the house colour - active, and a tile that is yours AND drawn
+       green   it paid
+       cream   this one is yours
+       red     developer tools - not part of the game
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  color-scheme: dark;
+  --bg:#131316; --bg-deep:#131316; --card:#1b1b1f; --border:#2c2c32;
+  --button:#242429; --button-hover:#2f2f37; --track:#3a3a42;
+  --fg:#f0f0f2; --fg-2:#e6e6ea; --muted:#a4a4ad; --faint:#8b8b93;
+  --accent:#ffb454; --live:#e53935; --cream:#e8e2c4; --teal:#4d9de0;
+  --green:#4ade80; --danger:#e06c5a;
+  --sans:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Code",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);
+  font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+h2{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;margin:0 0 8px}
+.n,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+/* THREE COLUMNS WHEN THERE IS ROOM: what just happened on the left, the
+   board you play in the middle, everything you buy on the right.
+
+   FLEX, NOT GRID, AND FOR A SPECIFIC REASON. Both side columns hide
+   themselves until they have something to say, and a grid with three fixed
+   tracks does not care — a hidden child is display:none, so the remaining
+   two slide into tracks 1 and 2. The board ended up in the 250px history
+   track and was clipped at tile 8. Flex has no tracks to fall into: whatever
+   is visible sizes itself and the row stays centred. */
+.wrap{max-width:1220px;margin:0 auto;padding:5px;display:flex;gap:5px;
+  align-items:flex-start;justify-content:center}
+/* THE TWO FLANKS ARE THE SAME WIDTH so the board sits on the page's centre
+   line and not merely in the middle of the row. Unequal flanks centre the
+   ROW, which left the board 52px to the left of centre. */
+.col-left {flex:0 0 340px;min-width:0}
+.col-mid  {flex:0 1 520px;min-width:0}
+.col-right{flex:0 0 340px;min-width:0}
+@media (max-width:1040px){
+  .wrap{flex-direction:column;align-items:center}
+  .col-left,.col-mid,.col-right{flex:0 0 auto;width:100%;max-width:560px}
+  .col-left{order:3}
+  .col-left:empty,.col-left:has(> [hidden]:only-child){display:none}
+}
+}
+
+/* ───────────────────────────────────────────────────────────── header ── */
+.top{display:flex;align-items:center;gap:16px;padding:0 14px;height:42px;
+  background:var(--card);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:20;overflow-x:auto;scrollbar-width:none}
+.top::-webkit-scrollbar{display:none}
+.brand{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
+  font-weight:700;white-space:nowrap}
+.brand b{color:var(--fg);font-size:13px;letter-spacing:0;text-transform:none;margin-left:8px;font-weight:700}
+.toolnav{display:flex;gap:3px}
+.toolnav a{font-size:11.5px;line-height:1.6;padding:2px 10px;white-space:nowrap;
+  border:1px solid #4a3a20;background:var(--button);color:var(--accent);text-decoration:none}
+.toolnav a:hover{background:#2a2118}
+.toolnav a::after{content:" →"}
+
+/* ─────────────────────────────────────────────────────────────── cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:0;margin-bottom:5px}
+.card:last-child{margin-bottom:0}
+.cardhead{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.cardhead h2{margin:0}
+.cardhead .grow{flex:1}
+.cardhead .note{font-size:11.5px;color:var(--faint)}
+.cardbody{padding:10px 12px}
+
+button.ghost,button.primary{font:inherit;cursor:pointer;border-radius:0;padding:4px 12px;
+  border:1px solid var(--border);background:var(--button);color:var(--muted)}
+button.ghost:hover{background:var(--button-hover);color:var(--fg)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+button.primary:hover{filter:brightness(1.07)}
+button:disabled{opacity:.35;cursor:default}
+button:disabled:hover{background:var(--button);color:var(--muted);filter:none}
+button.primary:disabled:hover{background:var(--accent)}
+button.tiny{font-size:11px;padding:2px 8px}
+
+/* ────────────────────────────────────────────────────────── the bank ── */
+.bank{display:flex;align-items:baseline;gap:10px;padding:12px 12px 10px}
+/* THE RATE SITS UNDER THE BALANCE, not beside it, because it is the number
+   you watch and the balance is the number you spend. */
+.bankrate{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;
+  font-weight:700;color:var(--green);margin-top:5px}
+.bankrate span{color:var(--faint);font-size:11px;font-weight:400}
+.bankbig{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700;
+  font-size:clamp(26px,7vw,40px);letter-spacing:-.03em;line-height:1;color:var(--cream)}
+.bank .grow{flex:1}
+.bankside{text-align:right;font-size:11.5px;color:var(--faint);line-height:1.35}
+.bankside b{display:block;font-family:var(--mono);font-size:14px;color:var(--fg-2);font-weight:700}
+
+/* ──────────────────────────────────────────────────────── keno board ── */
+/* THE THIRTY TILES THAT MEAN NOTHING RECEDE, so the ten that were drawn and
+   the ones that are yours are the only things on the board with any weight. */
+.gamewrap{position:relative}
+.board{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}
+.kt{aspect-ratio:1/1;background:#131317;border:1px solid #1b1b21;
+  display:grid;place-items:center;font-family:var(--mono);font-size:13px;font-weight:600;
+  color:#474751;cursor:pointer;user-select:none;min-height:30px;
+  transition:background .13s ease,border-color .13s ease,color .13s ease}
+.kt:hover{background:#20202a;border-color:#2e2e38;color:var(--muted)}
+@keyframes ktpop{0%{transform:scale(.82)}55%{transform:scale(1.08)}100%{transform:scale(1)}}
+@keyframes kthit{0%{transform:scale(.82);box-shadow:0 0 0 0 rgba(255,180,84,.55)}
+                 55%{transform:scale(1.14);box-shadow:0 0 0 7px rgba(255,180,84,0)}
+                 100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,180,84,0)}}
+.kt.just{animation:ktpop .2s ease-out}
+.kt.pick.just{animation:kthit .34s ease-out}
+.board.revealing .kt{cursor:default}
+.kt.pick{background:#26241d;border-color:var(--cream);color:var(--cream)}
+.kt.pick:hover{background:#302d24;border-color:var(--cream);color:var(--cream)}
+.kt.drawn{background:#41414d;border-color:#41414d;color:#fff}
+.kt.drawn:hover{background:#4a4a58;border-color:#4a4a58;color:#fff}
+.kt.pick.drawn,.kt.pick.drawn:hover{background:var(--accent);border-color:var(--accent);
+  color:#17130a;font-weight:700;box-shadow:0 0 0 2px rgba(255,180,84,.28)}
+
+/* ═══════════════════════ THE BIG WIN TAKEOVER ════════════════════════
+   Only the gem tiers get this. The storm BUILDS rather than arriving all at
+   once — every streak loops forever, so spreading their start delays across
+   the ramp is the whole mechanism: density climbs as more of them come in,
+   then holds at full once they all have. */
+#bigwin{position:fixed;inset:0;z-index:880;pointer-events:none;
+  background:#000;opacity:0;transition:opacity 1400ms ease}
+#bigwin.on{opacity:1}
+#bwSky{position:fixed;inset:0;z-index:890;width:100%;height:100%;display:block;
+  opacity:0;pointer-events:none;transition:opacity 700ms ease}
+/* WHILE IT IS COVERING, THE SKY IS IN FRONT OF EVERYTHING. That is the whole
+   point — the veil has to hide the board, and at z-890 it was behind it.
+   Dropping back to 890 happens while the veil is opaque, so the layer flip
+   is never seen. */
+body.bwcover #bwSky{z-index:980}
+#bwVeil{position:fixed;inset:0;z-index:995;background:#f7faff;opacity:0;
+  pointer-events:none}
+/* ABOVE the board, unlike the sky. These have to land ON the numbers, so they
+   cannot be drawn behind them. */
+#bwShots{position:fixed;inset:0;z-index:960;width:100%;height:100%;display:block;
+  opacity:0;pointer-events:none}
+body.bwsky #bwShots{opacity:1}
+body.bwsky #bwSky{opacity:1}
+/* the board rides above the streaks from the moment they start, so it never
+   pops through them partway */
+body.bwsky #boardCard{position:relative;z-index:950}
+}
+}
+/* the board rides above the storm and grows; everything else stands down */
+body.bw .col-left, body.bw .col-right, body.bw #devCard, body.bw #devHint,
+body.bw .top{opacity:0;transition:opacity 900ms ease;pointer-events:none}
+/* THE BOARD GROWS AGAIN — but around the GRID, not the card.
+
+   The first attempt scaled #boardCard about its own centre, and the card is
+   131px taller than the grid it holds: a faded cardhead above and a faded
+   playrow below. Both keep their height so nothing reflows, so both became
+   dead black bands that pushed the grid off-centre and ate the room the
+   board could have used.
+
+   Scaling about the grid's centre and translating THAT onto the viewport
+   centre fixes both at once — the grid is centred and sized on its own
+   terms, and the dead bands simply overflow off-screen, where being black on
+   black costs nothing. body gets overflow:hidden so that overflow cannot
+   produce a scrollbar.
+
+   The flicker this caused the first time was the SVG storm, not the scale;
+   with the storm on canvas a static 40-tile layer is cheap to raster. */
+body.bw{overflow:hidden}
+/* NOTHING TRANSITIONS ACROSS THE SWAP. Fading the interface out is what
+   looked cheap — you could watch the room being taken apart. Behind an
+   opaque veil there is nothing to hide, so every one of these changes at
+   once, in a single frame, and the transitions come back immediately after.
+   `.bw` is always present at this moment, which is what keeps these ahead
+   of the rules they are cancelling. */
+body.bw.bwinstant #boardCard,body.bw.bwinstant .gamewrap,body.bw.bwinstant .kt,
+body.bw.bwinstant .col-left,body.bw.bwinstant .col-right,body.bw.bwinstant .top,
+body.bw.bwinstant #devCard,body.bw.bwinstant #devHint,
+body.bw.bwinstant .col-mid > .card:first-child,
+body.bw.bwinstant #boardCard .cardhead,body.bw.bwinstant #boardCard .playrow,
+body.bw.bwinstant #boardCard .hint,body.bw.bwinstant #bigwin{transition:none}
+/* THE WAY BACK IS STAGED, and only during the way back — putting these
+   transitions on the base elements would soften every ordinary draw. The
+   board shrinks first, its colours follow a beat later, and the interface
+   returns last, once there is something worth looking at again. */
+body.bwout #boardCard{transition:transform 780ms cubic-bezier(.3,.8,.35,1),
+  background-color 560ms ease 260ms,border-color 560ms ease 260ms}
+body.bwout .gamewrap{transition:background-color 560ms ease 260ms,
+  box-shadow 560ms ease 260ms}
+body.bwout .kt{transition:background-color 560ms ease 260ms,
+  border-color 560ms ease 260ms,color 560ms ease 260ms}
+body.bwout .col-left,body.bwout .col-right,body.bwout #devCard,body.bwout #devHint,
+body.bwout .top,body.bwout .col-mid > .card:first-child,
+body.bwout #boardCard .cardhead,body.bwout #boardCard .playrow,
+body.bwout #boardCard .hint{transition:opacity 440ms ease 680ms}
+/* THE GROW IS A SEPARATE STEP FROM THE DARK. Both used to land on `bw` at
+   once, 60ms after the click — the room, the board and the sky all moving in
+   the same frame, which is what made the opening feel like a jump cut. The
+   transform waits for `bwbig`, added once the room has actually gone dark.
+   will-change promotes the card before it moves, so the first frame of the
+   grow is not also the frame that builds its layer. */
+body.bw #boardCard{position:relative;z-index:950;will-change:transform}
+body.bw.bwbig #boardCard{
+  transform:translate(var(--bwdx,0px),var(--bwdy,0px)) scale(var(--bwscale,1));
+  transform-origin:var(--bwox,50%) var(--bwoy,50%)}
+
+/* a pool of darkness so the storm does not run straight up to the tiles —
+   without it the grid reads as a hole punched in the streaks rather than an
+   object lit in front of them */
+/* A PANEL, NOT A WINDOW. Fully transparent tiles let streaks run straight
+   across the numbers, which read as noise rather than depth. One scrim over
+   the whole grid at .90 keeps the storm as a faint ghost behind the board
+   instead — enough that the board is clearly in front of the sky, not a hole
+   cut out of it. The soft pool around it does the separating. */
+/* A RECTANGLE IS THE PROBLEM. A flat panel with a hard edge, filled with a
+   grid of outlined boxes, is a spreadsheet — and no amount of starfield
+   behind it stops it reading as one. The pool is a radial fade with no edge
+   at all now, so the board has no border anywhere: it is just a patch of
+   deeper dark that the numbers happen to sit in. */
+body.bw .gamewrap{background:transparent;box-shadow:none}
+/* `closest-side` IS LOAD-BEARING. A radial-gradient sizes itself to
+   farthest-corner by default, so it only reaches full transparency at the
+   CORNERS — along the left and right mid-edges it was still around 15%
+   opaque when the element clipped, which is exactly the two hard vertical
+   edges that appeared to jut out into space. closest-side makes the ellipse
+   inscribe the box instead: transparent at all four mid-edges, and past 100%
+   (so also transparent) everywhere out toward the corners. No edge anywhere.
+
+   Weaker than it was, too. With the tiles carrying their own glow the pool
+   no longer has to hold the board up on its own. */
+body.bw .gamewrap::after{content:"";position:absolute;inset:-34%;z-index:-1;
+  pointer-events:none;
+  background:radial-gradient(ellipse closest-side at 50% 50%,
+    rgba(0,0,0,.92) 0%, rgba(0,0,0,.82) 30%,
+    rgba(0,0,0,.52) 55%, rgba(0,0,0,.18) 78%, rgba(0,0,0,0) 100%)}
+body.bw .col-mid > .card:first-child{opacity:0;transition:opacity 400ms ease}
+
+/* THE POINT OF THE DARK ROOM IS CONTRAST, so the card has to go black with
+   it. Left grey it read as an ugly slab floating on the overlay — and worse,
+   the tile borders (#1b1b21) are all but identical to the card behind them
+   (#1b1b1f), so against black the whole grid vanished into a flat void. The
+   tiles need their own darker ground and a border that can actually be seen.
+   Everything that is chrome rather than the feature fades out; the card keeps
+   its full height so nothing reflows underneath. */
+/* ONE transition declaration, because `transition` is a shorthand: a second
+   rule on the same element replaces the first outright. Two of them meant
+   the transform lost its timing entirely and the board snapped to size
+   instead of growing. */
+body.bw #boardCard{background:transparent;border-color:transparent;
+  transition:transform 1250ms cubic-bezier(.22,.68,.28,1),
+             background-color 1000ms ease,border-color 1000ms ease}
+body.bw #boardCard .cardhead,
+body.bw #boardCard .playrow,
+body.bw #boardCard .hint{opacity:0;transition:opacity 900ms ease;pointer-events:none}
+body.bw #boardCard .cardhead{border-bottom-color:transparent}
+/* The tiles themselves stay alpha so the scrim under them does the work —
+   borders carry the structure, and the only fully solid thing on screen is
+   the win itself. */
+/* REAL PERSPECTIVE, so the well can actually be three dimensional. A tile
+   pushed to translateZ(-400) under a 900px perspective recedes AND
+   foreshortens on its own, which no amount of scale() can imitate — and the
+   tilt of each tile toward the throat is what makes the funnel wall read as
+   a surface rather than as forty separate squares getting smaller. */
+body.bw .board{background:transparent;pointer-events:none;
+  perspective:680px;perspective-origin:50% 50%}
+/* THE REVEAL POP CARRIES THE OLD PALETTE. `kthit` throws an amber box-shadow
+   ring when a picked tile turns over — fine on the ordinary board, but at
+   2.2x it is a 15px amber rectangle, and two vertically adjacent picks
+   revealing together merge into one tall box floating in the starfield.
+
+   Restating the takeover's own animation at higher specificity is what stops
+   it. The value is identical to the non-`.just` rule, so the hue cycle does
+   NOT restart when the class comes and goes — which is the whole reason the
+   rainbow works at all now. Landing is already announced by the tile going
+   from dim to lit; it does not also need a ring. */
+body.bw .kt.just{animation:none}
+body.bw .kt.pick.just{animation:bwpick 3.4s linear infinite}
+body.bw .kt.pick.drawn.just{animation:bwcyc 3.4s linear infinite}
+
+/* AND THE HOVER STYLES THEMSELVES ARE NEUTRALISED, because
+   pointer-events:none is not enough on its own: Chrome does not re-run hit
+   testing when pointer-events changes, so a :hover latched before the event
+   started stays latched until the mouse moves. Turning off the pointer stops
+   NEW hovers; overriding the rules stops the one already stuck. */
+body.bw .kt:hover,
+body.bw .kt.pick:hover,
+body.bw .kt.drawn:hover,
+body.bw .kt.pick.drawn:hover{background:transparent;border-color:transparent;
+  color:inherit}
+
+/* HOVER LEAKS THROUGH OTHERWISE. `.kt.pick:hover` sets a cream border and
+   counts three classes, which outranks `body.bw .kt` at two — so whatever
+   tile the mouse happened to be resting on painted a lone amber box in the
+   middle of the starfield, and it moved when the pointer did. The board is
+   not interactive during the event, so the honest fix is to say so. */
+/* NO OUTLINES AND NO FILLS. Every tile keeps its border width so nothing
+   moves, but the border is invisible — the grid stops being forty boxes and
+   becomes forty numbers hanging in the dark. Everything that used to be said
+   with a box is said with light instead: your picks glow and cycle, a number
+   that lands flares white, and a pick that lands does both. */
+/* box-shadow:none is doing real work here. `.kt.pick.drawn` carries a static
+   2px amber ring, and the takeover rules replaced its background, border,
+   colour and animation but never its shadow — so every tile that HIT drew a
+   lone amber square in the middle of the starfield, and it moved down the
+   board as the draw came in. Overriding a palette means overriding all of
+   it, not the properties you happened to think of. */
+body.bw .kt{background:transparent;border-color:transparent;box-shadow:none;
+  color:rgba(196,206,238,.26);
+  text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 9px rgba(0,0,0,.85);
+  transition:color 1000ms ease,text-shadow 1000ms ease}
+/* PICKS CYCLE TOO, but as an outline. Amber against a rainbow board read as
+   the one thing that had not been told about the party. The distinction that
+   matters is filled vs not: a pick is a hollow rainbow square, a pick that
+   has been drawn fills in. */
+/* A KNOCKED-OUT NUMBER IS GONE, NOT DIMMED. Once the storm has been through,
+   the board should hold only the numbers you chose. */
+body.bw .kt.out{opacity:0;transition:opacity 420ms ease}
+/* and the survivors carry a real outline, because they are now the only
+   things on the board and the grid has to still read as a grid */
+body.bw .kt.pick{background:transparent;font-weight:700;
+  animation:bwpick 3.4s linear infinite}
+@keyframes bwpick{
+  0%{color:hsl(0 95% 76%);border-color:hsl(0 95% 62%);
+     text-shadow:0 0 15px hsla(0,95%,60%,.8),0 1px 3px #000}
+  25%{color:hsl(90 95% 76%);border-color:hsl(90 95% 62%);
+     text-shadow:0 0 15px hsla(90,95%,60%,.8),0 1px 3px #000}
+  50%{color:hsl(180 95% 76%);border-color:hsl(180 95% 62%);
+     text-shadow:0 0 15px hsla(180,95%,60%,.8),0 1px 3px #000}
+  75%{color:hsl(270 95% 76%);border-color:hsl(270 95% 62%);
+     text-shadow:0 0 15px hsla(270,95%,60%,.8),0 1px 3px #000}
+  100%{color:hsl(360 95% 76%);border-color:hsl(360 95% 62%);
+     text-shadow:0 0 15px hsla(360,95%,60%,.8),0 1px 3px #000}
+}
+body.bw .kt.drawn{background:transparent;border-color:transparent;box-shadow:none;color:#fff;
+  text-shadow:0 0 20px rgba(255,255,255,.6),0 0 6px rgba(255,255,255,.5),0 1px 3px #000}
+
+/* the frame around the whole board, once the win lands */
+
+/* ABOVE THE GRID, not across it. `top` is the plate's BOTTOM edge here —
+   translate(-50%,-100%) anchors it that way, so bwFitBoard can park it a
+   fixed gap over the first row without knowing how tall the plate is. No
+   border: with the numbers borderless too, the only outline left in space is
+   the one that marks a number you picked and hit. */
+#bwPop{position:fixed;left:50%;top:var(--bwpoptop,130px);
+  transform:translate(-50%,-100%) scale(.85);
+  z-index:990;text-align:center;pointer-events:none;background:transparent;
+  border:0;padding:4px 20px 10px;opacity:0;
+  transition:opacity 300ms ease,transform 300ms cubic-bezier(.2,1.4,.4,1);
+  text-shadow:0 2px 14px rgba(0,0,0,.95)}
+#bwPop.on{opacity:1;transform:translate(-50%,-100%) scale(1)}
+.bwcap,.bwamt{-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  background-image:linear-gradient(90deg,#ff5f6d,#ffc371,#8fff7a,#5fd0ff,#c79cff,#ff5f6d);
+  background-size:300% 100%;animation:bwflow 2.6s linear infinite}
+@keyframes bwflow{ to{ background-position:300% 0; } }
+.bwcap{font-family:var(--mono);font-size:13px;letter-spacing:.3em;text-transform:uppercase;
+  margin-bottom:6px;font-weight:700}
+.bwamt{font-family:var(--mono);font-size:42px;font-weight:700;line-height:1;
+  font-variant-numeric:tabular-nums}
+
+/* during the event the winning tiles cycle hue together, rather than amber */
+body.bw .kt.pick.drawn{background:transparent;border-color:transparent;
+  box-shadow:none;font-weight:700;animation:bwcyc 3.4s linear infinite}
+/* THE ONE OUTLINE THAT EARNS ITS PLACE. Everything else in space is
+   borderless, so a border now means exactly one thing: a number you picked
+   that the draw actually delivered. It cycles with the glow rather than
+   against it, and the box is what makes it legible at a glance among forty
+   numbers that are all lit to some degree. */
+@keyframes bwcyc{
+  0%{color:hsl(0 100% 82%);border-color:hsl(0 95% 64%);
+     text-shadow:0 0 26px hsla(0,100%,62%,.95),0 0 10px #fff,0 1px 3px #000}
+  25%{color:hsl(90 100% 82%);border-color:hsl(90 95% 64%);
+     text-shadow:0 0 26px hsla(90,100%,62%,.95),0 0 10px #fff,0 1px 3px #000}
+  50%{color:hsl(180 100% 82%);border-color:hsl(180 95% 64%);
+     text-shadow:0 0 26px hsla(180,100%,62%,.95),0 0 10px #fff,0 1px 3px #000}
+  75%{color:hsl(270 100% 82%);border-color:hsl(270 95% 64%);
+     text-shadow:0 0 26px hsla(270,100%,62%,.95),0 0 10px #fff,0 1px 3px #000}
+  100%{color:hsl(360 100% 82%);border-color:hsl(360 95% 64%);
+     text-shadow:0 0 26px hsla(360,100%,62%,.95),0 0 10px #fff,0 1px 3px #000}
+}
+@media (prefers-reduced-motion:reduce){
+  .bwcap,.bwamt,
+  body.bw .kt.pick,body.bw .kt.pick.drawn{animation:none}
+}
+
+/* ── the plinko ball ───────────────────────────────────────────────────
+   Three objects by prize: a bearing under 100x, a marble under 200x, a cut
+   gem above. The gem tiers add a spinning stone, a rainbow ring in place of
+   the amber one, and streaks that grow denser, longer and faster as the
+   prize climbs. */
+@keyframes ballin{
+  0%  {transform:translate(-50%,-50%) translate(-420px,-230px) scale(.55);opacity:0}
+  12% {opacity:1}
+  72% {transform:translate(-50%,-50%) translate(0,-15px) scale(1.10)}
+  86% {transform:translate(-50%,-50%) translate(0,5px)  scale(.95)}
+  100%{transform:translate(-50%,-50%) translate(0,0)    scale(1)}
+}
+@keyframes ballroll{ from{transform:rotate(-620deg)} to{transform:rotate(0)} }
+/* A GEM DOES NOT DRIFT IN, IT ARRIVES. `ballin` brings the ordinary balls
+   from the upper left at 0.55 and eases to a stop, which is a gentle,
+   pleasant landing and completely wrong for the thing the whole event has
+   been building toward. This one starts enormous and comes straight at the
+   board on a hard ease-IN, so it is still accelerating when it hits — and
+   nothing settles afterwards, because the BOARD does the reacting. */
+@keyframes gemcrash{
+  0%  {transform:translate(-50%,-50%) translate(-780px,320px) scale(2.2);
+       opacity:0;filter:blur(4px)}
+  16% {opacity:1}
+  100%{transform:translate(-50%,-50%) translate(0,0) scale(1);
+       opacity:1;filter:blur(0)}
+}
+@keyframes gemspin{ to{ transform:rotate(360deg); } }
+@keyframes ringspin{ to{ transform:rotate(360deg); } }
+@keyframes streakout{
+  0%{opacity:0;transform:rotate(var(--rot)) translateY(var(--r0)) scaleY(.35)}
+  16%{opacity:1}
+  100%{opacity:0;transform:rotate(var(--rot)) translateY(var(--r1)) scaleY(1.6)}
+}
+@keyframes labflow{ to{ background-position:300% 0; } }
+@keyframes ballpulse{
+  0%{box-shadow:0 0 0 0 rgba(255,180,84,.65)}
+  100%{box-shadow:0 0 0 22px rgba(255,180,84,0)}
+}
+#ball{position:absolute;z-index:12;pointer-events:none;width:62px;height:62px;
+  transform:translate(-50%,-50%)}
+#ballArt{position:absolute;inset:0;z-index:3;
+  filter:drop-shadow(0 4px 7px rgba(0,0,0,.6))}
+#ballArt svg{width:100%;height:100%;display:block}
+#ball.drop.plain{animation:ballin .82s cubic-bezier(.3,.7,.35,1) both}
+#ball.drop.gem{animation:gemcrash .44s cubic-bezier(.78,0,.9,.22) both}
+#ball.drop.gem #ballArt{animation:ballroll .44s cubic-bezier(.78,0,.9,.22) both;
+  transform-box:fill-box;transform-origin:center}
+#ball.drop.plain #ballArt{animation:ballroll .82s cubic-bezier(.3,.7,.35,1) both;
+  transform-box:fill-box;transform-origin:center}
+#ball.land.plain{animation:ballpulse .55s ease-out 2}
+/* a gem keeps turning once it has landed */
+#ball.land.gem #ballArt.gem,#ball.land #ballArt.gem{animation:gemspin var(--gemspin,7s) linear infinite}
+
+/* THE RING REPLACES THE AMBER ONE, and clips only itself. */
+#ballRing{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  z-index:1;overflow:hidden;display:none}
+#ballRing.on{display:block}
+#ballRing::before{content:"";position:absolute;left:50%;top:50%;width:180%;height:180%;
+  margin:-90% 0 0 -90%;
+  background:conic-gradient(hsl(0 95% 62%),hsl(51 95% 62%),hsl(102 95% 62%),hsl(153 95% 62%),
+    hsl(204 95% 62%),hsl(255 95% 62%),hsl(306 95% 62%),hsl(360 95% 62%));
+  animation:ringspin var(--ringspin,4s) linear infinite}
+#ballRing i{position:absolute;inset:2px;background:#26241d;display:block}
+
+/* OUTSIDE anything that clips, so they cross the neighbouring tiles */
+#ballFx{position:absolute;left:50%;top:50%;width:0;height:0;z-index:2}
+#ballFx.spin{animation:gemspin var(--fxspin,3s) linear infinite}
+#ballFx i{position:absolute;left:0;top:0;border-radius:2px;opacity:0;
+  transform-origin:50% 50%;animation:streakout var(--dur,1.4s) ease-out infinite}
+
+/* two elements: the outer plate stays solid black, the inner span carries
+   the gradient that gets clipped to the glyphs */
+/* TOPMOST, ABOVE EVERYTHING THE BALL DRAWS. The streaks travel outward as
+   they animate, so they sweep through this space even though they start
+   below it — measured statically the label sat clear, and in motion it did
+   not. It is the one thing that must stay readable, so it outranks the art
+   it is describing. A solid plate and a hard ring, because it is sitting
+   over ninety moving rainbow streaks. */
+#ball .ballmult{position:absolute;left:50%;bottom:calc(100% + 9px);
+  transform:translate(-50%,0);white-space:nowrap;z-index:40;
+  font-family:var(--mono);font-size:16px;font-weight:700;color:#fff;
+  background:#000;border:1px solid #5a5a66;padding:3px 11px;
+  box-shadow:0 0 0 3px rgba(0,0,0,.85), 0 8px 22px rgba(0,0,0,.8)}
+#ball .ballmult.blue{color:#7fc3ff}
+#ball .ballmult.purple{color:#c79cff}
+#ball .ballmult.rain span{-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  background-image:linear-gradient(90deg,#ff5f6d,#ffc371,#8fff7a,#5fd0ff,#c79cff,#ff5f6d);
+  background-size:300% 100%;animation:labflow 2.4s linear infinite}
+
+@keyframes ballflash{
+  0%{box-shadow:0 0 0 0 rgba(255,180,84,0)}
+  35%{box-shadow:0 0 0 5px rgba(255,180,84,.5)}
+  100%{box-shadow:0 0 0 0 rgba(255,180,84,0)}
+}
+.board.ballhit{animation:ballflash .9s ease-out 2}
+@keyframes winin{0%{opacity:0;transform:translate(-50%,-50%) scale(.85)}
+                 100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.pop{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  padding:13px 26px;text-align:center;pointer-events:none;z-index:5;
+  animation:winin .2s ease-out;box-shadow:0 12px 34px rgba(0,0,0,.55);min-width:190px;
+  background:#10241a;border:1px solid var(--green)}
+.pop .pmain{font-family:var(--mono);font-size:28px;font-weight:700;letter-spacing:-.025em;
+  line-height:1;font-variant-numeric:tabular-nums;color:var(--green)}
+.pop .psub{font-size:12.5px;color:var(--fg-2);margin-top:5px;font-family:var(--mono)}
+
+/* ─────────────────────────────────────────────────────────────── shop ── */
+.shop{display:grid;gap:2px}
+.uprow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;
+  padding:8px 10px;background:var(--bg-deep);border:1px solid var(--border)}
+.uprow.can{border-color:#4a3a20}
+.uprow .un{font-size:12.5px;color:var(--fg-2);font-weight:600}
+.uprow .ud{font-size:11.5px;color:var(--faint);margin-top:1px}
+.uprow .ulvl{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--faint);
+  text-transform:uppercase}
+.uprow button{min-width:96px}
+
+/* ────────────────────────────────────────────────────────── streamers ── */
+.streamers{display:grid;gap:2px}
+.srow{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:9px;align-items:center;
+  padding:7px 9px;background:var(--bg-deep);border:1px solid var(--border)}
+.srow.owned{border-color:#3a3a44}
+.sicon{font-size:21px;line-height:1;text-align:center;filter:grayscale(1) opacity(.45)}
+.srow.owned .sicon{filter:none}
+.smid{min-width:0}
+.sname{font-size:12.5px;color:var(--fg-2);font-weight:600}
+.scount{font-family:var(--mono);color:var(--accent);font-weight:700}
+.sblurb{font-size:11px;color:var(--faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.sbuy{text-align:right}
+.snobody{padding:10px 2px;font-size:11.5px;color:var(--faint);text-align:center}
+
+/* ── what just landed ─────────────────────────────────────────────────── */
+/* ONE TILE PER DRAW: the multiplier it paid, and under it how many of your
+   numbers came in. Same shape the paytable strip uses, so a 0x here reads as
+   the same object as a 0x there. Grey when it paid nothing, amber when it
+   did — a column of these is a run of results you can scan without reading. */
+.histgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));
+  gap:4px;padding:8px;overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:var(--track) transparent}
+.histgrid::-webkit-scrollbar{width:8px}
+.histgrid::-webkit-scrollbar-thumb{background:var(--track)}
+.hcell{border:1px solid var(--border);background:var(--bg-deep);text-align:center;
+  overflow:hidden}
+.hcell.won{border-color:#3a3a44}
+.hcell.big{border-color:var(--accent)}
+/* a draw a ball landed on, so it stands out in the run */
+.hcell.ball{border-color:var(--accent);background:#241b09}
+.hcell.ball .hmult{color:#ffe0a8}
+/* AND A GEM GETS THE SAME TURNING RAINBOW IT WORE ON THE BOARD. Amber was
+   right for a bearing and wrong for the thing that just took the screen over
+   for half a minute — the row should be able to tell you which draw that was
+   from across the room, and permanently. */
+.hcell.gem{background:#0b0a14;animation:hgem 3.4s linear infinite}
+@keyframes hgem{
+  0%{border-color:hsl(0 95% 64%);
+     box-shadow:0 0 13px hsla(0,95%,60%,.5),inset 0 0 11px hsla(0,95%,60%,.2)}
+  25%{border-color:hsl(90 95% 64%);
+     box-shadow:0 0 13px hsla(90,95%,60%,.5),inset 0 0 11px hsla(90,95%,60%,.2)}
+  50%{border-color:hsl(180 95% 64%);
+     box-shadow:0 0 13px hsla(180,95%,60%,.5),inset 0 0 11px hsla(180,95%,60%,.2)}
+  75%{border-color:hsl(270 95% 64%);
+     box-shadow:0 0 13px hsla(270,95%,60%,.5),inset 0 0 11px hsla(270,95%,60%,.2)}
+  100%{border-color:hsl(360 95% 64%);
+     box-shadow:0 0 13px hsla(360,95%,60%,.5),inset 0 0 11px hsla(360,95%,60%,.2)}
+}
+.hcell.gem .hmult{font-weight:700;animation:hgemtx 3.4s linear infinite}
+@keyframes hgemtx{
+  0%{color:hsl(0 100% 82%);text-shadow:0 0 11px hsla(0,100%,62%,.95)}
+  25%{color:hsl(90 100% 82%);text-shadow:0 0 11px hsla(90,100%,62%,.95)}
+  50%{color:hsl(180 100% 82%);text-shadow:0 0 11px hsla(180,100%,62%,.95)}
+  75%{color:hsl(270 100% 82%);text-shadow:0 0 11px hsla(270,100%,62%,.95)}
+  100%{color:hsl(360 100% 82%);text-shadow:0 0 11px hsla(360,100%,62%,.95)}
+}
+.hcell.gem .hhits{background:#12101c;border-top-color:#2a2440}
+.hcell.gem .hhits i{animation:hgemsq 3.4s linear infinite}
+@keyframes hgemsq{
+  0%{background:hsl(0 95% 64%)}   25%{background:hsl(90 95% 64%)}
+  50%{background:hsl(180 95% 64%)} 75%{background:hsl(270 95% 64%)}
+  100%{background:hsl(360 95% 64%)}
+}
+.hmult{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);
+  padding:6px 2px;letter-spacing:-.02em}
+.hcell.won .hmult{color:var(--accent)}
+.hhits{display:flex;align-items:center;justify-content:center;gap:5px;
+  border-top:1px solid var(--border);background:#141419;padding:3px 2px;
+  font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.hcell.won .hhits{color:var(--fg-2)}
+.hhits i{width:7px;height:7px;display:block;background:var(--track)}
+.hcell.won .hhits i{background:var(--accent)}
+.sbuy button{min-width:92px}
+.sout{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:11.5px;
+  color:var(--green);margin-bottom:3px;min-height:16px}
+.strk{display:flex;gap:3px;margin-top:5px;flex-wrap:wrap}
+.sbtn{font:inherit;cursor:pointer;border-radius:0;padding:2px 7px;text-align:left;
+  border:1px solid var(--border);background:var(--button);color:var(--muted);
+  display:flex;flex-direction:column;line-height:1.25;min-width:76px}
+.sbtn i{font-style:normal;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.sbtn b{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--fg-2)}
+.sbtn.can{border-color:#4a3a20}
+.sbtn.can b{color:var(--accent)}
+.sbtn:disabled{opacity:.4;cursor:default}
+/* locked on headcount rather than money - reads as a requirement, not a price */
+.sbtn.shut b{color:var(--teal);font-weight:600}
+.sbtn u{text-decoration:none;font-family:var(--mono);font-size:9px;color:var(--green);
+  white-space:nowrap}
+
+/* what a purchase buys, per hour - developer only, so it wears the dev green
+   rather than competing with the price it sits beside */
+.devgain{font-family:var(--mono);font-size:10px;color:var(--green);white-space:nowrap}
+.sbuy .devgain{margin-bottom:3px}
+
+/* ── the board they are playing on ────────────────────────────────────── */
+#peek{position:fixed;z-index:40;width:222px;background:var(--card);
+  border:1px solid var(--track);box-shadow:0 14px 40px rgba(0,0,0,.6);padding:8px;
+  pointer-events:none}
+#peek .peekhead{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}
+#peek .peekhead b{font-size:11.5px;color:var(--fg-2)}
+#peek .peekhead span{font-size:10px;color:var(--accent);font-family:var(--mono);
+  text-transform:uppercase;letter-spacing:.06em;margin-left:auto}
+#peek .board{gap:2px}
+#peek .kt{min-height:0;font-size:8px;border-width:1px;cursor:default}
+#peek .peekfoot{font-family:var(--mono);font-size:10.5px;color:var(--fg-2);margin-top:6px}
+#peek .peeksub{font-size:10px;color:var(--faint);margin-top:1px}
+
+/* PLAY IS THE BIGGER OF THE TWO. Auto is a switch you flip occasionally;
+   Play is the thing you hit over and over, so it gets the room. */
+.playrow{display:flex;gap:5px;align-items:stretch;margin-top:8px}
+.playrow button{padding:10px 12px;font-size:14px}
+.playrow #btnPlay{flex:1 1 auto}
+/* A SQUARE ICON, not a word. It is a switch with two states and the amber
+   says which one it is in; a label would just repeat what the colour says. */
+.playrow #btnAuto{flex:0 0 46px;font-size:19px;line-height:1;padding:0}
+.playrow #btnAuto.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+.playrow #btnAuto.on:hover{filter:brightness(1.07);background:var(--accent);color:#17130a}
+.mutebtn{margin-left:auto;min-width:30px}
+.hint{font-size:11.5px;color:var(--faint);padding:6px 0 0;text-align:center;min-height:18px}
+.saved{font-size:10.5px;color:var(--faint);text-align:center;padding:6px 0 2px}
+
+/* ────────────────────────────────────────────────────── developer ──────
+   RED, AND NOT SUBTLE. Nothing in here is part of the game, and a panel
+   that can hand itself a billion dollars should never be mistaken for one
+   that cannot. */
+#devCard{border-color:#5a2a26}
+#devCard .cardhead{border-bottom-color:#5a2a26}
+#devCard h2{color:var(--danger)}
+.devrow{display:grid;grid-template-columns:74px minmax(0,1fr);gap:8px;align-items:center;
+  padding:6px 0;border-bottom:1px solid #241a19}
+.devrow:last-child{border-bottom:0}
+.devlab{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--danger)}
+.devbtns{display:flex;gap:3px;flex-wrap:wrap;align-items:center}
+.devbtns input,.devbtns select{font:inherit;font-family:var(--mono);font-size:12px;
+  background:var(--bg-deep);border:1px solid var(--border);color:var(--cream);
+  padding:3px 7px;border-radius:0;min-width:0}
+.devbtns input{width:112px}
+.devbtns button{font-size:11px;padding:2px 8px;border-radius:0;font:inherit;cursor:pointer;
+  border:1px solid #5a2a26;background:#241a19;color:#e8a49a}
+.devbtns button:hover{background:#31211f;color:#fff}
+.devbtns button.on{background:var(--danger);border-color:var(--danger);color:#1a0c0a;font-weight:700}
+/* the ball buttons wear their tier, so the row reads as the ladder it is */
+.devbtns button.bq{font-family:var(--mono)}
+.devbtns button.bq.bearing{border-color:#5a6068;color:#c9d2dc}
+.devbtns button.bq.marble{border-color:#7a5a2a;color:#ffc978}
+.devbtns button.bq.gem{border-color:#6b4a9e;color:#c9a4ef}
+.devout{font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:4px;
+  white-space:pre-wrap;line-height:1.45}
+.devrate{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:pre-wrap;
+  line-height:1.5}
+.devrate b{color:var(--cream);font-weight:700}
+.devhint{font-size:10.5px;color:var(--faint);text-align:center;padding-top:8px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <span class="brand">VIP Tools<b>Keno Idle</b></span>
+  <nav class="toolnav">
+    <a href="https://viptools.gg/">Home</a>
+    <a href="https://martingale.viptools.gg/">Martingale</a>
+  </nav>
+  <!-- Mute leaves the play row but not the game: auto-play pings on every
+       hit, and at four draws a second that needs an off switch. -->
+  <button class="ghost tiny mutebtn" id="btnMute" title="Mute">&#9834;</button>
+</header>
+
+<div class="wrap">
+
+  <!-- THE COLUMN STAYS, ITS CARD COMES AND GOES. Hiding the column itself
+       took its 250px out of the flex row, so with only the middle and right
+       columns left the PAIR got centred and the board sat left of centre
+       until the first draw brought the column back. The board must not move
+       because something else appeared beside it. -->
+  <div class="col-left" id="colHistory">
+    <div class="card" id="histCard" hidden>
+      <div class="histgrid" id="histList"></div>
+    </div>
+  </div>
+
+  <div class="col-mid">
+
+  <div class="card">
+    <div class="bank">
+      <div>
+        <div class="bankbig n" id="cash">$0.00</div>
+        <div class="bankrate n" id="rateHour"></div>
+      </div>
+      <span class="grow"></span>
+      <div class="bankside">bet<b class="n" id="betVal">$0.01</b></div>
+      <div class="bankside">hired<b class="n" id="rateVal">&mdash;</b></div>
+      <div class="bankside">draws<b class="n" id="drawsVal">0</b></div>
+    </div>
+  </div>
+
+  <div class="card" id="boardCard">
+    <div class="cardbody">
+      <div class="gamewrap">
+        <div class="board" id="board"></div>
+        <!-- BUILT AT DROP TIME, because which object falls depends on the
+             prize. Streaks live outside the tile so they throw past it, and
+             #ball sits above the board so they cross neighbouring tiles. -->
+        <div id="ball" hidden>
+          <div id="ballFx"></div>
+          <div id="ballRing"></div>
+          <div id="ballArt"></div>
+          <b class="ballmult"><span id="ballMultText"></span></b>
+        </div>
+        <div class="pop" id="pop" hidden>
+          <div class="pmain n" id="popMain">+$0.00</div>
+          <div class="psub" id="popSub">1 of 1</div>
+        </div>
+      </div>
+      <div class="playrow">
+        <button class="primary" id="btnPlay" disabled>Play</button>
+        <button class="ghost" id="btnAuto" aria-label="Auto-play">&#10227;</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="devCard" hidden>
+    <div class="cardhead">
+      <h2>Developer tools</h2><span class="grow"></span>
+      <span class="note">not part of the game &middot; ` to hide</span>
+    </div>
+    <div class="cardbody">
+
+      <div class="devrow">
+        <span class="devlab">Cash</span>
+        <span class="devbtns">
+          <input id="devCash" type="text" inputmode="decimal" placeholder="dollars">
+          <button data-dev="setcash">Set</button>
+          <button data-dev="add" data-v="100">+$1</button>
+          <button data-dev="add" data-v="10000">+$100</button>
+          <button data-dev="add" data-v="1000000">+$10K</button>
+          <button data-dev="add" data-v="100000000">+$1M</button>
+          <button data-dev="mul10">&times;10</button>
+          <button data-dev="broke">$0</button>
+        </span>
+      </div>
+
+      <div class="devrow">
+        <span class="devlab">Upgrades</span>
+        <span class="devbtns" id="devUps"></span>
+      </div>
+
+      <div class="devrow">
+        <span class="devlab">Streamers</span>
+        <span class="devbtns">
+          <span id="devBalls"></span>
+          <button data-dev="hire1">+1 each</button>
+          <button data-dev="hire10">+10 each</button>
+          <button data-dev="smartmax">Max smarts</button>
+          <button data-dev="boardmax">Max boards</button>
+          <button data-dev="firethem">Fire all</button>
+        </span>
+      </div>
+
+      <div class="devrow">
+        <span class="devlab">Next draw</span>
+        <span class="devbtns">
+          <select id="devForce"></select>
+          <button data-dev="clearforce">Random again</button>
+        </span>
+      </div>
+
+      <div class="devrow">
+        <span class="devlab">Reveal</span>
+        <span class="devbtns">
+          <button data-dev="instant" id="devInstant">Instant: off</button>
+        </span>
+      </div>
+
+      <div class="devrow">
+        <span class="devlab">Paytable</span>
+        <span class="devbtns">
+          <button data-dev="table" data-v="smooth" id="devTabSmooth">Smooth</button>
+          <button data-dev="table" data-v="jackpot" id="devTabJackpot">Jackpot</button>
+        </span>
+      </div>
+
+      <div class="devrow">
+        <span class="devlab">Rate</span>
+        <span class="devbtns"><span class="devrate" id="devRate"></span></span>
+      </div>
+
+      <div class="devrow">
+        <span class="devlab">Simulate</span>
+        <span class="devbtns">
+          <input id="devSim" type="text" inputmode="numeric" placeholder="draws" value="10000">
+          <button data-dev="sim">Run</button>
+          <button data-dev="sim" data-v="1000000">Run 1M</button>
+        </span>
+      </div>
+
+      <div class="devout" id="devOut">Press ` to hide this panel. Add ?dev to the URL to open it on load.</div>
+    </div>
+  </div>
+
+
+  </div>
+
+  <div class="col-right">
+  <div class="card">
+    <div class="cardhead">
+      <h2>Upgrades</h2><span class="grow"></span>
+      <button class="ghost tiny" id="btnWipe">Erase save</button>
+    </div>
+    <div class="cardbody"><div class="shop" id="shop"></div>
+</div>
+  </div>
+
+    <div id="colHelp" hidden>
+    <div class="card">
+      <div class="cardhead">
+        <h2>The hired help</h2><span class="grow"></span>
+        <span class="note" id="helpNote">hover one to watch their board</span>
+      </div>
+      <div class="cardbody"><div class="streamers" id="streamers"></div></div>
+    </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- THE TAKEOVER. Fixed and full-screen because the blackout has to cover
+     the history, the shop and the hired help as well as the board — anything
+     scoped to the board card would leave the rest of the page lit. -->
+<!-- THE SKY IS NOT PART OF THE BLACKOUT. It used to live inside #bigwin,
+     which IS the black plate — so the streaks could not possibly appear
+     before the screen went dark, they arrived with it. Separate elements,
+     separate cues: the sky comes up first, over the ordinary interface, and
+     the black follows it. -->
+<canvas id="bwSky"></canvas>
+<!-- THE VEIL IS ITS OWN LAYER, ABOVE EVERYTHING. Painted onto the star
+     canvas it could only ever cover what the canvas covered — and the moment
+     the board rose above the canvas at the swap, the board's dark pool
+     punched a hole straight through the white. A cover has to be above the
+     thing it is covering, which means it cannot share a layer with anything
+     that moves in the z order. -->
+<canvas id="bwShots"></canvas>
+<div id="bwVeil"></div>
+<div id="bigwin" hidden></div>
+<!-- OUTSIDE #bigwin ON PURPOSE. #bigwin carries z-index:900, which makes it a
+     stacking context, and a child's z-index is then scoped INSIDE it — so the
+     plate's 990 still lost to the board card's 950 and the whole HUGE WIN
+     panel rendered behind an opaque black board. It has to be a sibling. -->
+<div id="bwPop" hidden>
+  <div class="bwcap">Huge Win</div>
+  <div class="bwamt" id="bwAmt">$0.00</div>
+</div>
+
+<div id="peek" hidden>
+  <div class="peekhead"><b id="peekName"></b><span id="peekState"></span></div>
+  <div class="board" id="peekBoard"></div>
+  <div class="peekfoot" id="peekFoot"></div>
+  <div class="peeksub" id="peekSub"></div>
+</div>
+
+
+<!-- THE ROSTER LOADS FIRST because load() validates saved streamers against
+     it. It defines functions and one data array at the top level and calls
+     nothing, so it can sit ahead of the engine it will later use.
+
+     ?v= IS NOT DECORATION — BUMP IT WHENEVER streamers.js CHANGES. Without
+     it the browser happily pairs a fresh index.html with a cached copy of
+     this file, and the failure is silent: the page loads, most of it works,
+     and only the functions that moved between the two are missing. That is
+     exactly what happened once already in testing. -->
+<script src="streamers.js?v=11"></script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   KENO IDLE — milestone 2, plus developer tools.
+
+   1. THE STAKE IS NEVER DEDUCTED. `bet` scales the payout and nothing
+      else, so a draw that pays zero costs nothing and the counter can
+      never go down. Upgrades cost money; playing does not.
+
+   2. NO FRACTIONAL CENTS, EVER. Money is an integer number of cents and
+      every multiplier is a whole number, so a payout is integer x integer.
+      Nothing rounds, so nothing drifts — floats never touch the balance.
+
+   3. NO HOUSE EDGE. k numbers returns EXACTLY k times the bet per draw:
+      one number is exactly 100%, two is exactly 200%, and so on, in both
+      paytables. Exact in integer arithmetic — see kenoExact().
+   ═══════════════════════════════════════════════════════════════════════ */
+function $(id){ return document.getElementById(id); }
+function int(v, d){ var n = Math.floor(Number(v)); return isFinite(n) ? n : d; }
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+
+/* ── exact keno, 40 tiles, 10 drawn, k picked ────────────────────────── */
+function C(n,k){ if (k < 0 || k > n) return 0; var r=1; for (var i=0;i<k;i++) r = r*(n-i)/(i+1); return r; }
+function kenoP(k, h){ return C(10,h) * C(30,k-h) / C(40,k); }
+
+/* ═══════════════════════ the two paytables ════════════════════════════
+   THESE ARE THE SAME TRADE, PRICED TWO WAYS, and there is no third option
+   that dodges it. A draw of 10 from 40 with k picked averages k/4 hits, so
+   paying 4 per hit returns exactly 4 x k/4 = k — the SMOOTH table below,
+   which spends the entire budget and leaves nothing for a jackpot. That is
+   not a tuning accident: with every tier at 4h the budget is exactly
+   consumed, so ANY jackpot has to be funded by paying some other tier LESS
+   than it paid at a lower pick count.
+
+   SMOOTH pays 4 x hits at every pick count. Nothing ever pays less than it
+   did before — one match is 4x whether you play one number or ten — and
+   nothing ever pays big either. 10 of 10 is 40x.
+
+   JACKPOT sells the common tiers down to fund the top one. The exchange
+   rate is terrible early and absurd late: at 2 numbers, cutting a match
+   from 4x to 1x buys a 28x top; at 10 numbers, the same kind of cut buys
+   over a million. That is why its low rows look mean and its top rows look
+   ridiculous.
+
+   Both return exactly k. The difference is entirely where the money sits. */
+/* EVERY MATCH IS WORTH k+3, so h matches pay (k+3)*h. One number pays 4 a
+   match, two pays 5, three pays 6, and so on up to 13 at ten numbers.
+
+   The point of the +1 is that adding a number RAISES EVERY ROW AT ONCE. A
+   single match is 2x on one number and becomes 3x on two — nothing on the
+   board ever pays less than it did before, which a flat per-hit table could
+   not manage without also being unable to grow. */
+var SMOOTH = (function(){
+  var t = {};
+  for (var k=1;k<=10;k++){ t[k] = {}; for (var h=1;h<=k;h++) t[k][h] = (k+1)*h; }
+  return t;
+})();
+/* THE SAME BUDGET, SHAPED AS A JACKPOT. Re-solved against k(k+3)/4 so that
+   switching tables changes where the money sits and not how much there is —
+   a toggle that also moved the total would be comparing two things at once.
+   Tiers three and up are left exactly where SMOOTH puts them; only the one
+   and two match rows are sold down, because they are the only rows common
+   enough to fund a top tier worth having. */
+var JACKPOT = {
+  1:  {1:2},
+  2:  {1:3, 2:6},
+  3:  {1:1, 2:3,  3:177},
+  4:  {1:2, 2:10, 3:15, 4:600},
+  5:  {1:2, 2:3,  3:18, 4:24, 5:10905},
+  6:  {1:1, 2:2,  3:21, 4:28, 5:35, 6:111228},
+  7:  {1:1, 2:5,  3:24, 4:32, 5:40, 6:48, 7:934262},
+  8:  {1:1, 2:2,  3:27, 4:36, 5:45, 6:54, 7:63, 8:13119672},
+  9:  {1:1, 2:2,  3:30, 4:40, 5:50, 6:60, 7:70, 8:80, 9:217576215},
+  10: {1:1, 2:2,  3:33, 4:44, 5:55, 6:66, 7:77, 8:88, 9:99, 10:6698347610}
+};
+var TABLES = { smooth: SMOOTH, jackpot: JACKPOT };
+function pays(){ return TABLES[S.table] || SMOOTH; }
+
+function kenoTiers(k){
+  var tab = pays()[k] || {}, out = [];
+  for (var h = 0; h <= k; h++) if (tab[h]) out.push({ hits: h, pay: tab[h], p: kenoP(k, h) });
+  return out;
+}
+/* THE CHECK THAT THE TABLE IS WHAT IT CLAIMS, done in integers — sum of
+   C(10,h)*C(30,k-h)*payout against k*C(40,k) — because the whole point is
+   that these are exact and a float comparison could not tell. */
+/* THE BUDGET, AND WHERE IT COMES FROM. A draw of 10 from 40 with k picked
+   averages exactly k/4 hits (hypergeometric mean, k * 10/40), so a table
+   paying k+1 a hit returns exactly k(k+1)/4 times the bet — 0.5 at one
+   number, climbing to 27.5 at ten. The board is deliberately weak on its own
+   now; the hired help are where the money is.
+
+   The numerator is an integer at every k even though the RTP itself is
+   sometimes a half — which matters, because a half-cent RTP is fine (it is
+   an average) while a half-cent PAYOUT would not be. Payouts stay whole
+   because every multiplier is whole. */
+function kenoTargetRTP(k){ return k * (k+1) / 4; }
+function kenoExact(k, tab){
+  tab = (tab || pays())[k] || {};
+  var s = 0;
+  for (var h=0; h<=k; h++) if (tab[h]) s += Math.round(C(10,h)*C(30,k-h)) * tab[h];
+  return { got: s, want: kenoTargetRTP(k) * Math.round(C(40,k)) };
+}
+function kenoRTP(k){ return kenoExact(k).got / Math.round(C(40,k)); }
+function rtpText(k){
+  var r = kenoTargetRTP(k);
+  return (r % 1 === 0) ? String(r) : r.toFixed(1);
+}
+
+var POOL = []; for (var t=1; t<=40; t++) POOL.push(t);
+function shuffle(a){
+  for (var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)), x=a[i]; a[i]=a[j]; a[j]=x; }
+  return a;
+}
+function draw10(){
+  var a = POOL.slice();
+  for (var i=0;i<10;i++){
+    var j = i + Math.floor(Math.random()*(40-i));
+    var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a.slice(0,10);
+}
+
+/* ═══════════════════════════════ upgrades ═════════════════════════════
+   UPGRADES ARE DATA, NOT CODE. Adding one is adding a row: the shop, the
+   costs, the developer panel and the save all read this array. */
+/* ═══════════════════════════ the bet ladder ═══════════════════════════
+   THE STEP COARSENS AS THE BET GROWS, so raising the bet never turns into
+   a hundred identical purchases. A penny at a time up to a dime, then five
+   at a time to fifty, then ten to a dollar, then quarters — and from a
+   dollar up it repeats that same 1 / 2.5 / 5 shape once per decade.
+
+       $0.01 → $0.10   a cent a step
+       $0.10 → $0.50   five cents
+       $0.50 → $1.00   ten cents
+       $1.00 → $2.50   twenty-five cents
+       $2.50 → $5.00   fifty cents
+       $5.00 → $10.00  a dollar          ... and so on, x10 each decade
+   ═══════════════════════════════════════════════════════════════════════ */
+var BET_BANDS = (function(){
+  var b = [ {from:1, step:1}, {from:10, step:5}, {from:50, step:10} ];
+  for (var d=100; d<=1e10; d*=10){
+    b.push({ from:d,     step:d/4 });          /* $1.00 → quarters   */
+    b.push({ from:d*2.5, step:d/2 });          /* $2.50 → half       */
+    b.push({ from:d*5,   step:d   });          /* $5.00 → whole      */
+  }
+  return b;
+})();
+function betStepAt(v){
+  var step = 1;
+  for (var i=0;i<BET_BANDS.length;i++) if (v >= BET_BANDS[i].from) step = BET_BANDS[i].step;
+  return step;
+}
+var BET_LADDER = (function(){
+  var out = [1], v = 1;
+  while (v < 1e8){ v += betStepAt(v); out.push(v); }   /* stops at $1,000,000 a draw */
+  return out;
+})();
+function betAt(lvl){ return BET_LADDER[clamp(lvl, 0, BET_LADDER.length - 1)]; }
+/* How fast the bet track slows itself down. Payback time for one purchase
+   grows as bet^this, so 0 would mean every upgrade pays back as fast as the
+   first one forever. Raise it to make the late game grindier. */
+var BET_COST_POWER = 0.5;
+
+/* How often auto-play draws once bought. BASE because the speed track that
+   should follow it is a separate upgrade row and is not built yet. */
+var AUTO_BASE_SECONDS = 5;
+/* AUTO-PLAY IS FREE AND RUNS FROM THE FIRST SECOND, at a deliberately
+   miserable one draw every five seconds — slower than anyone clicking, so
+   it never competes with playing, it only means the board is never idle.
+   What you buy is the SPEED: a quarter-second off the gap each time, floor
+   0.25s, nineteen purchases from crawling to four draws a second. */
+var AUTO_STEP_SECONDS = 0.25, AUTO_MIN_SECONDS = 0.25;
+var AUTO_SPEED_MAX = Math.round((AUTO_BASE_SECONDS - 0.25) / 0.25);   /* 19 */
+function autoSecsAt(lvl){
+  return Math.max(AUTO_MIN_SECONDS, AUTO_BASE_SECONDS - AUTO_STEP_SECONDS * lvl);
+}
+
+/* The click pace prices are quoted against. Deliberately NOT the live rate:
+   the dev panel's instant-reveal toggle must not reprice the shop. */
+var REVEAL_TOTAL_REF = 715, CLICK_GAP_REF = 400;
+
+/* ═══════════════════════ every price is a payback ═════════════════════
+   THE OLD CURVES PRICED OFF THE WRONG THING. `extraPicks` cost 160 x 4^level
+   — a fixed ladder — while what it BUYS scales with your bet, so the tenth
+   number cost the same whether you were betting a cent or a thousand
+   dollars. Measured, it returned 11,598 cents/hr per dollar early and 70,788
+   late: it got BETTER the further you went. Every worker track had the same
+   shape, anchored to the streamer's hire price while its value scaled with
+   their rate and their bet.
+
+   So nothing is priced off a level number any more. A price is what the
+   purchase earns in an hour, times how many hours it must take to repay
+   itself — and payback is then the single dial, comparable across every
+   track in the game. Wanting the hired help to overtake manual clicking is
+   expressible directly: give your own board a payback that climbs steeply
+   and the help one that climbs gently.
+
+   PRICING USES A FIXED REFERENCE CLICK RATE, not the live one. Otherwise
+   flipping instant reveal in the dev panel would silently reprice the shop. */
+var PRICE_DRAWS_PER_HOUR = 3600000 / (REVEAL_TOTAL_REF + CLICK_GAP_REF);
+function priceFor(gainPerHour, hours){ return Math.max(1, Math.round(gainPerHour * hours)); }
+
+/* ── what you can see ──────────────────────────────────────────────────
+   A shop listing everything at once is a wall of prices you cannot read.
+   Anything you are not within a fifth of stays out of sight, so the shop is
+   only ever the handful of things actually in play.
+
+   KEYED ON THE HIGHEST BALANCE YOU HAVE EVER HELD, not on current cash.
+   Against current cash a row would vanish the instant you spent, which is
+   precisely when you just proved you were near it — the shop would flicker
+   every purchase. Peak only ever rises, so a reveal is permanent.
+
+   The bet and the numbers are exempt: they are the two things the game is
+   made of, and hiding them would leave a new player looking at nothing. */
+var REVEAL_FRACTION = 0.20;
+function revealed(costCents){ return S.peakCents >= costCents * REVEAL_FRACTION; }
+function refCentsPerHour(betCents, picks){
+  return PRICE_DRAWS_PER_HOUR * betCents * kenoTargetRTP(picks);
+}
+/* ═══════════════════ EVERY PRICE IN THIS GAME IS STATIC ═══════════════
+   COOKIE CLICKER'S RULE, AND IT IS NOT NEGOTIABLE: a building costs its base
+   price times 1.15 per one owned, and an upgrade costs what it costs. Nothing
+   is ever re-quoted against how much you happen to be earning.
+
+   This game had it dynamic for a while — the numbers and speed tracks priced
+   as a share of total income — and it produced exactly the defect you would
+   expect: buying a bet upgrade doubled the board's earnings and doubled the
+   price of "play 2 numbers" along with it. $1.60 became $3.20 for doing
+   something unrelated. A price that moves while you are saving for it is
+   indefensible however good the pacing argument behind it, and the pacing is
+   the thing to tune, not the price tag.
+
+   So the ladders below are computed ONCE from constants and never consult
+   the game state again. Pacing is tuned by choosing the growth factors and
+   measuring the result. */
+/* YOUR OWN BOARD CLIMBS STEEPLY. One board can only ever be one board, so
+   pouring money into it should stop making sense early and leave hiring as
+   the way forward. Payback rises with the bet itself, not the level index,
+   so it cannot be outrun by the ladder's step sizes. */
+var BOARD_PAYBACK_BASE  = 0.0270;            /* hours - the first bet upgrade */
+var BOARD_PAYBACK_POWER = 0.90;
+function boardPaybackHours(betCents){
+  return BOARD_PAYBACK_BASE * Math.pow(betCents, BOARD_PAYBACK_POWER);
+}
+
+/* ── the floor Cookie Clicker never needs ──────────────────────────────
+   EVERY BUILDING IN COOKIE CLICKER COSTS x1.15 MORE THAN THE LAST, FOREVER.
+   The factor is per purchase COUNT, so it never decays no matter what the
+   building produces.
+
+   Ours is priced off the bet, and inside a band the step is fixed, so the
+   ratio is (b2/b1)^0.9 — which slides toward 1 as the bet climbs. Measured
+   across one band: 1.87, 1.44, 1.30, 1.22, 1.18, 1.15, 1.13, 1.11. By the
+   end of a band each purchase cost 11% more than the last and the prices
+   felt static, which is exactly what they were.
+
+   So the value-based price stands, with x1.15 a purchase as a FLOOR under
+   it. Payback carries the same floor, since it is cost over a gain that did
+   not change — so the track keeps self-limiting instead of flattening. */
+var BET_MIN_GROWTH = 1.15;
+var BET_COST_SHAPE = (function(){
+  var raw = [], out = [], prev = 0;
+  for (var l = 0; l < BET_LADDER.length - 1; l++){
+    raw.push((BET_LADDER[l+1] - BET_LADDER[l]) * Math.pow(BET_LADDER[l], BOARD_PAYBACK_POWER));
+  }
+  for (var i = 0; i < raw.length; i++){
+    var v = (i === 0) ? raw[0] : Math.max(raw[i], prev * BET_MIN_GROWTH);
+    out.push(v / raw[i]);                    /* multiplier on the value price */
+    prev = v;
+  }
+  return out;
+})();
+
+/* THE BET LADDER'S PRICES, BUILT ONCE. Quoted at one number (RTP 1.0) so the
+   figure never depends on how many numbers you happen to be playing — the
+   shape of the curve is what matters, and it is the same shape either way. */
+/* DERIVED FROM THE ANCHOR, not typed in. The ladder's shape comes out of the
+   payback curve, but its absolute size has to hit a price somebody chose —
+   and a hand-tuned constant silently drifts the moment anything upstream
+   moves. A hardcoded 0.5 produced $0.44 here, because the reference click
+   rate had changed by 15% in the same pass. Solve for it instead. */
+var BET_FIRST_COST = 50;                     /* $0.50 */
+var BET_COST_SCALE = (function(){
+  var step = BET_LADDER[1] - BET_LADDER[0];
+  var raw = PRICE_DRAWS_PER_HOUR * step * boardPaybackHours(BET_LADDER[0]) * (BET_COST_SHAPE[0] || 1);
+  return raw > 0 ? BET_FIRST_COST / raw : 1;
+})();
+var BET_COSTS = (function(){
+  var out = [];
+  for (var l = 0; l < BET_LADDER.length - 1; l++){
+    var step = BET_LADDER[l+1] - BET_LADDER[l];
+    var gain = PRICE_DRAWS_PER_HOUR * step;
+    var shape = BET_COST_SHAPE[l] || 1;
+    out.push(Math.max(1, Math.round(gain * boardPaybackHours(BET_LADDER[l]) * shape * BET_COST_SCALE)));
+  }
+  return out;
+})();
+/* THE NUMBERS TRACK IS PRICED IN HOURS OF EVERYTHING YOU EARN, not in
+   hours of what the board earns. Priced against the board it collapsed: the
+   board's income is capped by how fast one board can draw, while your actual
+   income runs away with the hired help, so the last four numbers cost a
+   rounding error and arrived within half an hour of each other. Measured:
+   seven numbers at 4.9h and ten at 5.4h.
+
+   Quoting the price as a share of TOTAL income makes each purchase cost a
+   fixed amount of TIME instead of a fixed amount of money — however rich the
+   streamers make you, the tenth number is still days of saving away, because
+   the price grew with the wallet. That is the only way to pace something in
+   hours rather than dollars. */
+/* NINETEEN PURCHASES ACROSS THE WHOLE GAME, each a milestone. Priced in
+   hours of TOTAL income like the numbers track, not against the board — the
+   board's contribution is capped by how fast one board draws, so a price
+   pinned to it would be loose change once the hired help arrive. The first
+   one lands on exactly $100. */
+var AUTOSPEED_BASE   = 10000;                /* $100 flat, for the first one */
+var AUTOSPEED_GROWTH = 3.4;                  /* tuned by simulation, see below */
+var PICKS_BASE   = 100;                      /* $1.00 flat, for the first one */
+/* TUNED BY SIMULATION, NOT BY FEEL. Greedy play, buying numbers the instant
+   they are affordable and reinvesting everything else. Measured:
+     x14 -> ten numbers in 2.4 days     x20 -> 5.7 days
+     x26 -> 14.7 days                   x34 -> 37 days
+   x20 gives 5 numbers at 2.1h, 8 at 22.5h, 9 at 2.4d, 10 at 5.7d. */
+var PICKS_GROWTH = 20;
+
+var UPGRADES = [
+  {
+    id: "betSize",
+    basic: true,
+    max: BET_LADDER.length - 1,
+    cost: function(lvl){ return BET_COSTS[Math.min(lvl, BET_COSTS.length - 1)]; },
+    name: function(lvl){ return "Bet " + money(betAt(lvl + 1)); },
+    desc: function(lvl){ return "Every draw pays on " + money(betAt(lvl + 1)) +
+                                " instead of " + money(betAt(lvl)); },
+    done: "Betting $1,000,000.00 a draw"
+  },
+  {
+    id: "autoSpeed",
+    max: AUTO_SPEED_MAX,
+    cost: function(lvl){ return Math.round(AUTOSPEED_BASE * Math.pow(AUTOSPEED_GROWTH, lvl)); },
+    name: function(lvl){ return "Auto-play every " + autoSecsAt(lvl+1).toFixed(2) + "s"; },
+    desc: function(lvl){ return "A draw every " + autoSecsAt(lvl+1).toFixed(2) +
+                                "s instead of every " + autoSecsAt(lvl).toFixed(2) + "s"; },
+    done: "Auto-play at four draws a second"
+  },
+  {
+    id: "extraPicks",
+    basic: true,
+    max: 9,                                    /* 1 + 9 = the ten-tile cap */
+    cost: function(lvl){ return Math.round(PICKS_BASE * Math.pow(PICKS_GROWTH, lvl)); },
+    name: function(lvl){ return "Play " + (lvl + 2) + " numbers"; },
+    /* Sold on the multiplier rather than the return, because the multiplier
+       is the number on the board in front of you. */
+    desc: function(lvl){ return "Every match pays " + (lvl + 3) + "× instead of " + (lvl + 2) + "×"; },
+    done: "Playing all ten numbers"
+  }
+];
+function upDef(id){ for (var i=0;i<UPGRADES.length;i++) if (UPGRADES[i].id===id) return UPGRADES[i]; return null; }
+function upLevel(id){ return S.upgrades[id] || 0; }
+
+/* ═══════════════════════════════ state ════════════════════════════════
+   UPGRADE LEVELS ARE THE SAVE FILE. Nothing derived is stored — bet and
+   pick allowance are recomputed from levels every time they are read. */
+/* ONE DEFINITION OF "A NEW GAME", used both to boot and to wipe. Erasing
+   used to re-list these fields by hand, which meant it quietly missed
+   whatever had been added since: the hired help survived the wipe, kept
+   earning, and got written straight back to disk by the save on the next
+   line. A field added here now cannot be forgotten by the reset. */
+function freshState(){
+  return {
+    cents: 0, peakCents: 0,
+    history: [],
+    upgrades: { betSize: 0, autoSpeed: 0, extraPicks: 0 },
+    autoOn: true,
+    picks: [], last: null,
+    revealUpto: null, animating: false, muted: false,
+    draws: 0, wonCents: 0,
+    table: "smooth",
+    streamers: {},                             /* id -> {n,smart,bet,picks,board,last} */
+    dev: { forceHits: null, instant: false, forceBall: false, ballMult: 0 }
+  };
+}
+var S = freshState();
+
+/* Wipes progress in place — mutating rather than replacing S, because other
+   files hold the same object. Settings are not progress and survive. */
+function wipeProgress(){
+  var muted = S.muted, table = S.table, dev = S.dev;
+  var f = freshState();
+  for (var k in f) if (Object.prototype.hasOwnProperty.call(f, k)) S[k] = f[k];
+  S.muted = muted; S.table = table; S.dev = dev;
+}
+/* THE ONE PLACE THE BET IS RESOLVED. It reads the ladder, not the level
+   number — the level is an index into BET_LADDER, not a count of pennies.
+   This was the old `1 + betSize` for a while after the ladder shipped,
+   which meant the shop sold a $0.40 bet and the board kept paying on
+   $0.15: the display was wrong AND every payout was short. */
+function derived(){
+  return {
+    betCents: betAt(S.upgrades.betSize),
+    picks:    1 + S.upgrades.extraPicks
+  };
+}
+
+function money(cents){
+  var d = cents / 100;
+  if (d >= 1e12) return "$" + (d/1e12).toFixed(2) + "T";
+  if (d >= 1e9)  return "$" + (d/1e9).toFixed(2) + "B";
+  if (d >= 1e6)  return "$" + (d/1e6).toFixed(2) + "M";
+  return "$" + d.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function chance(p){
+  if (p >= 0.01) return (p*100).toFixed(1) + "%";
+  return "1 in " + Math.round(1/p).toLocaleString();
+}
+
+/* ═══════════════════════════════ the save ═════════════════════════════ */
+var SAVE_KEY = "kenoidle.save.v1", saveTimer = null;
+function saveNow(){
+  saveTimer = null;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, cents: S.cents, peakCents: S.peakCents, upgrades: S.upgrades, picks: S.picks,
+      autoOn: S.autoOn,
+      draws: S.draws, wonCents: S.wonCents, muted: S.muted, table: S.table,
+      streamers: S.streamers
+    }));
+  } catch (e) { /* private mode, or the quota is gone - the game still plays */ }
+}
+function save(){ if (saveTimer === null) saveTimer = setTimeout(saveNow, 600); }
+/* FLUSH ALWAYS WRITES, pending timer or not. Guarding it on a pending save
+   looks like an optimisation and is a data-loss bug: buying an upgrade
+   writes through flush() and usually has no debounced save outstanding. */
+function flush(){
+  if (saveTimer !== null){ clearTimeout(saveTimer); saveTimer = null; }
+  saveNow();
+}
+
+/* EVERY FIELD IS RECHECKED ON THE WAY IN. A save is a string in a store the
+   player can edit, and a bad one should degrade to a fresh game rather than
+   a broken one - an out-of-range pick count would put the board in a state
+   Play can never satisfy. */
+function load(){
+  var raw = null;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
+  if (!raw) return false;
+  var o = null;
+  try { o = JSON.parse(raw); } catch (e) { return false; }
+  if (!o || o.v !== 1) return false;
+
+  S.cents    = Math.max(0, int(o.cents, 0));
+  /* never below the balance itself, or a hand-edited save could hide rows
+     you have already unlocked */
+  S.peakCents = Math.max(S.cents, int(o.peakCents, 0));
+  S.draws    = Math.max(0, int(o.draws, 0));
+  S.wonCents = Math.max(0, int(o.wonCents, 0));
+  S.muted    = !!o.muted;
+  S.autoOn   = (o.autoOn === undefined) ? true : !!o.autoOn;
+  S.table    = TABLES[o.table] ? o.table : "smooth";
+
+  var u = o.upgrades || {};
+  for (var i=0;i<UPGRADES.length;i++){
+    var def = UPGRADES[i];
+    S.upgrades[def.id] = clamp(int(u[def.id], 0), 0, def.max);
+  }
+
+  var allow = derived().picks, seen = {}, ok = [];
+  var arr = Array.isArray(o.picks) ? o.picks : [];
+  for (var j=0; j<arr.length && ok.length<allow; j++){
+    var v = int(arr[j], 0);
+    if (v >= 1 && v <= 40 && !seen[v]){ seen[v] = 1; ok.push(v); }
+  }
+  S.picks = ok.sort(function(a,b){ return a-b; });
+
+  /* STREAMERS ARE REBUILT, NOT TRUSTED. A save written before the roster
+     existed simply has none; a save naming a streamer that has since been
+     renamed or removed drops that row rather than carrying a ghost the
+     shop cannot draw. Their boards are re-rolled if the saved one does not
+     match the pick count their levels grant, which is the same class of
+     bug the player's own pick validation guards against. */
+  S.streamers = {};
+  var sv = (o.streamers && typeof o.streamers === "object") ? o.streamers : {};
+  for (var q=0;q<STREAMERS.length;q++){
+    var def = STREAMERS[q], raw = sv[def.id];
+    if (!raw) continue;
+    var n = Math.max(0, int(raw.n, 0));
+    if (n <= 0) continue;
+    var st = {
+      n: n,
+      smart: clamp(int(raw.smart, 0), 0, MAX_SMART),
+      bet:   clamp(int(raw.bet,   0), 0, MAX_SBET),
+      picks: clamp(int(raw.picks, 0), 0, maxPicksFor(def)),
+      draws: Math.max(0, int(raw.draws, 0)),
+      /* the carried quarter-cents are worth keeping across a reload; anything
+         outside 0..3 is not a carry, it is a tampered save */
+      centsCarry: clamp(int(raw.centsCarry, 0), 0, 3),
+      carry: 0, last: null, board: null
+    };
+    var want = Math.min(10, def.picks + st.picks), seen2 = {}, bd = [];
+    var arr2 = Array.isArray(raw.board) ? raw.board : [];
+    for (var b=0;b<arr2.length && bd.length<want;b++){
+      var bv = int(arr2[b], 0);
+      if (bv >= 1 && bv <= 40 && !seen2[bv]){ seen2[bv] = 1; bd.push(bv); }
+    }
+    st.board = bd.length === want ? bd.sort(function(a,b2){ return a-b2; }) : rollBoard(want);
+    S.streamers[def.id] = st;
+  }
+  return true;
+}
+
+/* ═══════════════════════════════ sound ════════════════════════════════ */
+var AC = null;
+function audio(){
+  if (AC === null){
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { AC = false; }
+  }
+  return AC;
+}
+function tone(freq, at, len, peak, shape){
+  var ac = audio(); if (!ac) return;
+  var o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime + at;
+  o.type = shape || "triangle";
+  o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t); o.stop(t + len + 0.02);
+}
+/* THE BALL'S SOUND. It was being CALLED and never defined — brought over from
+   martingale along with tone() and ping(), except this one was not. Every
+   unmuted ball drop therefore threw a ReferenceError, and because that call
+   sat ahead of the timer that lowers `animating`, it locked the board with
+   the ball frozen on it. A rising arpeggio, because the ball only ever
+   arrives with good news. */
+/* A LOW BODY THAT FALLS IN PITCH. Both drop sounds are built on one of
+   these — it is the part you feel rather than hear, and it is what makes a
+   landing read as weight instead of sparkle. */
+function thud(from, to, dur, peak){
+  var ac = audio(); if (!ac) return;
+  var o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+  o.type = "sine";
+  o.frequency.setValueAtTime(from, t);
+  o.frequency.exponentialRampToValueAtTime(to, t + dur * 0.72);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.014);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+
+/* THE ORDINARY BALL LANDING. This was three rising bell tones in a major
+   shape, which is a nice sound and entirely the wrong one — it congratulated
+   you before the draw had finished happening. Now it lands: a falling body
+   under a tritone, the interval that refuses to settle, with one cold ring
+   above so it is not just mud. */
+function chime(){
+  if (S.muted) return;
+  var ac = audio(); if (!ac) return;
+  if (ac.state === "suspended") ac.resume();
+  thud(140, 42, 0.55, 0.22);
+  tone(146.83, 0.010, 0.58, 0.070, "triangle");   /* D3  */
+  tone(207.65, 0.022, 0.56, 0.052, "triangle");   /* G#3 - a tritone up */
+  tone(1108.7, 0.030, 0.40, 0.026, "sine");
+  tone(1661.2, 0.055, 0.28, 0.016, "sine");
+}
+
+/* ═══════════════════════ THE BIG WIN NOISE ═══════════════════════════
+   A cabinet fanfare, built out of the same oscillator everything else uses.
+   Three parts, because that is what the shape is made of: a fast ascending
+   run that says something is happening, a held major triad that says it is
+   good, and a low thump underneath so it has a floor. The run climbs two
+   octaves in half a second — slower and it reads as a menu chime, faster and
+   the notes stop resolving.
+
+   Reserved for the gem tiers. If every ball played this, none of them would
+   mean anything. */
+/* THE GEM LANDING. Also a rising major run before, which on top of a
+   sixteen-second build read as a cartoon. This is the same idea as the cue
+   that opened the event: something large arriving, in a minor shape, that
+   does not resolve — the resolution is the money, and that has not been
+   counted yet. */
+function bigWinFanfare(){
+  if (S.muted) return;
+  var ac = audio(); if (!ac) return;
+  if (ac.state === "suspended") ac.resume();
+  thud(190, 33, 1.15, 0.30);
+  /* low stabs, then a fall of a major third rather than a climb */
+  tone(110.00, 0.000, 0.90, 0.100, "sawtooth");   /* A2 */
+  tone(130.81, 0.018, 0.90, 0.072, "sawtooth");   /* C3  - minor */
+  tone(164.81, 0.036, 0.90, 0.058, "sawtooth");   /* E3 */
+  tone( 87.31, 0.300, 1.15, 0.090, "triangle");   /* F2  - it drops */
+  tone(103.83, 0.320, 1.15, 0.064, "triangle");   /* G#2 */
+  /* and a cluster overhead that hangs instead of landing */
+  tone(880.00, 0.10, 1.70, 0.028, "sine");
+  tone(932.33, 0.14, 1.70, 0.022, "sine");        /* a semitone off it */
+  tone(1396.9, 0.19, 1.45, 0.018, "sine");
+}
+
+/* each hit in a draw rings a step higher, the way keno games do */
+function ping(step){
+  if (S.muted) return;
+  var ac = audio(); if (!ac) return;
+  if (ac.state === "suspended") ac.resume();
+  tone(523.25 * Math.pow(2, Math.min(step, 10) * 2 / 12), 0, 0.26, 0.16);
+}
+
+/* ═══════════════════════════════ painting ═════════════════════════════ */
+/* THE TILES ARE UPDATED IN PLACE, NEVER REBUILT.
+
+   `innerHTML = html` throws away all forty elements and makes forty new ones,
+   which restarts every CSS animation running on them. During the takeover a
+   tile turns over every 667ms, so the picked tiles' 3.4s hue cycle was reset
+   five times before it could get a fifth of the way round — the rainbow never
+   arrived, it just flickered near one colour. The board's structure never
+   changes (it is always tiles 1 to 40), so there is nothing to rebuild;
+   only classes and labels move. Clicks are delegated on #board, so no
+   listeners are lost either way.
+
+   Writing className unconditionally would restart them just the same, hence
+   the compare-before-write on every attribute. */
+function paintBoard(){
+  var all = (S.last && S.last.drawn) ? S.last.drawn : [];
+  var drawn = S.revealUpto === null ? all : all.slice(0, S.revealUpto);
+  var newest = S.revealUpto === null ? -1 : all[S.revealUpto - 1];
+  var board = $("board");
+
+  if (board.children.length !== 40){
+    var html = "";
+    for (var q=1;q<=40;q++){
+      html += '<div class="kt" data-t="' + q + '" role="button" tabindex="0">' + q + '</div>';
+    }
+    board.innerHTML = html;
+  }
+
+  for (var t=1;t<=40;t++){
+    var el = board.children[t-1];
+    var isPick = S.picks.indexOf(t) !== -1, isDrawn = drawn.indexOf(t) !== -1;
+    /* the ball's tile stays ringed while the draw comes in, so you can watch
+       the number it promised actually arrive — gems take the tile over
+       instead, because an amber ring would fight a rainbow one */
+    var abPlain = activeBall && activeBall.tile === t &&
+                  (BALL_ART[activeBall.mult] || {}).kind !== "gem";
+    var cls = "kt" + (isPick ? " pick" : "") + (isDrawn ? " drawn" : "") +
+              (abPlain ? " ballspot" : "") + (t === newest ? " just" : "") +
+              (bwKnocked && bwKnocked[t] ? " out" : "");
+    if (el.className !== cls) el.className = cls;
+    var lab = "Tile " + t + (isPick ? ", picked" : "");
+    if (el.getAttribute("aria-label") !== lab) el.setAttribute("aria-label", lab);
+    if (el.getAttribute("aria-pressed") !== String(isPick)) el.setAttribute("aria-pressed", String(isPick));
+  }
+  board.classList.toggle("revealing", S.animating);
+}
+
+/* Rebuilt only when a draw has actually landed — paintLive runs ten times a
+   second and this list changes at most as often as the board draws. */
+var histSig = null;
+/* THE HISTORY STOPS WHERE THE BOARD DOES. Left to itself the list just grows
+   down the page and drags the whole layout with it; measured against the
+   board it stays a panel beside the game rather than a column of its own.
+   Measured rather than guessed at a constant, because the board is a
+   percentage width and its height moves with the viewport. */
+function sizeHistory(){
+  var board = $("board");
+  if (!board || $("histCard").hidden) return;
+  var h = Math.round(board.getBoundingClientRect().height);
+  if (h > 40) $("histList").style.maxHeight = h + "px";
+}
+window.addEventListener("resize", sizeHistory);
+
+/* NEW CELLS ARE PREPENDED; EXISTING ONES ARE NEVER TOUCHED.
+
+   `innerHTML = html` rebuilt all of them on every single draw, which
+   restarted the gem cell's hue cycle from red every time — the rainbow could
+   never get past its first frame because a draw lands more often than the
+   3.4s animation takes. (Exactly the bug the board tiles had, in a second
+   place, for the same reason.)
+
+   The list only ever grows at the front and is trimmed at the back, so the
+   minimal update is: build a node for each entry added since the last paint,
+   put those on the front, drop any overflow off the end. Every cell that was
+   already there keeps its element, and therefore keeps its animation. */
+function hcell(e){
+  var paid = e.p > 0;
+  var gem = e.b && (BALL_ART[e.b] || {}).kind === "gem";
+  var d = document.createElement("div");
+  d.className = "hcell" + (paid ? " won" : "") +
+                (gem ? " gem" : e.b ? " ball" : e.m >= 100 ? " big" : "");
+  d.title = e.h + " of " + e.k + (paid ? " · +" + money(e.p) : " · nothing") +
+            (e.b ? " · ball " + e.b.toLocaleString() + "x" : "");
+  d.innerHTML = '<div class="hmult">' + multText(e.b ? e.m * e.b : e.m) + 'x</div>' +
+                '<div class="hhits">' + e.h + '<i></i></div>';
+  return d;
+}
+
+var histDraws = -1;
+function paintHistory(){
+  var sig = S.draws + ":" + S.history.length;
+  if (sig === histSig) return;
+  histSig = sig;
+  var list = $("histList");
+  $("histCard").hidden = S.history.length === 0;
+  if (!S.history.length){ list.innerHTML = ""; histDraws = S.draws; return; }
+
+  /* how many entries arrived since the last paint */
+  var add = (histDraws < 0 || S.draws < histDraws) ? S.history.length
+                                                   : (S.draws - histDraws);
+  if (add >= S.history.length || !list.children.length){
+    list.innerHTML = "";                       /* nothing reusable */
+    for (var i=0;i<S.history.length;i++) list.appendChild(hcell(S.history[i]));
+  } else {
+    for (var j=add-1;j>=0;j--) list.insertBefore(hcell(S.history[j]), list.firstChild);
+    while (list.children.length > S.history.length) list.removeChild(list.lastChild);
+  }
+  histDraws = S.draws;
+  sizeHistory();
+}
+
+
+/* Rebuilt only when it would actually look different. paintLive runs ten
+   times a second, and replacing this markup every tick would mean a click
+   landing on a button destroyed between mousedown and mouseup. */
+var shopSig = null;
+function paintShop(){
+  /* DEV and the instant toggle are in the signature because both change the
+     per-hour figures without changing a single level. */
+  var sig = (DEV ? "d" : "-") + (S.dev.instant ? "i" : "-") + "|";
+  for (var s=0;s<UPGRADES.length;s++){
+    var us = UPGRADES[s], ls = upLevel(us.id);
+    var op = !us.gate || us.gate();
+    var c0 = ls < us.max ? us.cost(ls) : 0;
+    var vis = us.basic || ls >= us.max || revealed(c0);
+    /* the PRICE is in the signature, not just whether you can afford it —
+       a cost that moves without flipping affordability would sit stale */
+    sig += us.id + ls + (vis?"v":"h") + (op?"o":"x") + Math.round(c0/100) +
+           (op && ls < us.max && S.cents >= c0 ? "y" : "n") + "|";
+  }
+  if (sig === shopSig) return;
+  shopSig = sig;
+
+  var html = "";
+  for (var i=0;i<UPGRADES.length;i++){
+    var u = UPGRADES[i], lvl = upLevel(u.id), maxed = lvl >= u.max;
+    if (!u.basic && !maxed && !revealed(u.cost(lvl))) continue;
+    var open = !u.gate || u.gate();
+    var cost = maxed ? 0 : u.cost(lvl), can = open && !maxed && S.cents >= cost;
+    html += '<div class="uprow' + (can ? " can" : "") + '">' +
+            '<div><div class="un">' + (maxed ? u.done : u.name(lvl)) + '</div>' +
+            '<div class="ulvl">level ' + lvl + ' of ' + u.max + '</div></div>' +
+            '<button class="' + (can ? "primary" : "ghost") + '" data-buy="' + u.id + '"' +
+            (can ? "" : " disabled") + '>' + (maxed ? "Maxed" : !open ? "Locked" : money(cost)) + '</button></div>';
+  }
+  $("shop").innerHTML = html;
+}
+
+/* THE TICK MUST NOT REBUILD MARKUP. paintLive() writes numbers into nodes
+   that already exist; paint() replaces them. Ten repaints a second through
+   paint() would fight the cursor for the hover preview and re-run the tile
+   animations on a board nobody touched. */
+function paintLive(){
+  var D = derived();
+  if (S.cents > S.peakCents) S.peakCents = S.cents;
+  $("cash").textContent = money(S.cents);
+  $("drawsVal").textContent = S.draws.toLocaleString();
+  var perSec = streamerCentsPerSec();
+  $("rateVal").textContent = perSec > 0 ? money(Math.round(perSec)) + "/s" : "—";
+
+  /* ROUGH ON PURPOSE, AND ONLY HALF OF IT IS A GUESS. The hired half is
+     exact — their rate and paytable are known. The clicking half assumes
+     you keep pressing Play at a steady pace, which nobody does forever, so
+     the assumption is spelled out in the tooltip rather than implied by a
+     confident-looking number. */
+  /* ONE BOARD, ONE THROUGHPUT. Clicking and auto-play do not stack — both
+     call play(), and either is blocked while the other's draw turns over —
+     so the board runs at whichever is faster, not at their sum. */
+  var hiredHr = perSec * 3600;
+  var boardHr = boardCentsPerHour(D.betCents, D.picks);
+  var autoHr  = autoCentsPerHour(D.betCents, D.picks);
+  var passiveHr = autoHr + hiredHr;
+  /* The note names what runs WITHOUT YOU, which is the exactly-known half —
+     auto-play and the hired help both have known rates, while the clicking
+     half is an assumption about how fast a person presses a button. */
+  $("rateHour").innerHTML = money(Math.round(boardHr + hiredHr)) + "/hr" +
+    (passiveHr > 0 ? ' <span>· ' + money(Math.round(passiveHr)) + "/hr without you</span>" : "");
+  $("rateHour").title = "Board " + money(Math.round(boardHr)) + "/hr at " +
+    Math.round(boardDrawsPerHour()).toLocaleString() + " draws an hour, plus " +
+    money(Math.round(hiredHr)) + "/hr hired. " +
+    (autoSps() > 0 ? "Auto-play alone makes " + money(Math.round(autoHr)) + "/hr."
+                   : "Assumes you keep pressing Play.");
+
+  paintShop();
+  paintHistory();
+  /* THE HIRE BUTTONS LIVE HERE TOO. They used to refresh only when a
+     streamer drew, which needs a streamer — so with none owned nothing ever
+     re-enabled them and the first hire was unbuyable at any balance. */
+  paintStreamersLive();
+  if (DEV) paintRate();
+}
+
+function paint(){
+  var D = derived();
+  $("betVal").textContent = money(D.betCents);
+  /* board header removed — the shop row already names the pick count */
+  $("btnPlay").disabled = S.animating || S.picks.length !== D.picks;
+  /* PLAY DROPS TO GREY WHILE AUTO IS ON. The board is already being played;
+     the amber belongs to whatever you are meant to press next, and while
+     auto-play is running that is nothing. It still works — pressing it is
+     just how you go faster than the timer. */
+  $("btnPlay").className = S.autoOn ? "ghost" : "primary";
+  var ab = $("btnAuto");
+  ab.className = S.autoOn ? "ghost on" : "ghost";
+  ab.title = S.autoOn ? "Auto-play is on — click to stop" : "Auto-play is off — click to start";
+  var _hint = null; if (_hint) _hint.textContent = S.animating ? ""
+    : S.picks.length < D.picks ? "Choose " + (D.picks - S.picks.length) + " more."
+    : S.autoOn ? "Auto-play every " + autoSecs().toFixed(2) + "s — press Play to go faster."
+    : "Auto-play is off. Keep pressing Play.";
+  paintBoard();
+  paintLive();
+  if (DEV) paintDev();
+}
+
+/* ═══════════════════════════════ one draw ═════════════════════════════ */
+var REVEAL_TOTAL = 715;   /* was 620 — slowed 15% */
+var HISTORY_MAX = 60;
+
+/* ═══════════════════════════════ the ball ═════════════════════════════
+   Once in every BALL_ODDS PAYING draws a ball rolls in, lands on one of the
+   numbers that just came in, and multiplies what the draw was about to pay.
+
+   IT ONLY FIRES ON DRAWS THAT ALREADY PAID, and that is a deliberate
+   restriction. Rolled against every draw instead, most balls would land on a
+   zero — at one number three draws in four pay nothing — so the game would
+   routinely play its biggest animation over a payout of nothing. A 1000x on
+   nothing is still nothing, and it is the worst possible moment to show
+   somebody a jackpot.
+
+   PLAYER BOARD ONLY. The hired help settle in bulk against an exact
+   expectation, and a rare multiplier does not survive being averaged. Their
+   arithmetic stays exact; this is a thing that happens where you can see it. */
+/* 1 IN 4,000, NOT 1 IN 500. Simulated both: at 1-in-500 the balls only made
+   ten numbers 1% faster overall — the board is the minor channel once the
+   hired help arrive, so the MULTIPLIERS were never the problem. Two other
+   things were, and both are frequency:
+
+     at max auto speed 1-in-500 fired every TWO MINUTES — 29 an hour. A
+     jackpot animation that regular is wallpaper, not a jackpot.
+
+     and the spike runs backwards: a 1000x is worth 4,000 draws of income at
+     the opening but only 400 late, so it disrupts hardest exactly when you
+     are least equipped for it.
+
+   1-in-4,000 is ~74 minutes between balls while clicking, ~17 at four draws
+   a second, and drops the aggregate effect under half a percent — without
+   touching prizes the art was designed around. */
+var BALL_ODDS = 4000;
+var BALL_DWELL_MS = 1500;      /* it now sits through the reveal as well */
+var BALL_PRIZES = [
+  { m:  10, w: 30 }, { m:  25, w: 22 }, { m:  50, w: 16 },
+  { m:  75, w: 11 }, { m: 100, w:  8 }, { m: 125, w:  5 },
+  { m: 150, w:  4 }, { m: 200, w: 2.5 }, { m: 500, w: 1.2 },
+  { m:1000, w: 0.3 }
+];
+var BALL_WEIGHT_TOTAL = (function(){ var t=0; for (var i=0;i<BALL_PRIZES.length;i++) t+=BALL_PRIZES[i].w; return t; })();
+function rollBallPrize(){
+  var r = Math.random() * BALL_WEIGHT_TOTAL;
+  for (var i=0;i<BALL_PRIZES.length;i++){ r -= BALL_PRIZES[i].w; if (r <= 0) return BALL_PRIZES[i].m; }
+  return BALL_PRIZES[0].m;
+}
+/* ROLLED BEFORE THE DRAW, and it lands on one of YOUR numbers — the draw is
+   then built to contain that number. So a ball guarantees at least one hit,
+   which guarantees the multiplier has something to multiply. Both paytables
+   pay on a single hit at every pick count, so a ball can never come up
+   empty. */
+function rollBall(){
+  if (!S.picks.length) return null;
+  if (!S.dev.forceBall && Math.floor(Math.random() * BALL_ODDS) !== 0) return null;
+  S.dev.forceBall = false;
+  var mult = S.dev.ballMult ? S.dev.ballMult : rollBallPrize();
+  S.dev.ballMult = 0;
+  /* KEEP IT AWAY FROM THE EDGES. A gem's sparks throw well past its own
+     tile, and from a border tile half of them land on the multiplier label,
+     the HUGE WIN plate, or nothing at all. Rows 1-3 and columns 3-6 leave
+     clear board on every side. It still has to be a number the player owns —
+     that guarantee is the whole point of the ball — so the zone is a
+     preference, not a rule: if none of their picks sit in it, any pick will
+     do rather than no ball at all. */
+  var safe = [];
+  for (var i=0;i<S.picks.length;i++) if (inBallZone(S.picks[i])) safe.push(S.picks[i]);
+  var pool = safe.length ? safe : S.picks;
+  return { tile: pool[Math.floor(Math.random() * pool.length)], mult: mult };
+}
+/* ROWS 2-4, COLUMNS 3-6. Row 1 had to go: the gem's multiplier label sits
+   above its own tile, and with the HUGE WIN plate now parked over the grid a
+   gem in the top row printed its label straight through the payout. Rows 2
+   to 4 keep clear board on every side for the sparks AND clear air above for
+   the plate. Twelve tiles, same as before, one row lower. */
+function inBallZone(t){
+  var row = Math.ceil(t / 8), col = ((t - 1) % 8) + 1;
+  return row >= 2 && row <= 4 && col >= 3 && col <= 6;
+}
+/* 1,619,428x will not fit in a 54px tile; 1.6Mx will. */
+function multText(m){
+  if (m >= 1e9) return (m/1e9).toFixed(m >= 1e10 ? 0 : 1) + "B";
+  if (m >= 1e6) return (m/1e6).toFixed(m >= 1e7 ? 0 : 1) + "M";
+  if (m >= 1000) return (m/1000).toFixed(m >= 1e4 ? 0 : 1) + "K";
+  return String(m);
+}
+
+/* A draw containing exactly n of the player's numbers - developer only. */
+/* Ten tiles, one of them chosen in advance. */
+function draw10With(tile){
+  var others = [];
+  for (var t=1;t<=40;t++) if (t !== tile) others.push(t);
+  shuffle(others);
+  return shuffle([tile].concat(others.slice(0, 9)));
+}
+
+function drawWithHits(n){
+  var mine = shuffle(S.picks.slice()), others = [];
+  for (var t=1;t<=40;t++) if (S.picks.indexOf(t) === -1) others.push(t);
+  shuffle(others);
+  return shuffle(mine.slice(0, n).concat(others.slice(0, 10 - n)));
+}
+
+/* ═══════════════ THE ORDER OF A DRAW, WITH A BALL IN IT ═══════════════
+   1. you press Play
+   2. the ball drops onto one of the numbers YOU chose
+   3. the draw comes in, and that number is guaranteed to be among it
+   4. the win is multiplied
+
+   The ball arriving BEFORE the draw is what makes it worth anything: it
+   lands on a number you own and then promises the draw will contain it, so
+   the multiplier always has something to multiply. Landing it afterwards —
+   which is how this worked first — meant it could only ride on a win that
+   had already happened, and a ball that lands on a losing board is a
+   jackpot animation played over nothing. */
+function play(fromAuto){
+  var D = derived();
+  if (S.animating || S.picks.length !== D.picks) return;
+  $("pop").hidden = true;
+  hideBall();
+
+  var ball = rollBall();
+  /* Nobody is watching a hidden tab or a catch-up batch, so those skip the
+     drop — but they still get the guaranteed tile and the multiplier. The
+     ball is worth the same whether or not you saw it arrive. */
+  var quiet = S.dev.instant || autoQuiet || document.hidden;
+  /* GEM TIERS TAKE OVER THE SCREEN. Everything below 200x keeps the ordinary
+     drop, because a sixteen-second cabinet moment for a 10x would leave the
+     1000x with nothing left to be. */
+  var g = ball ? (BALL_ART[ball.mult] || {}) : {};
+  if (ball && !quiet && g.kind === "gem"){
+    var D2 = derived();
+    var dd2 = draw10With(ball.tile);
+    var h2 = 0;
+    for (var q=0;q<dd2.length;q++) if (S.picks.indexOf(dd2[q]) !== -1) h2++;
+    var m2 = (pays()[D2.picks] || {})[h2] || 0;
+    S.last = { drawn: dd2, hits: h2, mult: m2,
+               payCents: D2.betCents * m2 * ball.mult, ball: ball };
+    S.dev.forceHits = null;
+    beginAnim(40000);                       /* the event outlasts the usual guard */
+    S.revealUpto = 0;
+    paint();
+    bigWinSequence(ball, dd2, h2, m2, S.last.payCents, function(){
+      endAnim();
+      /* the event is not idle time — restart the countdown from its end,
+         or auto snaps on the instant a thirty-second cinematic finishes */
+      lastPlayAt = Date.now();
+      /* NO BANNER AFTER THIS ONE. A takeover that just spent four seconds
+         counting the win up in 42px type does not need a small green box
+         repeating it over the board it is fading away from. */
+      bwNoPop = true;
+      settle();
+    });
+    return;
+  }
+  /* THE BALL ARRIVES AFTER THE DRAW, NOT BEFORE IT. It used to land first
+     and then promise the draw would contain its tile, which meant the
+     interesting part — whether the number turns up — was already settled
+     before a single tile had turned over. Now the ten numbers come in
+     first and the ball drops onto one of them, which reads as a reward for
+     the draw rather than an announcement of it.
+
+     Nothing about the payout moves: draw10With() still guarantees the
+     tile, so the ball is worth exactly what it was. Only the order you
+     see it in changed. */
+  resolveDraw(fromAuto, ball, quiet);
+}
+
+function resolveDraw(fromAuto, ball, quiet){
+  var D = derived();
+  var forced = S.dev.forceHits;
+  var d;
+  if (ball) d = draw10With(ball.tile);              /* its tile is in the draw */
+  else if (forced !== null && forced <= D.picks) d = drawWithHits(forced);
+  else d = draw10();
+  S.dev.forceHits = null;
+
+  var hits = 0;
+  for (var i=0;i<d.length;i++) if (S.picks.indexOf(d[i]) !== -1) hits++;
+  var mult = (pays()[D.picks] || {})[hits] || 0;
+  /* integer cents x integer multiplier, twice - a fraction cannot appear */
+  S.last = { drawn: d, hits: hits, mult: mult, payCents: D.betCents * mult,
+             ball: ball || null };
+  if (ball) S.last.payCents *= ball.mult;
+
+  if (quiet){ S.revealUpto = null; endAnim(); settle(); return; }
+
+  /* THE REVEAL HAS TO FIT IN THE GAP. At four draws a second the turn-over
+     is longer than the interval itself, so it would throttle auto-play to
+     whatever the animation costs instead of the rate you paid for. It gets
+     three quarters of the gap, and below the point where there is anything
+     left to see the draw lands at once.
+
+     A MANUAL PRESS ALWAYS TURNS OVER AT THE FULL PACE. The speed track is
+     auto-play's; pressing Play yourself should not hand you an animation
+     clipped by a setting meant for something else. */
+  var total = REVEAL_TOTAL;
+  if (fromAuto){
+    total = Math.min(REVEAL_TOTAL, autoSecs() * 1000 * 0.75);
+    if (total < 120){ S.revealUpto = null; endAnim(); settle(); return; }
+  }
+  var every = Math.max(12, Math.round(total / d.length));
+  beginAnim(); S.revealUpto = 0;
+  var rung = 0;
+  paint();
+  (function next(){
+    /* If the tab is hidden PART WAY THROUGH, abandon the rest of the reveal
+       rather than crawling it — otherwise a draw that began while visible
+       keeps the board locked long after you switched away. */
+    if (document.hidden && S.revealUpto < d.length){
+      endAnim(); S.revealUpto = null;
+      settle();                       /* no drop: nobody is watching it */
+      return;
+    }
+    if (S.revealUpto >= d.length){
+      S.revealUpto = null;
+      if (ball){
+        /* the draw is in; now show what landed on it */
+        activeBall = ball;
+        paintBoard();
+        dropBall(ball, function(){ endAnim(); settle(); });
+        return;
+      }
+      endAnim();
+      settle();
+      return;
+    }
+    var v = d[S.revealUpto];
+    S.revealUpto += 1;
+    paintBoard();
+    if (S.picks.indexOf(v) !== -1){ rung += 1; ping(rung); }
+    setTimeout(next, every);
+  })();
+}
+
+
+/* Positions the ball over its tile and lets the animation do the rest. The
+   coordinates are read from the live tile because the board is a percentage
+   width — a hard-coded grid position would drift with the viewport. */
+/* ═══════════════════════ THE BIG WIN SEQUENCE ════════════════════════
+   Gem tiers only. The order is: room clears and the board grows, the storm
+   builds, the ten tiles turn over one at a time, the gem lands, the total
+   counts up, then everything fades back.
+
+   It runs about sixteen seconds, which is a long time to hold a game still —
+   at 1 in 4,000 that is roughly every seventeen minutes at top speed. The
+   streamers keep earning underneath it; only YOUR board is paused. */
+var BW = {
+  ramp:    10000,   /* the sky builds over the ORDINARY board, nothing else moves */
+  peakHold:  900,   /* solid white — the room changes inside this */
+  clear:    1700,   /* the veil thins onto the new board */
+  settle:   1400,   /* a beat: the bonus board under an ordinary starfall */
+  storm:    2600,   /* the comet storm that clears the board */
+  stormRest: 700,   /* a beat with only your numbers left standing */
+  pickWave: 2600,   /* then one comet per number you chose */
+  shotFly:   430,   /* a comet's flight, so it lands ON the beat */
+  dropFor:   900,   /* the gem falls and radiates */
+  mult:     3200,   /* 0x climbs to the multiplier, winding up as it goes */
+  count:    4200,   /* HUGE WIN counts from zero */
+  hold:     1300,
+  fade:     1250    /* shrink, then colour, then the interface */
+};
+var bwTimers = [], bwRaf = null, bwGemRaf = null, bwNoPop = false;
+
+/* EVERY STREAK LOOPS FOREVER, so the ramp is done with start delays rather
+   than by spawning more of them — density climbs as each one joins, and
+   holds at full once they all have. Built once and reused. */
+/* ═══════════════════ THE STORM IS DRAWN, NOT STYLED ═══════════════════
+   This was 380 SVG paths each animating stroke-dashoffset. It never worked.
+   Two separate faults, and the second is why it moved to canvas:
+
+   1. The offset was driven from custom properties. The keyframes resolved and
+      the animation attached, but the value never moved, so every streak sat
+      parked off the start of its own path and the sky rendered pure black.
+   2. Even once that was fixed and streaks appeared, Chrome could not keep up.
+      Each dashoffset change invalidates that path's raster, and 380 of them
+      over a full-screen SVG layer is main-thread work every frame. Screenshots
+      caught whole frames coming up empty — the board vanishing, then the
+      entire screen going black and back. That is the flicker.
+
+   A canvas draws the same 400 streaks as plain line segments with no DOM, no
+   style recalc and no per-path invalidation. Three strokes of rising alpha
+   stand in for a gradient tail, which avoids allocating 400 gradient objects
+   every frame. */
+var bwSkyRaf = null, bwSkyT0 = 0;
+var SKY_BASE = 0.62;          /* the ordinary storm, as a fraction of the pool */
+
+/* ONE POOL, AND DENSITY IS THE WHOLE PERFORMANCE. Streaks no longer carry
+   individual start delays — the count drawn is what ramps, from almost
+   nothing to the entire pool and then back down to the ordinary rate. That
+   also means the settle after the cover looks exactly like the storm always
+   did, because it IS the storm, just at its usual density. */
+function bwSkyStart(sched){
+  var cv = $("bwSky");
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext("2d");
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  var W = window.innerWidth, H = window.innerHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  /* EVERY STREAK STARTS AND ENDS OFF SCREEN. Placing x0 anywhere in
+     `-0.4*run .. +1.25W` meant most of them began at a positive x — they
+     popped into existence in the middle of the picture rather than flying
+     into it, which is the one thing a starfield must never do.
+
+     So the path is built from the direction instead of from a box: take the
+     mean travel vector, jitter the angle a little, lay a path of 1.4 screen
+     diagonals centred on a point offset perpendicular to it. Half a path is
+     0.7 diagonals, which is longer than the screen's half-extent in any
+     direction, so both ends are always outside. */
+  var diag = Math.hypot(W, H), L = diag * 1.4;
+  var baseAng = Math.atan2(-H * 0.525, W * 1.125);
+  var N = 3400, st = [];
+  for (var i=0;i<N;i++){
+    var ang = baseAng + (Math.random() - 0.5) * 0.22;
+    var ux = Math.cos(ang), uy = Math.sin(ang);
+    var offs = (Math.random()*2 - 1) * diag * 0.72;
+    st.push({ ux: ux, uy: uy, len: L,
+              x0: W/2 - uy*offs - ux*L/2,
+              y0: H/2 + ux*offs - uy*L/2,
+              hue: Math.floor(Math.random()*360),
+              w: 1.1 + Math.random()*1.7,
+              tail: 0.055 + Math.random()*0.055,
+              dur: 450 + Math.random()*400,
+              /* EACH STREAK RESTS BETWEEN CROSSINGS, ALWAYS BY THE SAME
+                 AMOUNT. The rest used to shrink as density climbed, which
+                 sounds harmless and is not: the rest is part of the cycle
+                 LENGTH, and `(t % cycle)` with a cycle that changes every
+                 frame does not advance smoothly — it jumps. Streaks
+                 teleported along their own paths and read as travelling at
+                 wildly different speeds early on versus late.
+
+                 A fixed cycle means the crossing always takes `dur`, so
+                 every streak moves at the same speed for the whole event and
+                 only the NUMBER of them changes. Density does all the work. */
+              gap: 300 + Math.random()*2600,
+              off: Math.random()*6000 });
+  }
+
+  var peakEnd = sched.ramp + sched.peakHold;
+  var BASEN = Math.round(SKY_BASE * N);      /* the ordinary storm, in streaks */
+  var START = 2;                             /* about one crossing a second */
+
+  /* 0 -> 1 across the ramp: drives the veil, width and brightness */
+  function level(el){
+    if (el < sched.ramp) return Math.pow(el / sched.ramp, 1.9);
+    if (el < peakEnd) return 1;
+    return Math.max(0, 1 - (el - peakEnd) / sched.clear);
+  }
+
+  /* COUNT IS GEOMETRIC, NOT LINEAR. Three streaks to two and a half thousand
+     is a range of nearly a thousand to one, and interpolating that linearly
+     spends the entire ramp already dense — the old curve started at 17% of
+     the pool, which is 440 streaks in the very first frame. There was no
+     build to see. Multiplying up from three means the first seconds really
+     are a handful of stars. */
+  function count(el){
+    if (el < sched.ramp){
+      var t = el / sched.ramp;
+      /* the exponent is the whole feel of the build. Above 1 the count sits
+         low for most of the ramp and arrives late; at 0.85 it is climbing
+         hard by the halfway mark and the last seconds before the white are
+         genuinely dense rather than merely busy. */
+      return Math.max(1, Math.round(START * Math.pow(N/START, Math.pow(t, 0.85))));
+    }
+    if (el < peakEnd) return N;
+    var q = Math.min(1, (el - peakEnd) / sched.clear);
+    return Math.round(N + (BASEN - N) * q);
+  }
+
+  /* A GAP IS ENOUGH TO SEE A BOARD CHANGE THROUGH, and density always leaves
+     gaps. The last stretch saturates to a solid veil so the swap is genuinely
+     unseen — "very dense" is not the same as opaque. */
+  function veil(k){
+    if (k <= 0.80) return 0;
+    return Math.min(1, Math.pow((k - 0.80) / 0.20, 1.15));
+  }
+
+  var vEl = $("bwVeil");
+  var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+  /* THE SKY'S CLOCK STARTS NOW, NOT ON THE FIRST FRAME. Every other stage of
+     the event is scheduled on setTimeout, which keeps running whatever the
+     compositor is doing — but requestAnimationFrame does not, so taking t0
+     from the first callback meant the ramp began whenever the first frame
+     happened to be produced. Any hitch at the start and the veil is no
+     longer over the swap it exists to hide. performance.now() shares rAF's
+     time origin, so this is the same clock, just read earlier. */
+  bwSkyT0 = performance.now();
+  if (bwSkyRaf) cancelAnimationFrame(bwSkyRaf);
+
+  function frame(now){
+    var el = still ? peakEnd + sched.clear : now - bwSkyT0;
+    var k = level(el);
+    var n = Math.min(N, count(el));
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineCap = "round";
+    for (var j=0;j<n;j++){
+      var z = st[j];
+      var cyc = z.dur + z.gap;                /* CONSTANT: see above */
+      var p = ((el + z.off) % cyc) / z.dur;
+      if (p > 1) continue;                    /* resting between crossings */
+      var head = -z.tail + p * (1 + z.tail);
+      var a = Math.max(0, head - z.tail), b = Math.min(1, head);
+      if (b <= a) continue;
+      ctx.strokeStyle = "hsl(" + z.hue + " 96% " + (66 + 24*k).toFixed(0) + "%)";
+      ctx.lineWidth = z.w * (1 + 2.6 * k);
+      for (var q=0;q<3;q++){
+        var f = [0, 0.45, 0.78][q], s0 = a + (b - a) * f;
+        if (b <= s0) continue;
+        ctx.globalAlpha = [0.22, 0.5, 0.95][q];
+        ctx.beginPath();
+        ctx.moveTo(z.x0 + z.ux*z.len*s0, z.y0 + z.uy*z.len*s0);
+        ctx.lineTo(z.x0 + z.ux*z.len*b,  z.y0 + z.uy*z.len*b);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+    if (vEl) vEl.style.opacity = veil(k).toFixed(3);
+    if (!still) bwSkyRaf = requestAnimationFrame(frame);
+  }
+  bwSkyRaf = requestAnimationFrame(frame);
+}
+
+/* ══════════════ THE DRAW ARRIVES AS SOMETHING, NOT AS A CLASS ═════════
+   The numbers are stars now, so a number being drawn should look like one
+   star hitting another. A comet is fired at each drawn tile, timed to arrive
+   exactly as the tile turns over, travelling along the same diagonal the
+   storm does so it reads as part of the same weather.
+
+   What it does on arrival is the whole point:
+     a number you own  -> it LANDS. Impact flash, expanding ring, and it
+                          stays on the tile while the number lights up.
+     a number you don't -> it PUNCHES THROUGH and keeps going, dimming as it
+                          leaves, with only a faint ripple left behind.
+
+   So ten comets come in and you can see which ones stuck. */
+var bwShots = [], bwShotRaf = null, bwParts = [], bwPartLast = 0;
+
+/* BULLET HELL. Thirty shards thrown along fixed arcs is a firework; what this
+   wants is a screen full of independent projectiles, each with its own
+   heading, speed, size and colour, flying until they leave. They are
+   integrated rather than parameterised — position from velocity, velocity
+   from drag — which is why they spread unevenly and read as debris instead
+   of as a pattern. */
+function bwBurst(x, y, n){
+  for (var i=0;i<n;i++){
+    var a = Math.random() * 6.2832;
+    /* biased so most are fast and a few crawl - an even spread looks like a
+       ring expanding, not like something being blown apart */
+    var sp = 300 + Math.pow(Math.random(), 0.45) * 2600;
+    bwParts.push({ x:x, y:y,
+      vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+      hue: Math.floor(Math.random()*360),
+      r: 1.4 + Math.random()*3.8,
+      life: 0, max: 0.85 + Math.random()*1.25 });
+  }
+}
+var bwKnocked = null;   /* tiles the storm has cleared away */
+
+function bwShotsStart(){
+  var cv = $("bwShots");
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext("2d");
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  var W = window.innerWidth, H = window.innerHeight;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  bwShots = [];
+  if (bwShotRaf) cancelAnimationFrame(bwShotRaf);
+
+  function frame(now){
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "lighter";
+
+    var dt = bwPartLast ? Math.min(0.05, (now - bwPartLast) / 1000) : 0.016;
+    bwPartLast = now;
+    ctx.lineCap = "round";
+    for (var pi=bwParts.length-1; pi>=0; pi--){
+      var q = bwParts[pi];
+      q.life += dt;
+      if (q.life >= q.max){ bwParts.splice(pi,1); continue; }
+      var px = q.x, py = q.y;
+      q.x += q.vx*dt; q.y += q.vy*dt;
+      var drag = 1 - 0.55*dt;
+      q.vx *= drag; q.vy *= drag;
+      if (q.x < -80 || q.x > W+80 || q.y < -80 || q.y > H+80){
+        bwParts.splice(pi,1); continue;
+      }
+      var f = 1 - q.life/q.max;
+      ctx.globalAlpha = Math.min(1, f*1.4);
+      ctx.strokeStyle = "hsl(" + q.hue + " 100% " + (62 + 22*f).toFixed(0) + "%)";
+      ctx.lineWidth = q.r*f + 0.5;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(q.x, q.y); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    for (var i=bwShots.length-1;i>=0;i--){
+      var sh = bwShots[i], el = now - sh.t0;
+      if (el < 0) continue;
+      var p = el / sh.fly;
+
+      if (p < 1){                                   /* inbound */
+        /* ACCELERATING, NOT SMOOTHSTEP. Ease-out spends the last fifth of
+           the flight crawling the last tenth of the distance — the head sits
+           almost stationary on the target, which reads as a little marker
+           appearing before the landing and then slotting into place. A comet
+           should arrive at speed. */
+        var e = p * (0.55 + 0.45*p);
+        var x = sh.x0 + (sh.tx - sh.x0)*e, y = sh.y0 + (sh.ty - sh.y0)*e;
+        drawComet(ctx, x, y, sh, 1);
+      } else {
+        var q = (el - sh.fly) / sh.after;
+        if (q >= 1){ bwShots.splice(i,1); continue; }
+        if (sh.pick){
+          /* A SUPERNOVA, AND THEN NOTHING. The comet's job is to deliver the
+             hit; the number lighting up is the result, so nothing is left
+             sitting on the tile afterwards. But the delivery itself should be
+             violent — a hard core, two shockwaves running out at different
+             rates, and shards thrown through the whole circle rather than in
+             a polite arc along the line of travel. */
+          var fl = Math.max(0, 1 - q/0.20);            /* core, gone at once */
+          if (fl > 0){
+            var rad = sh.size * (4 + 5*(1-fl));
+            var g2 = ctx.createRadialGradient(sh.tx,sh.ty,0,sh.tx,sh.ty,rad);
+            g2.addColorStop(0, "rgba(255,255,255," + (1*fl).toFixed(3) + ")");
+            g2.addColorStop(.35, "rgba(255,255,255," + (0.8*fl).toFixed(3) + ")");
+            g2.addColorStop(.7, "hsla(" + sh.hue + ",100%,80%," + (0.55*fl).toFixed(3) + ")");
+            g2.addColorStop(1, "hsla(" + sh.hue + ",100%,62%,0)");
+            ctx.globalAlpha = 1; ctx.fillStyle = g2;
+            ctx.fillRect(sh.tx-rad, sh.ty-rad, rad*2, rad*2);
+          }
+          /* two shockwaves, the second chasing the first */
+          for (var w2=0;w2<2;w2++){
+            var qq = w2 ? Math.max(0, q - 0.14) : q;
+            var rr = Math.pow(qq, 0.34) * sh.size * (w2 ? 15 : 24);
+            var ra = Math.max(0, 1 - q/(w2 ? 0.85 : 0.6));
+            if (ra <= 0 || rr <= 0) continue;
+            ctx.globalAlpha = ra * (w2 ? 0.55 : 0.95);
+            ctx.strokeStyle = "hsl(" + ((sh.hue + w2*40) % 360) + " 100% " + (w2?72:84) + "%)";
+            ctx.lineWidth = (w2 ? 3 : 6.5) * ra + 0.6;
+            ctx.beginPath(); ctx.arc(sh.tx, sh.ty, rr, 0, 6.2832); ctx.stroke();
+          }
+          /* and the shards, all the way round */
+          var SH = 30, sa = Math.max(0, 1 - q/0.92);
+          if (sa > 0){
+            ctx.lineCap = "round";
+            for (var k2=0;k2<SH;k2++){
+              var ang = sh.spin + k2 * (6.2832/SH);
+              var spd = 0.55 + (k2 % 5) * 0.20;
+              var d0 = sh.size*2 + Math.pow(q, 0.42) * sh.size * 30 * spd;
+              var d1 = d0 + sh.size * (3.4 + (k2 % 4) * 1.9) * sa;
+              ctx.globalAlpha = sa * (0.55 + (k2 % 3) * 0.18);
+              ctx.lineWidth = (2.6 + (k2 % 3) * 0.9) * sa + 0.4;
+              ctx.strokeStyle = "hsl(" + ((sh.hue + k2*11) % 360) + " 100% 74%)";
+              ctx.beginPath();
+              ctx.moveTo(sh.tx + Math.cos(ang)*d0, sh.ty + Math.sin(ang)*d0);
+              ctx.lineTo(sh.tx + Math.cos(ang)*d1, sh.ty + Math.sin(ang)*d1);
+              ctx.stroke();
+            }
+          }
+        } else {
+          /* it went straight through and is leaving */
+          var ox = sh.tx + sh.ux * q * 520, oy = sh.ty + sh.uy * q * 520;
+          drawComet(ctx, ox, oy, sh, 1-q);
+          ctx.globalAlpha = (1-q) * 0.28;
+          ctx.strokeStyle = "hsl(" + sh.hue + " 90% 70%)";
+          ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.arc(sh.tx, sh.ty, 8 + q*34, 0, 6.2832); ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    bwShotRaf = requestAnimationFrame(frame);
+  }
+  bwShotRaf = requestAnimationFrame(frame);
+}
+
+function drawComet(ctx, x, y, sh, fade){
+  var tl = sh.size * 32;
+  var g = ctx.createLinearGradient(x - sh.ux*tl, y - sh.uy*tl, x, y);
+  g.addColorStop(0, "hsla(" + sh.hue + ",100%,65%,0)");
+  g.addColorStop(1, "hsla(" + sh.hue + ",100%,72%," + (0.85*fade).toFixed(3) + ")");
+  ctx.strokeStyle = g;
+  ctx.lineWidth = sh.size * 1.5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x - sh.ux*tl, y - sh.uy*tl);
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  var hd = ctx.createRadialGradient(x, y, 0, x, y, sh.size*2.6);
+  hd.addColorStop(0, "rgba(255,255,255," + (0.98*fade).toFixed(3) + ")");
+  hd.addColorStop(.35, "hsla(" + sh.hue + ",100%,76%," + (0.7*fade).toFixed(3) + ")");
+  hd.addColorStop(1, "hsla(" + sh.hue + ",100%,62%,0)");
+  ctx.fillStyle = hd;
+  ctx.fillRect(x - sh.size*2.6, y - sh.size*2.6, sh.size*5.2, sh.size*5.2);
+}
+
+/* Fired ahead of the tile turning over, so it ARRIVES on the beat. */
+function bwShotFire(tileNo, isPick){
+  var el = $("board").querySelector('.kt[data-t="' + tileNo + '"]');
+  if (!el) return;
+  var r = el.getBoundingClientRect();
+  var tx = r.left + r.width/2, ty = r.top + r.height/2;
+  /* THE SAME DIAGONAL THE STARFALL ACTUALLY TRAVELS. This was hand-picked at
+     -0.38 while the sky averages about -0.21, so the comets cut across the
+     storm at a visibly steeper angle instead of running with it. Deriving it
+     from the sky's own run/rise constants means the two cannot drift apart
+     again. */
+  var W = window.innerWidth, H = window.innerHeight;
+  var ang = Math.atan2(-H * 0.525, W * 1.125);       /* the sky's own angle */
+  var ux = Math.cos(ang), uy = Math.sin(ang);
+  var D = Math.max(W, H) * 1.05;
+  bwShots.push({
+    t0: performance.now(), fly: BW.shotFly, after: isPick ? 980 : 430,
+    spin: Math.random() * 6.2832,
+    x0: tx - ux*D, y0: ty - uy*D, tx: tx, ty: ty, ux: ux, uy: uy,
+    /* A MISS IS STILL AN EVENT. These were half the size of a hit and
+       essentially invisible, which made nine of the ten numbers arrive with
+       nothing at all. Both are big now — what separates them is what happens
+       when they get there, not how much you can see on the way in. */
+    hue: isPick ? (140 + Math.random()*90) : (198 + Math.random()*46),
+    size: isPick ? 10.5 : 8.4, pick: isPick
+  });
+}
+/* THE SHOCKWAVE BELONGS TO THE IMPACT, NOT TO THE APPROACH. A blast with no
+   inbound comet — `fly:1` puts it straight into the burst phase — and much
+   larger than the ones the reveal throws, because this is the moment the
+   whole event has been building toward. */
+function bwBoom(x, y, size, hue){
+  bwShots.push({
+    t0: performance.now(), fly: 1, after: 1500,
+    x0: x, y0: y, tx: x, ty: y, ux: 1, uy: 0,
+    hue: hue, size: size, pick: true, spin: Math.random()*6.2832
+  });
+}
+
+/* THE MESH GIVES WAY. A ring travelling outward from the impact, shoving
+   each tile away from the point and shrinking it as it passes — the grid
+   reads as a surface being struck rather than a picture with something
+   drawn on top of it. Transforms do not affect layout, so nothing reflows;
+   they are written inline and cleared at the end, and paintBoard only ever
+   writes className, so a repaint mid-wave cannot wipe them. */
+var bwMeshRaf = null;
+function bwMeshWave(cx, cy, ms){
+  var board = $("board");
+  if (!board || !board.children.length) return;
+  var sc = board.offsetWidth ? (board.getBoundingClientRect().width / board.offsetWidth) : 1;
+  if (!(sc > 0)) sc = 1;
+  var geo = [];
+  for (var i=0;i<board.children.length;i++){
+    var el = board.children[i], r = el.getBoundingClientRect();
+    geo.push({ el: el, x: r.left + r.width/2, y: r.top + r.height/2 });
+  }
+  if (bwMeshRaf) cancelAnimationFrame(bwMeshRaf);
+  var t0 = performance.now();
+  function step(now){
+    var p = (now - t0) / ms;
+    if (p >= 1){
+      for (var j=0;j<geo.length;j++) geo[j].el.style.removeProperty("transform");
+      bwMeshRaf = null;
+      return;
+    }
+    /* A GRAVITY WELL, NOT A DENT. A gaussian bump is a shallow, wide
+       depression; the funnel it should look like is deep, narrow, and falls
+       off as an inverse square, with the cells crowding hard into the throat
+       and the far grid staying nearly flat.
+
+           w = R^2 / (d^2 + R^2)
+
+       is 1 at the centre and ~R^2/d^2 far out, which is that shape. Cells are
+       pulled toward the throat by it and shrink by it, so the ones nearest
+       the impact collapse almost to nothing while the outer grid barely
+       moves — the crowding IS the funnel. A little extra downward drift sells
+       it as sagging rather than merely converging.
+
+       It forms fast, HOLDS at full depth for a beat, and then springs back —
+       the hold is what makes it read as the fabric being pushed and letting
+       go, instead of a ripple passing through. */
+    var env;
+    if (p < 0.10)      env = p / 0.10;                 /* punched in */
+    else if (p < 0.30) env = 1;                        /* held at full depth */
+    else { var q2 = p - 0.30; env = Math.exp(-q2*5.5) * Math.cos(q2*7.2); }
+
+    var R = 250;                                       /* throat radius, px */
+    var front = Math.pow(p, 0.58) * 1250;
+    var decay = Math.pow(1 - p, 1.5);
+
+    for (var k=0;k<geo.length;k++){
+      var g = geo[k];
+      var dx = g.x - cx, dy = g.y - cy;
+      var d = Math.hypot(dx, dy) || 0.001;
+
+      var well = (R*R) / (d*d + R*R) * env;            /* the funnel */
+      var zz = (d - front) / 190;
+      var ring = Math.exp(-zz*zz) * decay;             /* the wave on top */
+
+      var pull = -well * 52 + ring * 32;               /* in, then out */
+      var depth = well * 620 + ring * 110;             /* AWAY from the eye */
+      /* the slope of the well is what each tile leans down into. It is
+         steepest partway out, not at the throat, which is exactly where a
+         funnel's wall is most visible. */
+      var slope = (2 * R*R * d) / ((d*d + R*R) * (d*d + R*R)) * env;
+      /* NEGATED. rotate3d about (-ny, nx) by a POSITIVE angle tips the edge
+         nearest the throat toward the viewer, which is the funnel inside
+         out — the tile leans out of the hole instead of down into it. */
+      var tilt = -Math.max(-44, Math.min(44, slope * 7400));
+      var nx = dx/d, ny = dy/d;
+
+      if (Math.abs(pull) < 0.4 && depth < 0.6 && Math.abs(tilt) < 0.25){
+        if (g.el.style.transform) g.el.style.removeProperty("transform");
+        continue;
+      }
+      g.el.style.transform =
+        "translate3d(" + (nx*pull/sc).toFixed(2) + "px," +
+        (ny*pull/sc).toFixed(2) + "px," + (-depth).toFixed(1) + "px)" +
+        " rotate3d(" + (-ny).toFixed(3) + "," + nx.toFixed(3) + ",0," +
+        tilt.toFixed(2) + "deg)";
+    }
+    bwMeshRaf = requestAnimationFrame(step);
+  }
+  bwMeshRaf = requestAnimationFrame(step);
+}
+function bwMeshStop(){
+  if (bwMeshRaf){ cancelAnimationFrame(bwMeshRaf); bwMeshRaf = null; }
+  var board = $("board");
+  if (board) for (var i=0;i<board.children.length;i++)
+    board.children[i].style.removeProperty("transform");
+}
+
+function bwShotsStop(){
+  if (bwShotRaf){ cancelAnimationFrame(bwShotRaf); bwShotRaf = null; }
+  bwShots = []; bwParts = []; bwPartLast = 0;
+  var cv = $("bwShots");
+  if (cv && cv.getContext) cv.getContext("2d").clearRect(0, 0, cv.width, cv.height);
+}
+
+function bwSkyStop(){
+  if (bwSkyRaf){ cancelAnimationFrame(bwSkyRaf); bwSkyRaf = null; }
+  var vEl = $("bwVeil"); if (vEl) vEl.style.opacity = 0;
+  bwSkyT0 = 0;
+  var cv = $("bwSky");
+  if (cv && cv.getContext) cv.getContext("2d").clearRect(0, 0, cv.width, cv.height);
+}
+
+/* THE GEM WINDS UP AS ITS NUMBER CLIMBS. JS drives the spin for this stretch
+   rather than CSS, because accelerating a CSS animation means rewriting
+   animation-duration mid-flight and it visibly jumps every time you do. A
+   transform per frame does not. #ballFx is a zero-size anchor whose children
+   translate outward, so scaling it makes every spark reach further. */
+/* ══════════════ THE CUE THAT SAYS IT IS ABOUT TO HAPPEN ═══════════════
+   Synthesised, not sampled: no asset to ship, no licence to worry about, and
+   it starts on the same clock as everything else instead of after a fetch.
+
+   The texture is the obvious one to borrow — a low unresolved chord under an
+   accelerating pulse. It works because the pulse is doing the talking: it
+   starts slow enough to ignore and ends too fast to, so you know something is
+   coming before you have been told anything. The chord underneath deliberately
+   never resolves (root, fifth, octave, and a suspended fourth on top), so the
+   tension has nowhere to go until the win itself pays it off. */
+var bwVoices = [];
+function bwVoice(ac, type, freq, t0, dur, peak, attack){
+  var o = ac.createOscillator(), g = ac.createGain();
+  var rel = Math.min(1.4, dur * 0.35);
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(peak, t0 + Math.min(attack, dur - rel));
+  g.gain.setValueAtTime(peak, t0 + dur - rel);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur + 0.05);
+  bwVoices.push(o);
+}
+
+function bwPrelude(){
+  if (S.muted) return;
+  var ac = audio(); if (!ac) return;
+  if (ac.state === "suspended") ac.resume();
+  var t = ac.currentTime + 0.02, LEAD = 9.5;
+
+  /* the floor it all stands on */
+  bwVoice(ac, "sine", 55.00, t,        LEAD,       0.155, 2.0);
+  bwVoice(ac, "sine", 82.41, t + 0.10, LEAD - 0.1, 0.085, 2.4);
+
+  /* the chord that asks a question and never answers it */
+  bwVoice(ac, "triangle", 110.00, t + 0.15, LEAD - 0.2, 0.072, 2.6);
+  bwVoice(ac, "triangle", 164.81, t + 0.35, LEAD - 0.4, 0.055, 2.9);
+  bwVoice(ac, "sine",     220.00, t + 0.55, LEAD - 0.6, 0.048, 3.2);
+  bwVoice(ac, "sine",     293.66, t + 1.05, LEAD - 1.1, 0.040, 3.4);   /* sus4 */
+
+  /* THE CLOCK — 1.7 a second up to about nine */
+  var at = 0.05, gap = 0.58;
+  while (at < LEAD - 0.7){
+    tone(1174.66, at,        0.055, 0.030, "sine");
+    tone(587.33,  at + 0.004, 0.080, 0.021, "triangle");
+    at += gap;
+    gap *= 0.893;
+    if (gap < 0.108) gap = 0.108;
+  }
+
+  /* and something climbing over the top of it */
+  var sw = ac.createOscillator(), sg = ac.createGain();
+  sw.type = "sine";
+  sw.frequency.setValueAtTime(330, t + 0.4);
+  sw.frequency.exponentialRampToValueAtTime(1760, t + LEAD * 0.82);
+  sg.gain.setValueAtTime(0.0001, t + 0.4);
+  sg.gain.linearRampToValueAtTime(0.024, t + LEAD * 0.58);
+  sg.gain.exponentialRampToValueAtTime(0.0001, t + LEAD);
+  sw.connect(sg); sg.connect(ac.destination);
+  sw.start(t + 0.4); sw.stop(t + LEAD + 0.05);
+  bwVoices.push(sw);
+}
+function bwAudioStop(){
+  for (var i=0;i<bwVoices.length;i++){ try { bwVoices[i].stop(); } catch(e){} }
+  bwVoices = [];
+}
+
+function bwGemRamp(ms, mult){
+  var art = $("ballArt"), fx = $("ballFx"), lab = $("ballMultText");
+  if (!art || !fx || !lab) return;
+  art.style.animation = "none";
+  fx.style.animation  = "none";
+  var t0 = 0, last = 0, aArt = 0, aFx = 0;
+  function step(now){
+    if (!t0){ t0 = now; last = now; }
+    var dt = Math.min(64, now - last); last = now;
+    var p = Math.min(1, (now - t0) / ms);
+    var e = p * p * (3 - 2 * p);
+    lab.textContent = Math.round(mult * e).toLocaleString() + "×";
+    var spin = 40 + 960 * e * e;                       /* degrees a second */
+    aArt = (aArt + spin * dt / 1000) % 360;
+    aFx  = (aFx  + spin * 0.42 * dt / 1000) % 360;
+    art.style.transform = "rotate(" + aArt.toFixed(1) + "deg)";
+    fx.style.transform  = "rotate(" + aFx.toFixed(1) + "deg) scale(" +
+                          (0.5 + 0.95 * e).toFixed(3) + ")";
+    fx.style.opacity = (0.45 + 0.55 * e).toFixed(3);
+    bwGemRaf = requestAnimationFrame(step);            /* holds at full after */
+  }
+  bwGemRaf = requestAnimationFrame(step);
+}
+function bwGemStop(){
+  if (bwGemRaf){ cancelAnimationFrame(bwGemRaf); bwGemRaf = null; }
+  var art = $("ballArt"), fx = $("ballFx");
+  if (art){ art.style.removeProperty("animation"); art.style.removeProperty("transform"); }
+  if (fx){ fx.style.removeProperty("animation"); fx.style.removeProperty("transform");
+           fx.style.removeProperty("opacity"); }
+}
+
+function bwCountUp(target, ms){
+  var el = $("bwAmt"), t0 = null;
+  /* requestAnimationFrame DOES NOT RUN IN A BACKGROUND TAB — and unlike
+     setTimeout it is not merely throttled, it is suspended outright. The
+     money is awarded by settle() either way, but without this the plate
+     would sit reading $0.00 for anyone whose tab was not focused when the
+     ball landed. The timer is the guarantee; the animation is the nicety. */
+  bwTimers.push(setTimeout(function(){ el.textContent = money(target); }, ms));
+  function step(ts){
+    if (!t0) t0 = ts;
+    var p = Math.min(1, (ts - t0) / ms);
+    var e = 1 - Math.pow(1 - p, 2.2);          /* sprints, then lands */
+    el.textContent = money(Math.round(target * e));
+    if (p < 1) bwRaf = requestAnimationFrame(step);
+  }
+  bwRaf = requestAnimationFrame(step);
+}
+
+/* Measured BEFORE body.bw grows anything, and measured on the GRID: the
+   card carries dead chrome above and below that must not get a vote in
+   either the scale or the centring. Scaling about the grid's own centre
+   keeps it still under the scale, so the translate that follows lands it
+   exactly on the middle of the screen. */
+function bwFitBoard(){
+  /* HIDE THE SCROLLBAR BEFORE MEASURING, NOT AFTER. body.bw sets
+     overflow:hidden, which widens the content area by the scrollbar and
+     shifts centred content right by half of it — measure first and the board
+     lands 8px off centre. Same scrollbar trap as before, one step earlier. */
+  document.body.style.overflow = "hidden";
+  var card = $("boardCard"), grid = $("board"), st = card.style;
+  st.removeProperty("--bwdx"); st.removeProperty("--bwdy");
+  st.removeProperty("--bwscale"); st.removeProperty("--bwox"); st.removeProperty("--bwoy");
+  var g = grid.getBoundingClientRect(), c = card.getBoundingClientRect();
+  if (!g.width || !c.width) return;
+  /* THE GRID IS CENTRED, FULL STOP. Reserving a strip above it pushed the
+     board visibly low for the whole event, and the plate that strip existed
+     for is only on screen for the last few seconds — the thing you spend
+     thirty seconds looking at should not sit off-centre to make room for
+     something that is not there yet. The plate anchors to the grid's top
+     edge instead, clamped so it cannot leave the screen; on a short window it
+     rides closer to the first row, which is the right thing to give up. */
+  var pad = 104;
+  var H = window.innerHeight;
+  var sc = Math.min(2.2, (H - pad) / g.height,
+                         (window.innerWidth - pad) / g.width);
+  if (!(sc > 1)) sc = 1;
+  var gx = g.left + g.width / 2, gy = g.top + g.height / 2;
+  var midY = H / 2;
+  var gridTop = midY - (g.height * sc) / 2;
+  document.documentElement.style.setProperty("--bwpoptop",
+    Math.max(96, Math.round(gridTop - 22)) + "px");
+  st.setProperty("--bwox", (((gx - c.left) / c.width)  * 100).toFixed(2) + "%");
+  st.setProperty("--bwoy", (((gy - c.top)  / c.height) * 100).toFixed(2) + "%");
+  st.setProperty("--bwscale", sc.toFixed(3));
+  st.setProperty("--bwdx", Math.round(window.innerWidth  / 2 - gx) + "px");
+  st.setProperty("--bwdy", Math.round(midY - gy) + "px");
+}
+
+function bwClear(){
+  bwSkyStop();
+  bwShotsStop();
+  bwMeshStop();
+  bwKnocked = null;
+  bwGemStop();
+  bwAudioStop();
+  for (var i=0;i<bwTimers.length;i++) clearTimeout(bwTimers[i]);
+  bwTimers = [];
+  if (bwRaf){ cancelAnimationFrame(bwRaf); bwRaf = null; }
+  document.body.classList.remove("bw");
+  document.body.classList.remove("bwcover");
+  document.body.classList.remove("bwinstant");
+  document.body.classList.remove("bwsky");
+  document.body.classList.remove("bwbig");
+  document.body.classList.remove("bwout");
+  $("bigwin").className = ""; $("bigwin").hidden = true;
+  $("bwPop").className = ""; $("bwPop").hidden = true;
+  document.body.style.removeProperty("overflow");
+  var card = $("boardCard");
+  card.className = "card";
+  var v = ["--bwdx","--bwdy","--bwscale","--bwox","--bwoy"];
+  for (var q=0;q<v.length;q++) card.style.removeProperty(v[q]);
+}
+function bwAt(ms, fn){ bwTimers.push(setTimeout(fn, ms)); }
+
+function bigWinSequence(ball, d, hits, mult, payCents, done){
+  bwSkyStart({ ramp: BW.ramp, peakHold: BW.peakHold, clear: BW.clear });
+  bwShotsStart();
+  $("bigwin").hidden = false;
+  $("bwAmt").textContent = money(0);
+
+  /* 1. THE ONLY THING THAT CHANGES IS THE SKY. Sound starts, streaks begin
+        over the ordinary board — the interface is untouched and still lit.
+        Nothing fades, because watching the room come apart is exactly what
+        made the old opening look cheap. */
+  bwPrelude();
+  document.body.classList.add("bwsky");
+  document.body.classList.add("bwcover");        /* sky in FRONT for now */
+
+  /* 2. inside the white, everything changes at once and none of it is seen */
+  var swapAt = BW.ramp + Math.round(BW.peakHold * 0.35);
+  bwAt(swapAt, function(){
+    bwFitBoard();                                /* measure while still small */
+    document.body.classList.add("bwinstant");    /* no transitions across this */
+    document.body.classList.add("bw");
+    document.body.classList.add("bwbig");
+    document.body.classList.remove("bwcover");   /* and the sky drops behind */
+    $("bigwin").className = "on";
+  });
+  bwAt(swapAt + 90, function(){ document.body.classList.remove("bwinstant"); });
+
+  /* 3. the veil thins onto the new board, and then NOTHING HAPPENS for a
+        beat — the starfall is back to its ordinary rate and you are simply
+        somewhere else. The event has to be allowed to land before it
+        continues. */
+
+  /* 4. THE STORM CLEARS THE BOARD. One comet for every number you did NOT
+        choose, and each takes its number with it. By the end the board holds
+        only your picks, outlined, with nothing else on it at all. */
+  var stormFrom = BW.ramp + BW.peakHold + BW.clear + BW.settle;
+  bwKnocked = {};
+  var theirs = [], mine = S.picks.slice();
+  for (var t=1;t<=40;t++) if (S.picks.indexOf(t) === -1) theirs.push(t);
+  shuffle(theirs);
+  var each = BW.storm / Math.max(1, theirs.length);
+  for (var q=0;q<theirs.length;q++){
+    (function(tile, at){
+      bwAt(at, function(){ bwShotFire(tile, false); });
+      bwAt(at + BW.shotFly, function(){
+        bwKnocked[tile] = 1;
+        paintBoard();                 /* updates in place, so nothing restarts */
+      });
+    })(theirs[q], stormFrom + q*each);
+  }
+
+  /* THE DRAW IS REORDERED so the numbers you own come last. Everything else
+     has already been swept off, so revealing it changes nothing on screen —
+     which lets the reveal spend all of its time on the part that matters. */
+  var dOrder = d.slice().sort(function(x, y){
+    return (S.picks.indexOf(x) !== -1 ? 1 : 0) - (S.picks.indexOf(y) !== -1 ? 1 : 0);
+  });
+  S.last.drawn = dOrder;
+  var hidden = 0;
+  for (var w=0;w<dOrder.length;w++) if (S.picks.indexOf(dOrder[w]) === -1) hidden++;
+
+  /* 5. then one comet per number you kept. It LANDS if the draw took that
+        number and PUNCHES THROUGH if it did not, which is the whole result
+        of the draw told in four throws instead of ten. */
+  var revealFrom = stormFrom + BW.storm + BW.stormRest;
+  var per = Math.max(240, Math.min(640, BW.pickWave / Math.max(1, mine.length)));
+  bwAt(revealFrom - 80, function(){ S.revealUpto = hidden; paintBoard(); });
+  for (var m=0;m<mine.length;m++){
+    (function(tile, idx){
+      var hit = d.indexOf(tile) !== -1;
+      bwAt(revealFrom + idx*per - BW.shotFly, function(){ bwShotFire(tile, hit); });
+      bwAt(revealFrom + idx*per, function(){
+        if (!hit) return;
+        S.revealUpto = Math.min(dOrder.length, S.revealUpto + 1);
+        paintBoard();
+        ping(idx + 1);
+      });
+    })(mine[m], m);
+  }
+  var landAt = revealFrom + mine.length*per + 260;
+
+  /* 5. the gem lands, showing nothing yet */
+  bwAt(landAt, function(){
+    S.revealUpto = null;
+    paintBoard();
+    dropBall(ball, function(){}, true);          /* label starts at zero */
+  });
+
+  /* 6. it winds up: the number climbs, the gem spins harder, the sparks
+        reach further */
+  bwAt(landAt + BW.dropFor, function(){ bwGemRamp(BW.mult, ball.mult); });
+
+  /* 7. only once the multiplier has arrived does the money count */
+  var payAt = landAt + BW.dropFor + BW.mult;
+  bwAt(payAt, function(){
+    $("bwPop").hidden = false;
+    $("bwPop").className = "on";
+    bwCountUp(payCents, BW.count);
+  });
+
+  /* 8. down, then colour, then the interface — see body.bwout */
+  var endAt = payAt + BW.count + BW.hold;
+  bwAt(endAt, function(){
+    $("bigwin").className = "";
+    $("bwPop").className = "";
+    $("boardCard").className = "card";
+    document.body.classList.add("bwout");
+    document.body.classList.remove("bwsky");
+    document.body.classList.remove("bwbig");
+    document.body.classList.remove("bw");
+  });
+  bwAt(endAt + BW.fade, function(){ bwClear(); done(); });
+}
+
+/* ═══════════════ NOTHING MAY LEAVE THE BOARD STUCK ════════════════════
+   `animating` gates Play AND auto-play, so any path that raises it and then
+   fails to lower it soft-locks the whole game. That is not hypothetical: the
+   ball raised it, showed itself, called a sound, and only THEN scheduled the
+   timer that would lower it again — so a throw in the sound left the ball
+   sitting on the board with Play dead and no way back but a reload.
+
+   Two defences, because one was clearly not enough. Releases are armed
+   before anything that can fail, and a watchdog lowers the flag anyway if
+   some future path forgets entirely. A stuck animation should cost a second,
+   never a session. */
+var activeBall = null;
+var ANIM_MAX_MS = 8000, animGuard = null;
+function beginAnim(ms){
+  S.animating = true;
+  if (animGuard) clearTimeout(animGuard);
+  animGuard = setTimeout(function(){
+    animGuard = null;
+    if (!S.animating) return;
+    S.animating = false; S.revealUpto = null;
+    bwClear();                              /* never strand the takeover */
+    hideBall(); paint();
+    if (S.autoOn) startAuto();
+  }, ms || ANIM_MAX_MS);
+}
+function endAnim(){
+  S.animating = false;
+  if (animGuard){ clearTimeout(animGuard); animGuard = null; }
+}
+
+
+/* ═══════════════════ what each prize looks like ══════════════════════
+   The prize decides the object, so you know roughly what you got before
+   reading the number. Bearings warm as they climb, marbles deepen, and the
+   top three are round brilliants that spin, throw streaks, and swap the
+   tile's amber ring for a turning rainbow one. */
+var BALL_ART = {
+  10:  { kind:"bearing", a:"#f2f4f8", b:"#9aa3b0", c:"#4d5560", d:"#2b3038", rim:"#dfe5ec" },
+  25:  { kind:"bearing", a:"#f8f4ec", b:"#a8a294", c:"#5a5348", d:"#33302a", rim:"#e8e2d4", band:"#fff" },
+  50:  { kind:"bearing", a:"#ffeccf", b:"#c99a5e", c:"#7a5a2a", d:"#3d2c12", rim:"#ffdca8" },
+  75:  { kind:"bearing", a:"#fff4d4", b:"#ffc66b", c:"#9c6b12", d:"#4a3208", rim:"#fff0cc", band:"#fff8e0" },
+  100: { kind:"marble", a:"#fff6e6", b:"#ffc978", c:"#8f5312", rim:"#ffe6bf" },
+  125: { kind:"marble", a:"#fff2d8", b:"#ffb454", c:"#7a3f08", rim:"#ffdca8" },
+  150: { kind:"marble", a:"#ffe9c4", b:"#ff8c3a", c:"#6b2c04", rim:"#ffcf94", second:1 },
+  200: { kind:"gem", label:"blue", streaks:24, r0:22, r1:88, w:2, h:14, dur:1.6,
+         fxspin:7, gemspin:13, ringspin:4,
+         deep:"#04142c", rim:"#8fc4f5", line:"#020a18", table:"#5fa8e0",
+         facets:["#8fc4f5","#2b6fae","#6aa8e0","#1a4d80","#7fb6ee","#123a63","#4d8fc8","#0d2b4d"] },
+  500: { kind:"gem", label:"purple", streaks:45, r0:24, r1:116, w:2.2, h:18, dur:1.4,
+         fxspin:3.4, gemspin:7, ringspin:2.6,
+         deep:"#15042c", rim:"#c9a4ef", line:"#0c0119", table:"#a86fe0",
+         facets:["#c9a4ef","#6b2fb0","#9b6ad8","#4a1580","#b98ae8","#3a0f6b","#7d3fc4","#2a0850"] },
+  1000:{ kind:"gem", label:"rain", streaks:90, r0:26, r1:156, w:2.4, h:24, dur:1.2,
+         fxspin:1.5, gemspin:2.8, ringspin:1.4,
+         deep:"#1a1030", rim:"#ffffff", line:"#120a24", table:"#fff6fb", rainbow:1 }
+};
+
+function artBearing(g){
+  return '<svg viewBox="0 0 44 44"><defs><linearGradient id="bMet" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="' + g.a + '"/><stop offset="34%" stop-color="' + g.b + '"/>' +
+    '<stop offset="55%" stop-color="' + g.c + '"/><stop offset="78%" stop-color="' + g.b + '"/>' +
+    '<stop offset="100%" stop-color="' + g.d + '"/></linearGradient></defs>' +
+    '<circle cx="22" cy="22" r="19" fill="url(#bMet)" stroke="' + g.rim + '" stroke-width="1.1"/>' +
+    '<ellipse cx="15.5" cy="12.4" rx="6.6" ry="4" fill="#fff" opacity=".85" transform="rotate(-28 15.5 12.4)"/>' +
+    (g.band ? '<path d="M5 25.5a19 19 0 0 0 34 0" fill="none" stroke="' + g.band + '" stroke-width="1.6" opacity=".55"/>' : '') +
+    '</svg>';
+}
+function artMarble(m){
+  return '<svg viewBox="0 0 44 44"><defs><radialGradient id="bGl" cx="38%" cy="30%" r="80%">' +
+    '<stop offset="0" stop-color="' + m.a + '" stop-opacity=".95"/>' +
+    '<stop offset="40%" stop-color="' + m.b + '" stop-opacity=".68"/>' +
+    '<stop offset="100%" stop-color="' + m.c + '" stop-opacity=".96"/></radialGradient></defs>' +
+    '<circle cx="22" cy="22" r="19" fill="#1d1508"/><circle cx="22" cy="22" r="19" fill="url(#bGl)"/>' +
+    '<circle cx="22" cy="22" r="19" fill="none" stroke="' + m.rim + '" stroke-width="1.5"/>' +
+    '<ellipse cx="15.6" cy="13" rx="7" ry="4.6" fill="#fff" opacity=".8" transform="rotate(-32 15.6 13)"/>' +
+    (m.second ? '<ellipse cx="28" cy="30" rx="5" ry="3" fill="#fff" opacity=".3" transform="rotate(-30 28 30)"/>' : '') +
+    '</svg>';
+}
+/* A round brilliant seen from above: sixteen facets around an octagonal
+   table, alternating light and dark so it scintillates as it turns. */
+function artGem(g){
+  var GX = 22, GY = 22, GR = 19.4, GT = 7.6;
+  function pt(r, deg){ var a = deg * Math.PI / 180; return [GX + r * Math.cos(a), GY + r * Math.sin(a)]; }
+  function dd(p){ return p.map(function(x, i){ return (i ? "L" : "M") + x[0].toFixed(2) + " " + x[1].toFixed(2); }).join("") + "Z"; }
+  var table = [], girdle = [];
+  for (var i = 0; i < 8; i++)  table.push(pt(GT, i * 45 + 22.5));
+  for (var i = 0; i < 16; i++) girdle.push(pt(GR, i * 22.5 + 11.25));
+  var s = '<svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="' + GR + '" fill="' + g.deep + '"/>';
+  for (var i = 0; i < 16; i++){
+    var f = g.rainbow ? "hsl(" + (i * 22.5) + " 92% " + (i % 2 ? 72 : 58) + "%)" : g.facets[i % 8];
+    s += '<path d="' + dd([girdle[i], girdle[(i + 1) % 16], table[Math.round(i / 2) % 8]]) +
+         '" fill="' + f + '" stroke="' + g.line + '" stroke-width=".45" stroke-opacity=".5"/>';
+  }
+  s += '<path d="' + dd(table) + '" fill="' + g.table + '" stroke="' + g.line + '" stroke-width=".6" stroke-opacity=".6"/>';
+  s += '<circle cx="22" cy="22" r="' + GR + '" fill="none" stroke="' + g.rim + '" stroke-width="1.3"/>';
+  s += '<path d="M13 11.5 L18 11.5 L14.6 16 Z" fill="#fff" opacity=".8"/></svg>';
+  return s;
+}
+function ballStreaks(g){
+  var out = "";
+  for (var i = 0; i < g.streaks; i++){
+    var deg = i * (360 / g.streaks), hue = deg % 360;
+    out += '<i style="--rot:' + deg.toFixed(1) + 'deg;--r0:-' + g.r0 + 'px;--r1:-' + g.r1 +
+           'px;--dur:' + g.dur + 's;width:' + g.w + 'px;height:' + g.h + 'px;margin:-' +
+           (g.h / 2) + 'px 0 0 -' + (g.w / 2) + 'px;background:hsl(' + hue.toFixed(0) +
+           ' 96% 64%);animation-delay:' + ((i % 9) * 0.07).toFixed(2) + 's"></i>';
+  }
+  return out;
+}
+
+function dropBall(ball, done, zeroLabel){
+  var el = $("ball"), board = $("board");
+  var tile = board.querySelector('.kt[data-t="' + ball.tile + '"]');
+  if (!tile){ done(); return; }                 /* board repainted under us */
+  var br = board.getBoundingClientRect(), tr = tile.getBoundingClientRect();
+  var g = BALL_ART[ball.mult] || BALL_ART[10];
+  /* DECLARED HERE, NOT WHERE IT WAS. `var` hoists: reading it above its own
+     assignment gives undefined, so `if (!isGem)` was true for every ball and
+     the guard below did nothing at all. */
+  var isGem = g.kind === "gem";
+
+  /* SIZED TO THE LIVE TILE, because the board is a percentage width and a
+     hard-coded size would drift with the viewport.
+
+     MEASURE IN SCREEN PIXELS, ASSIGN IN LOCAL ONES. getBoundingClientRect is
+     post-transform; the styles we set here are pre-transform, because #ball
+     lives inside the board and inherits any scale it carries. Nothing scales
+     the board today, so this ratio is 1 — but when the big-win takeover did
+     scale it, the ball came out that much too big and landed short of its
+     own tile. Kept as a guard so a future transform cannot repeat it. */
+  var sc = board.offsetWidth ? (br.width / board.offsetWidth) : 1;
+  if (!(sc > 0)) sc = 1;
+  var size = Math.round(Math.min(tr.width, tr.height) / sc);
+  el.style.width = size + "px"; el.style.height = size + "px";
+  el.style.left = ((tr.left - br.left + tr.width / 2) / sc) + "px";
+  el.style.top  = ((tr.top  - br.top  + tr.height / 2) / sc) + "px";
+
+  $("ballArt").innerHTML = g.kind === "gem" ? artGem(g)
+                         : g.kind === "marble" ? artMarble(g)
+                         : artBearing(g);
+  $("ballArt").className = g.kind === "gem" ? "gem" : "";
+
+  var fx = $("ballFx"), ring = $("ballRing");
+  if (g.kind === "gem"){
+    fx.innerHTML = ballStreaks(g);
+    fx.className = "spin";
+    fx.style.setProperty("--fxspin", g.fxspin + "s");
+    el.style.setProperty("--gemspin", g.gemspin + "s");
+    /* NO RING. It was here to replace the amber tile highlight back when
+       tiles had backgrounds — now the tile under it already carries a
+       cycling rainbow outline, so this was a second square drawn on top of
+       the first and the gem looked boxed in. */
+    ring.className = ""; ring.innerHTML = "";
+  } else {
+    fx.innerHTML = ""; fx.className = "";
+    ring.className = ""; ring.innerHTML = "";
+  }
+
+  var lab = el.querySelector(".ballmult");
+  lab.className = "ballmult" + (g.label ? " " + g.label : "");
+  /* the takeover starts this at nothing and winds it up to the real figure */
+  $("ballMultText").textContent = zeroLabel ? "0\u00d7"
+                                : ball.mult.toLocaleString() + "\u00d7";
+
+  activeBall = ball;
+  /* the amber ring would fight a rainbow one, so gems take the tile over */
+  if (g.kind !== "gem") tile.classList.add("ballspot");
+  /* NOT FOR A GEM. `ballflash` throws an amber box-shadow ring around the
+     whole grid and runs it twice — which on the ordinary board is a nice
+     acknowledgement, and during the takeover is a tan rectangle fading in
+     and out around a starfield for no reason anyone can see. The gem has a
+     shockwave and a gravity well to announce itself with. */
+  if (!isGem) board.classList.add("ballhit");
+  /* NO SEPARATE BANNER. It existed to help when the ball was a small amber
+     circle; with the tiered art and a topmost solid label it was a second
+     element shouting the same number, and the faint one made the readable
+     one harder to find rather than easier. */
+  el.hidden = false;
+  el.className = "drop" + (isGem ? " gem" : " plain");
+  /* ARMED FIRST. Whatever else happens below, the board comes back. */
+  var CRASH = isGem ? 440 : 820;
+  setTimeout(function(){ el.className = "land" + (isGem ? " gem" : " plain"); }, CRASH);
+  /* THE MOMENT IT LANDS, not before: the blast and the dent both fire on the
+     same frame the gem stops moving. */
+  if (isGem){
+    setTimeout(function(){
+      var rr = el.getBoundingClientRect();
+      var cx = rr.left + rr.width/2, cy = rr.top + rr.height/2;
+      /* IN WAVES, NOT ONE BANG. Four bursts a seventh of a second apart,
+         each smaller than the last — because they start at different times
+         their rings are already at different radii, so they read as
+         successive shells leaving the impact rather than one expanding
+         circle. */
+      var WAVES = [[34,240],[30,200],[26,165],[22,135],[18,105],[15,80]];
+      for (var wv=0; wv<WAVES.length; wv++){
+        (function(spec, at){
+          setTimeout(function(){
+            bwBoom(cx, cy, spec[0], Math.random()*360);
+            bwBurst(cx, cy, spec[1]);
+          }, at);
+        })(WAVES[wv], wv * 115);
+      }
+      bwMeshWave(cx, cy, 1150);
+      try { if (!S.muted) thud(210, 30, 1.3, 0.34); } catch (e) {}
+    }, CRASH);
+  }
+  setTimeout(done, BALL_DWELL_MS);
+  try { if (!S.muted){ if (g.kind === "gem") bigWinFanfare(); else chime(); } } catch (e) {}
+}
+
+function hideBall(){
+  var el = $("ball");
+  if (el && !el.hidden){
+    el.hidden = true; el.className = "";
+    $("ballFx").innerHTML = ""; $("ballFx").className = "";
+    $("ballRing").className = ""; $("ballRing").innerHTML = "";
+  }
+  var bd = $("board"); if (bd) bd.classList.remove("ballhit");
+  activeBall = null;
+  var sp = document.querySelectorAll('.kt.ballspot');
+  for (var i=0;i<sp.length;i++) sp[i].classList.remove("ballspot");
+}
+
+function settle(){
+  var r = S.last, D = derived();
+  S.draws += 1;
+  /* NOTHING IS SUBTRACTED HERE. This is the whole economy. */
+  if (r.payCents > 0){ S.cents += r.payCents; S.wonCents += r.payCents; }
+  /* THE HISTORY RECORDS EVERY DRAW, batch included. A catch-up settles in
+     bulk with no animation and no popup, which is exactly when the counter
+     appears to jump for no reason — the list is where those draws go so the
+     jump has something to point at. */
+  S.history.unshift({ h: r.hits, k: D.picks, m: r.mult, p: r.payCents,
+                      b: r.ball ? r.ball.mult : 0 });
+  if (S.history.length > HISTORY_MAX) S.history.pop();
+
+  /* INSIDE A CATCH-UP BATCH NOBODY IS WATCHING. Repainting and popping a
+     win banner per draw would mean thirty of each to arrive at one final
+     state; the pump paints once when the batch ends. */
+  if (autoQuiet){ save(); return; }
+  paint(); save();
+  if (manualQueued && !S.animating){
+    manualQueued = false;
+    setTimeout(function(){ play(false); }, 0);   /* out of this call stack */
+  }
+  if (r.payCents > 0 && !bwNoPop){
+    $("popMain").textContent = "+" + money(r.payCents);
+    $("popSub").textContent = r.ball
+      ? r.hits + " of " + D.picks + " · " + r.mult.toLocaleString() + "× · BALL " + r.ball.mult.toLocaleString() + "×"
+      : r.hits + " of " + D.picks + " · " + r.mult.toLocaleString() + "×";
+    $("pop").hidden = false;
+    setTimeout(function(){ $("pop").hidden = true; }, r.ball ? 2200 : 1100);
+  }
+  bwNoPop = false;
+}
+
+/* ═══════════════════════════ autoplay's clock ═════════════════════════
+   THE PATTERN IS MARTINGALE'S, and for its reasons. It runs on WALL-CLOCK
+   TIME rather than on timer fires: a hidden tab's timers are clamped to
+   roughly one fire a second, and one a minute after five, so a loop that
+   assumed it was woken on schedule would quietly run slow with nothing on
+   screen to say so. Each fire asks how much time actually passed and plays
+   the draws that time bought, which turns throttling into fewer, larger
+   batches instead of a lower rate.
+
+   The catch-up is BOUNDED. AUTO_MAX_CATCHUP_SEC of debt is honoured and the
+   rest dropped, so a laptop that slept for an hour does not wake and replay
+   the hour.
+
+   WHILE A DRAW IS TURNING OVER, TIME IS NOT BANKED — the clock is simply
+   moved up. Owing that time would make autoplay burst afterwards to catch up
+   on time it deliberately sat out.
+
+   There is no stop button, unlike martingale's: there, autoplay spends real
+   stake and you must be able to halt it. Here a draw costs nothing, so
+   stopping it could only ever lose you money. */
+var AUTO_MAX_CATCHUP_SEC = 90;
+var autoTimer = null, autoLast = 0, autoOwed = 0, autoQuiet = false;
+
+function autoSecs(){ return S.autoOn ? autoSecsAt(upLevel("autoSpeed")) : 0; }
+function autoSps(){ var t = autoSecs(); return t > 0 ? 1 / t : 0; }
+function autoReady(){ return !S.animating && S.picks.length === derived().picks; }
+
+function autoPump(){
+  autoTimer = null;
+  var sps = autoSps();
+  if (!sps) return;                          /* not bought - stop pumping */
+  var now = (window.performance && performance.now) ? performance.now() : 0;
+
+  if (!autoReady()){
+    autoLast = now;                          /* mid-draw, or numbers not chosen */
+  } else {
+    autoOwed += (now - autoLast) / 1000 * sps;
+    autoLast = now;
+    var n = Math.floor(autoOwed);
+    autoOwed -= n;
+    var cap = Math.max(1, Math.ceil(sps * AUTO_MAX_CATCHUP_SEC));
+    if (n > cap){ n = cap; autoOwed = 0; }
+    if (n > 1) autoQuiet = true;             /* a batch: no reveal, no popups */
+    try {
+      for (var i = 0; i < n; i++){
+        if (!autoReady()) break;
+        play(true);
+      }
+    } finally {
+      if (autoQuiet){ autoQuiet = false; paint(); }
+    }
+  }
+  autoTimer = setTimeout(autoPump, Math.max(50, Math.round(1000 / sps)));
+}
+/* CLEARING THE FLAG IS NOT STOPPING IT. A pump was already scheduled, and
+   the owed-time accumulator still holds whatever the clock banked — leave
+   either behind and auto-play gets one more draw in after you switched it
+   off, which is exactly what it was doing. */
+function stopAuto(){
+  if (autoTimer !== null){ clearTimeout(autoTimer); autoTimer = null; }
+  autoOwed = 0;
+}
+function startAuto(){
+  if (autoSps() <= 0 || autoTimer !== null) return;
+  autoLast = (window.performance && performance.now) ? performance.now() : 0;
+  autoOwed = 0;
+  autoTimer = setTimeout(autoPump, 100);
+}
+/* Coming back to the tab should not wait out a timer scheduled a minute ago.
+   The pump is idempotent about time — it plays whatever the clock says is
+   owed — so firing early costs nothing. */
+document.addEventListener("visibilitychange", function(){
+  if (!document.hidden && autoTimer !== null){
+    clearTimeout(autoTimer); autoTimer = null;
+    autoPump();
+  }
+});
+
+/* PRESSING PLAY TAKES THE BOARD BACK. Auto stops, and if a draw is already
+   turning over the manual one waits for it rather than being swallowed — a
+   press that silently does nothing because the board was busy reads as a
+   broken button. */
+var manualQueued = false;
+function requestPlay(){
+  lastPlayAt = Date.now();
+  if (S.autoOn){ S.autoOn = false; stopAuto(); paint(); save(); }
+  if (S.animating){ manualQueued = true; return; }
+  play(false);
+}
+
+/* AUTO COMES BACK ON ITS OWN AFTER TWENTY SECONDS. Pressing Play takes the
+   board back, which is right — but the cost of that is a game that sits
+   completely still the moment someone stops clicking, which for an idle game
+   is the wrong resting state. Any press pushes the deadline out again, so it
+   only fires when you have actually stopped.
+
+   Guarded on a complete pick set, because auto cannot draw without one, and
+   on `animating` so it never lands in the middle of a takeover. */
+var IDLE_AUTO_MS = 20000;
+var lastPlayAt = Date.now();
+setInterval(function(){
+  if (S.autoOn || S.animating) return;
+  if (Date.now() - lastPlayAt < IDLE_AUTO_MS) return;
+  if (S.picks.length !== derived().picks) return;
+  S.autoOn = true;
+  startAuto();
+  if (autoTimer === null){ S.autoOn = false; return; }   /* nothing to run */
+  paint(); save();
+}, 1000);
+
+/* ═══════════════════════════════ buying ═══════════════════════════════ */
+function applyBuy(id, free){
+  var u = upDef(id); if (!u) return false;
+  var lvl = upLevel(id);
+  if (lvl >= u.max) return false;
+  if (u.gate && !u.gate()) return false;
+  var cost = u.cost(lvl);
+  if (!free){
+    if (S.cents < cost) return false;
+    S.cents -= cost;
+  }
+  S.upgrades[id] = lvl + 1;
+  /* A NEW NUMBER MEANS A NEW BOARD. The tiles on screen were scored against
+     the old selection and the paytable has just changed underneath them. */
+  if (id === "extraPicks"){ S.last = null; $("pop").hidden = true; }
+  if (id === "autoSpeed" && autoTimer !== null){
+    /* the pump reschedules off the rate it read last, so nudge it */
+    clearTimeout(autoTimer); autoTimer = null; autoPump();
+  }
+  return true;
+}
+function buy(id){ if (applyBuy(id, false)){ paint(); flush(); } }
+
+/* ═══════════════════════════ developer tools ══════════════════════════
+   Hidden behind a keystroke rather than a build flag, because the thing
+   worth testing is the live page. Everything here writes through the same
+   functions the game uses, so a state reached with these is a state the
+   game could have reached on its own. */
+var DEV = /[?&]dev\b/.test(location.search);
+
+function paintDev(){
+  var D = derived(), html = "";
+  for (var i=0;i<UPGRADES.length;i++){
+    var u = UPGRADES[i], lvl = upLevel(u.id);
+    html += '<button data-dev="lvl" data-id="' + u.id + '" data-d="-1">&minus;</button>' +
+            '<button data-dev="lvl" data-id="' + u.id + '" data-d="1">+</button>' +
+            '<button data-dev="max" data-id="' + u.id + '">' + u.id + ' ' + lvl + '/' + u.max + '</button>';
+  }
+  $("devUps").innerHTML = html;
+
+  var sel = $("devForce"), want = S.dev.forceHits;
+  var opts = '<option value="">force hits…</option>';
+  for (var h=0; h<=D.picks; h++){
+    opts += '<option value="' + h + '"' + (want === h ? " selected" : "") + '>' +
+            h + ' of ' + D.picks + '</option>';
+  }
+  sel.innerHTML = opts;
+
+  /* ONE BUTTON PER PRIZE. Ten objects with three different art treatments
+     between them, and a select meant picking a value then pressing a second
+     button to see it — this way every one is a single click. */
+  var bb = $("devBalls");
+  if (bb && !bb.children.length){
+    var o = "";
+    for (var q=0;q<BALL_PRIZES.length;q++){
+      var m = BALL_PRIZES[q].m, k = (BALL_ART[m]||{}).kind;
+      o += '<button data-dev="ballnow" data-m="' + m + '" class="bq ' + k + '" title="' +
+           k + '">' + m.toLocaleString() + '×</button>';
+    }
+    o += '<button data-dev="ballnow" data-m="0">random</button>';
+    /* THE TAKEOVER IN CONTEXT. Firing it from a standing start tells you
+       nothing about the thing that actually matters — how it feels to be
+       mid-session, watching ordinary draws, when one of them turns out not
+       to be ordinary. Five normal draws first, then the gem. */
+    o += '<button data-dev="rehearse" data-m="1000">5 draws &rarr; 1,000×</button>';
+    o += '<button data-dev="rehearse" data-m="200">5 draws &rarr; 200×</button>';
+    bb.innerHTML = o;
+  }
+  $("devInstant").textContent = "Instant: " + (S.dev.instant ? "on" : "off");
+  $("devInstant").className = S.dev.instant ? "on" : "";
+  $("devTabSmooth").className  = S.table === "smooth"  ? "on" : "";
+  $("devTabJackpot").className = S.table === "jackpot" ? "on" : "";
+  paintRate();
+}
+/* ── what clicking is actually worth, per hour ──────────────────────────
+   THE ASSUMPTION IS ON SCREEN, not buried: a draw costs the reveal plus
+   however long a person takes to press Play again, and that gap is a guess.
+   Printing the draws-per-hour it implies means the guess can be argued with
+   instead of silently deciding whether the pacing looks right.
+
+   Income per draw needs no simulation. The paytable is solved so that k
+   numbers returns exactly k times the bet, so the expected draw is
+   bet x picks - exact, not estimated. */
+var CLICK_GAP_MS = 400;   /* was 350 — slowed 15% */
+
+/* ── what a purchase is worth, per hour ────────────────────────────────
+   DEV ONLY, shown against every buy so the shop reads as a set of competing
+   investments rather than a list of prices. It is the honest marginal gain:
+   income after the purchase minus income now, at the CURRENT click speed —
+   so it moves when you toggle instant reveal, because it should. */
+function drawsPerHourNow(){
+  return 3600000 / ((S.dev.instant ? 0 : REVEAL_TOTAL) + CLICK_GAP_MS);
+}
+function clickCentsPerHour(betCents, picks){
+  return drawsPerHourNow() * betCents * kenoTargetRTP(picks);
+}
+/* What auto-play alone is worth — the rate the board holds with nobody at
+   the keyboard. */
+function autoCentsPerHour(betCents, picks){
+  return autoSps() * 3600 * betCents * kenoTargetRTP(picks);
+}
+/* The board's real throughput: clicking and auto do not add, they compete
+   for the same board, so it runs at whichever is faster. */
+function boardDrawsPerHour(){ return Math.max(drawsPerHourNow(), autoSps() * 3600); }
+function boardCentsPerHour(betCents, picks){
+  return boardDrawsPerHour() * betCents * kenoTargetRTP(picks);
+}
+function upgradeGainPerHour(id, lvl){
+  var D = derived();
+  if (id === "betSize")
+    return boardCentsPerHour(betAt(lvl+1), D.picks) - boardCentsPerHour(betAt(lvl), D.picks);
+  if (id === "extraPicks")
+    return boardCentsPerHour(D.betCents, lvl+2) - boardCentsPerHour(D.betCents, lvl+1);
+  /* AUTO-PLAY'S VALUE IS NOT MEASURED AGAINST SOMEBODY CLICKING. Against the
+     assumed manual rate it buys nothing at all — it is slower — so scoring it
+     that way would price it at zero. What it actually buys is the rate the
+     board keeps once you walk away, which before this purchase is nothing. */
+  if (id === "autoSpeed")
+    return (1/autoSecsAt(lvl+1) - 1/autoSecsAt(lvl)) * 3600 * D.betCents * kenoTargetRTP(D.picks);
+  return 0;
+}
+function gainTag(cents){
+  return (cents > 0) ? '<span class="devgain">+' + money(Math.round(cents)) + '/hr</span>' : "";
+}
+function fmtDur(hours){
+  if (!isFinite(hours) || hours <= 0) return "now";
+  var s = hours * 3600;
+  if (s < 90)     return Math.round(s) + "s";
+  if (s < 5400)   return Math.round(s/60) + "m";
+  if (s < 172800) return (s/3600).toFixed(1) + "h";
+  if (s < 31536000 * 2) return (s/86400).toFixed(1) + "d";
+  return (s/31536000).toFixed(1) + "y";
+}
+function paintRate(){
+  var D = derived();
+  var msPerDraw = (S.dev.instant ? 0 : REVEAL_TOTAL) + CLICK_GAP_MS;
+  var perHour = 3600000 / msPerDraw;
+  /* bet x k(k+3)/4, not bet x k — the return stopped being the pick count
+     when every match became worth k+3. Exact; see kenoExact(). */
+  var centsPerDraw = D.betCents * kenoTargetRTP(D.picks);
+  var centsPerHour = boardCentsPerHour(D.betCents, D.picks);
+
+  var hiredPerHour = streamerCentsPerSec() * 3600;
+  var totalPerHour = centsPerHour + hiredPerHour;
+
+  var lines = [
+    "<b>" + money(Math.round(totalPerHour)) + "/hr total</b>",
+    "board    " + money(Math.round(centsPerHour)) + "/hr  ·  " + money(centsPerDraw) +
+      "/draw  ·  " + Math.round(boardDrawsPerHour()).toLocaleString() + " draws/hr" +
+      (autoSps() > 0 ? "  (auto " + (1/autoSps()).toFixed(0) + "s)" : ""),
+    "auto     " + money(Math.round(autoCentsPerHour(D.betCents, D.picks))) + "/hr" +
+      (autoSps() > 0 ? "" : "  (not bought)"),
+    "hired    " + money(Math.round(hiredPerHour)) + "/hr  ·  " +
+      money(Math.round(streamerCentsPerSec())) + "/s",
+    "paytable " + S.table + "  ·  " + (function(){
+        var ok = true;
+        for (var k2=1;k2<=10;k2++){ var e2=kenoExact(k2); if (e2.got !== e2.want) ok=false; }
+        return ok ? "exact at every count" : "NOT EXACT - check the table";
+      })() + "  ·  " + rtpText(D.picks) + "x the bet per draw",
+    "assumes " + msPerDraw + "ms a draw (" + (S.dev.instant ? "instant" : REVEAL_TOTAL + "ms reveal") +
+      " + " + CLICK_GAP_MS + "ms to click)"
+  ];
+  for (var i=0;i<UPGRADES.length;i++){
+    var u = UPGRADES[i], lvl = upLevel(u.id);
+    if (lvl >= u.max){ lines.push(u.id + ": maxed"); continue; }
+    var need = Math.max(0, u.cost(lvl) - S.cents);
+    /* PAYBACK, not just price. A price that looks sensible can still be a
+       bargain or a trap depending on what it buys, and payback is the number
+       that says which — it is what exposed the bet track's sawtooth. */
+    var gain = upgradeGainPerHour(u.id, lvl);
+    lines.push(u.id + " next " + money(u.cost(lvl)) +
+               "  ·  pays back in " + fmtDur(u.cost(lvl) / gain) +
+               "  ·  " + fmtDur(need / totalPerHour) + " away");
+  }
+  /* PAYBACK IS THE NUMBER THAT DECIDES WHETHER A HIRE IS WORTH IT, and it
+     is the one the shop cannot show without becoming a spreadsheet. */
+  for (var s=0;s<STREAMERS.length;s++){
+    var def = STREAMERS[s], st = S.streamers[def.id];
+    var owned = st ? st.n : 0, cost = hireCost(def, owned);
+    var probe = st || { n:0, smart:0, bet:0, picks:0 };
+    var addPerHour = sRate(def, probe) * sBet(def, probe) * kenoTargetRTP(sPicks(def, probe)) * 3600;
+    lines.push(def.id + " x" + owned + " next " + money(cost) +
+               "  ·  pays back in " + fmtDur(cost / addPerHour) +
+               "  ·  " + fmtDur(Math.max(0, cost - S.cents) / totalPerHour) + " away");
+  }
+  $("devRate").innerHTML = lines.join("\n");
+}
+
+function setDev(on){
+  DEV = on;
+  $("devCard").hidden = !on;
+  /* dev hint text removed */
+  if (on) paintDev();
+}
+/* Ordinary draws, then the one that is not. Chains on S.animating rather
+   than on a fixed delay, because a draw's length depends on the reveal speed
+   and on whether a ball happens to turn up in it. */
+var rehearseTimer = null;
+function devRehearse(n, mult){
+  if (rehearseTimer){ clearInterval(rehearseTimer); rehearseTimer = null; }
+  var left = n;
+  (function next(){
+    if (left <= 0){
+      devSay("and now the " + mult.toLocaleString() + "×");
+      S.dev.forceBall = true; S.dev.ballMult = mult;
+      requestPlay();
+      return;
+    }
+    devSay("rehearsing — " + left + " ordinary draw" + (left === 1 ? "" : "s") + " to go");
+    left--;
+    S.dev.forceBall = false;
+    requestPlay();
+    rehearseTimer = setInterval(function(){
+      if (S.animating) return;
+      clearInterval(rehearseTimer); rehearseTimer = null;
+      setTimeout(next, 420);                 /* a beat between draws */
+    }, 100);
+  })();
+}
+
+function devSay(msg){ var el = $("devOut"); if (el) el.textContent = msg; }
+
+/* Runs draws with no animation and no repaint, then banks the lot. The
+   observed return is the check that matters: it should converge on the
+   pick count, because that is what the paytable was solved for. */
+function simulate(n){
+  var D = derived();
+  if (S.picks.length !== D.picks){ devSay("Pick " + D.picks + " number(s) first."); return; }
+  n = clamp(int(n, 0), 1, 1000000);
+  var tab = pays()[D.picks] || {}, gained = 0, spread = {};
+  for (var i=0;i<n;i++){
+    var d = draw10(), h = 0;
+    for (var j=0;j<10;j++) if (S.picks.indexOf(d[j]) !== -1) h++;
+    gained += D.betCents * (tab[h] || 0);
+    spread[h] = (spread[h] || 0) + 1;
+  }
+  S.cents += gained; S.wonCents += gained; S.draws += n;
+  var observed = gained / (n * D.betCents);
+  var lines = ["ran " + n.toLocaleString() + " draws on " + S.table + ", " + D.picks + " number(s)",
+               "won " + money(gained),
+               "return  " + observed.toFixed(4) + "x   (exact " + D.picks + ".0000x)"];
+  var hs = Object.keys(spread).sort(function(a,b){ return a-b; });
+  var sp = [];
+  for (var q=0;q<hs.length;q++) sp.push(hs[q] + ":" + (spread[hs[q]]/n*100).toFixed(1) + "%");
+  lines.push("hits    " + sp.join("  "));
+  paint(); flush();
+  devSay(lines.join("\n"));
+}
+
+$("devCard").addEventListener("click", function(e){
+  var b = e.target.closest("[data-dev]"); if (!b) return;
+  var what = b.getAttribute("data-dev");
+
+  if (what === "setcash"){
+    var raw = $("devCash").value.replace(/[$,\s]/g, "");
+    var dollars = Number(raw);
+    if (!isFinite(dollars) || dollars < 0){ devSay("Not a number: " + $("devCash").value); return; }
+    S.cents = Math.round(dollars * 100);
+    devSay("cash = " + money(S.cents));
+  }
+  else if (what === "add"){ S.cents += int(b.getAttribute("data-v"), 0); devSay("cash = " + money(S.cents)); }
+  else if (what === "mul10"){ S.cents = Math.min(S.cents * 10, Number.MAX_SAFE_INTEGER); devSay("cash = " + money(S.cents)); }
+  else if (what === "broke"){ S.cents = 0; devSay("cash = $0.00"); }
+  else if (what === "lvl"){
+    var id = b.getAttribute("data-id"), u = upDef(id), d = int(b.getAttribute("data-d"), 0);
+    if (d > 0) applyBuy(id, true);
+    else if (upLevel(id) > 0){
+      S.upgrades[id] = upLevel(id) - 1;
+      if (id === "extraPicks"){
+        S.picks = S.picks.slice(0, derived().picks);
+        S.last = null; $("pop").hidden = true;
+      }
+    }
+    devSay(id + " = level " + upLevel(id));
+  }
+  else if (what === "max"){
+    var id2 = b.getAttribute("data-id"), u2 = upDef(id2);
+    while (applyBuy(id2, true)) {}
+    devSay(id2 + " = level " + upLevel(id2) + " (free)");
+  }
+  else if (what === "hire1" || what === "hire10"){
+    var many = what === "hire10" ? 10 : 1;
+    for (var s1=0;s1<STREAMERS.length;s1++)
+      for (var c1=0;c1<many;c1++) hire(STREAMERS[s1].id, true);
+    paintStreamersFull();
+    devSay("hired " + many + " of each, free");
+  }
+  else if (what === "smartmax"){
+    for (var s2=0;s2<STREAMERS.length;s2++)
+      while (upgradeStreamer(STREAMERS[s2].id, "smart", true)) {}
+    paintStreamersFull();
+    devSay("every streamer is " + SMARTS[MAX_SMART]);
+  }
+  else if (what === "boardmax"){
+    for (var s3=0;s3<STREAMERS.length;s3++){
+      while (upgradeStreamer(STREAMERS[s3].id, "bet", true)) {}
+      while (upgradeStreamer(STREAMERS[s3].id, "picks", true)) {}
+    }
+    paintStreamersFull();
+    devSay("every streamer board maxed");
+  }
+  else if (what === "firethem"){
+    S.streamers = {};
+    paintStreamersFull();
+    devSay("everybody is fired");
+  }
+/* PURE ANIMATION, NO MONEY. "Force a ball" waits for a real paying draw,
+     which is the honest test but a slow one when what you want to look at is
+     the drop itself. This one just throws a ball at the board. */
+  /* THE WHOLE SEQUENCE, PAYOUT INCLUDED — arms a ball and presses Play, so
+     you see the drop, the draw it guarantees, and the money. */
+  else if (what === "ballnow"){
+    if (S.animating){ devSay("a draw is still turning over"); return; }
+    if (S.picks.length !== derived().picks){ devSay("choose your numbers first"); return; }
+    var m = int(b.getAttribute("data-m"), 0);
+    S.dev.forceBall = true;
+    S.dev.ballMult = m;
+    requestPlay();
+    devSay(m ? ("dropping " + m.toLocaleString() + "× (" + (BALL_ART[m]||{}).kind + ")")
+             : "dropping a random prize");
+    return;
+  }
+  else if (what === "rehearse"){
+    if (S.animating){ devSay("a draw is still turning over"); return; }
+    if (S.picks.length !== derived().picks){ devSay("choose your numbers first"); return; }
+    devRehearse(5, int(b.getAttribute("data-m"), 1000));
+    return;
+  }
+  else if (what === "clearforce"){ S.dev.forceHits = null; devSay("next draw is random again"); }
+  else if (what === "instant"){ S.dev.instant = !S.dev.instant; devSay("instant reveal " + (S.dev.instant ? "on" : "off")); }
+  else if (what === "table"){
+    var id3 = b.getAttribute("data-v");
+    if (TABLES[id3]){
+      S.table = id3;
+      var e2 = kenoExact(derived().picks);
+      devSay("paytable = " + id3 + "  ·  exact: " + (e2.got === e2.want));
+    }
+  }
+  else if (what === "sim"){ simulate(b.getAttribute("data-v") || $("devSim").value); return; }
+
+  paint(); flush();
+});
+$("devForce").addEventListener("change", function(){
+  var v = this.value;
+  S.dev.forceHits = v === "" ? null : int(v, null);
+  devSay(v === "" ? "next draw is random" : "next draw will land " + v + " hit(s)");
+});
+
+/* ═══════════════════════════════ input ════════════════════════════════ */
+$("board").addEventListener("click", function(e){
+  if (S.animating) return;
+  var t = e.target.closest(".kt"); if (!t) return;
+  var v = +t.getAttribute("data-t"), at = S.picks.indexOf(v);
+  var D = derived();
+  if (at !== -1) S.picks.splice(at, 1);          /* click it again to take it off */
+  else if (S.picks.length < D.picks) S.picks.push(v);
+  else return;                                   /* the board is full - drop one first */
+  S.picks.sort(function(a,b){ return a-b; });
+  /* CHANGING YOUR NUMBERS CLEARS THE LAST DRAW. Those ten tiles were scored
+     against the selection you just abandoned. */
+  S.last = null;
+  $("pop").hidden = true;
+  hideBall();
+  paint(); save();
+});
+
+$("shop").addEventListener("click", function(e){
+  var b = e.target.closest("[data-buy]"); if (!b) return;
+  buy(b.getAttribute("data-buy"));
+});
+
+$("btnPlay").addEventListener("click", requestPlay);
+$("btnAuto").addEventListener("click", function(){
+  S.autoOn = !S.autoOn;
+  if (S.autoOn) startAuto(); else stopAuto();
+  paint(); flush();
+});
+$("btnMute").addEventListener("click", function(){
+  S.muted = !S.muted;
+  this.innerHTML = S.muted ? "&#10005;" : "&#9834;";
+  this.title = S.muted ? "Unmute" : "Mute";
+  save();
+});
+$("btnWipe").addEventListener("click", function(){
+  if (!confirm("Erase your save and start over? This fires the hired help too, and cannot be undone.")) return;
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+  wipeProgress();
+  $("pop").hidden = true;
+  hidePeek();
+  shopSig = null; rowSig = null;               /* force both shops to redraw */
+  paintStreamersFull();
+  paint(); flush();
+});
+function typing(){
+  var a = document.activeElement;
+  return !!a && (a.tagName === "INPUT" || a.tagName === "SELECT" || a.tagName === "TEXTAREA");
+}
+document.addEventListener("keydown", function(e){
+  if (e.key === "`"){ if (typing()) return; e.preventDefault(); setDev(!DEV); return; }
+  /* TEMPORARY, FOR LOOKING AT THE FEATURE. Five ordinary draws and then the
+     gem, because what needs judging is the moment it interrupts a normal
+     session — not the animation on its own. */
+  if (e.key === "l" || e.key === "L"){
+    if (typing()) return;
+    e.preventDefault();
+    if (S.animating) return;
+    if (S.picks.length !== derived().picks) return;
+    devRehearse(5, 1000);
+    return;
+  }
+  if (e.key === " " || e.key === "Enter"){
+    if (typing()) return;
+    if (document.activeElement && document.activeElement.tagName === "BUTTON") return;
+    if (document.activeElement && document.activeElement.classList.contains("kt")) return;
+    e.preventDefault(); requestPlay();
+  }
+});
+/* THE TWO EVENTS THAT ACTUALLY FIRE WHEN A PAGE GOES AWAY. beforeunload is
+   not reliable on mobile - a backgrounded tab can be killed without it - so
+   the visibility change is the one carrying the weight. */
+document.addEventListener("visibilitychange", function(){ if (document.hidden) flush(); });
+window.addEventListener("pagehide", flush);
+
+var had = load();
+$("btnMute").innerHTML = S.muted ? "&#10005;" : "&#9834;";
+/* the save note was removed; load() still runs for its return value */
+setDev(DEV);
+paintStreamersFull();
+initStreamers();
+startAuto();
+paint();
+</script>
+</body>
+</html>

@@ -292,6 +292,39 @@ button.ghost:hover{background:var(--button-hover);color:var(--fg)}
 .railbtn.go:hover{background:#2a2118;color:var(--accent)}
 /* last, so a selected item cannot be overridden into amber-on-amber */
 .railbtn.on{background:var(--accent);border-color:var(--accent);color:#17130a;font-weight:700}
+/* ── TEMPORARY: Keno Clicker ────────────────────────────────────────────
+   The rail's other entries are buttons that switch mode inside this page.
+   This one LEAVES, so it is an anchor — which also keeps it clear of the
+   rail's click handler, since that matches `button[data-k]` and an <a> with
+   no data-k falls straight through it.
+
+   THE RING IS A MASKED GRADIENT, NOT A BORDER. A border can only hold one
+   colour at a time; the whole point here is that several are visible at once
+   and moving. So the ring is a pseudo-element carrying a repeating rainbow,
+   with the middle masked out so only the 1px band paints, and it flows by
+   sliding its background-position — never by moving the element, which would
+   sweep it well outside its own box.
+
+   Keno Clicker ships INSIDE this site, at /keno-clicker/, rather than on a
+   subdomain of its own — so the href is relative and resolves the same on
+   localhost as it does on martingale.viptools.gg, with nothing to repoint
+   when it deploys. Give it its own subdomain later and this becomes an
+   absolute URL; nothing else here changes. */
+a.railbtn.clicker{display:block;position:relative;text-decoration:none;
+  border-color:transparent;color:#e6e9f2;font-weight:700}
+a.railbtn.clicker:hover{background:#241f2e;color:#fff}
+a.railbtn.clicker::before{content:"";position:absolute;inset:-1px;padding:1px;
+  pointer-events:none;
+  background:linear-gradient(90deg,#ff5f6d,#ffc371,#f2ef52,#8fff7a,
+    #5fd0ff,#c79cff,#ff5ce0,#ff5f6d);
+  background-size:300% 100%;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  mask-composite:exclude;
+  animation:clickerflow 3.4s linear infinite}
+@keyframes clickerflow{ to{ background-position:300% 0; } }
+@media (prefers-reduced-motion:reduce){ a.railbtn.clicker::before{animation:none} }
 .railsep{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
   font-weight:700;padding:8px 2px 3px}
 @media (max-width:860px){
@@ -477,7 +510,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 .meter i.tealb{background:var(--teal)} .meter i.greenb{background:var(--green)}
 .meter i.redb{background:var(--danger)} .meter i.faintb{background:var(--track)}
 .meterrow{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);
-  font-size:10px;color:var(--faint);margin-top:4px;letter-spacing:.03em}
+  font-size:10px;color:var(--fg);margin-top:4px;letter-spacing:.03em}
 .oddsrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .oddsrow span{font-size:12.5px;color:var(--fg-2)}
 .oddsrow b{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums}
@@ -645,6 +678,10 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="railsep">Sandbox</div>
         <button class="railbtn go" data-k="sb-keno"  data-x="flat" data-g="keno">Keno &rarr;</button>
         <button class="railbtn go" data-k="sb-limbo" data-x="flat" data-g="limbo">Limbo &rarr;</button>
+        <!-- TEMPORARY, and a real link rather than a mode switch: see the CSS -->
+        <div class="railsep">Game</div>
+        <a class="railbtn clicker" href="keno-clicker/"
+           target="_blank" rel="noopener">Keno Clicker &rarr;</a>
       </div>
 
       <div class="split">
@@ -933,7 +970,6 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
 
     <div class="card" id="histCard">
       <div class="cardhead"><h2>This run, round by round</h2><span class="grow"></span>
-        <span class="note" id="histNote"></span>
         <div class="seg" id="horizonSeg" role="group" aria-label="Rounds shown past your own">
           <button data-h="2" class="on">+2</button>
           <button data-h="10">+10</button>
@@ -944,7 +980,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <svg id="histSpark" style="display:block;width:100%;height:340px"
              role="img" aria-label="Balance across the rounds of this run"></svg>
         <div class="meterrow" style="margin-top:2px"><span id="histFirst">round 1</span>
-          <span style="color:var(--muted)" id="chartCaption">your run against 1,000 others on the same ladder</span><span id="histLast">round 1</span></div>
+          <span id="histLast">round 1</span></div>
       </div>
       <div class="tablewrap"><table>
         <thead><tr><th class="n">#</th><th>Game</th><th>How it ended</th><th class="n">Spin</th>
@@ -2907,9 +2943,6 @@ function paintHistory(){
   var worst = H.reduce(function(a,h){ return Math.min(a, h.net); }, Infinity);
   var peak = H.reduce(function(a,h){ return Math.max(a, h.balance); }, S.startBank);
 
-  $("histNote").textContent = H.length + " rounds " + DOT + " " + won + " won " + DOT +
-    " peaked at " + money(peak);
-
   var rows = "";
   for (var i=0;i<H.length;i++){
     var h = H[i];
@@ -3082,11 +3115,6 @@ function paintHistory(){
     '<circle cx="' + X(endI).toFixed(1) + '" cy="' + Y(mine[endI]).toFixed(1) +
       '" r="3.2" fill="' + endColour + '" stroke="#0e0e11" stroke-width="1"></circle>' +
     plate(X(endI), Y(mine[endI]) - 11, money(mine[endI]), endColour);
-
-  $("chartCaption").textContent =
-    "your run against " + num(PATHS) + " others " + DOT + " " + num(played) +
-    (played === 1 ? " round played, " : " rounds played, ") + num(shown) + " shown" +
-    (over ? " " + DOT + " " + num(over) + " readings run off the top" : "");
 
   /* Where this run's finish sits among runs of the same length on the same
      ladder. An approximation on purpose: it holds the opening ladder fixed, so
