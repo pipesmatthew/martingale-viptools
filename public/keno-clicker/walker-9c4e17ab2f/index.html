@@ -1449,7 +1449,7 @@ body.bw .corner:hover{opacity:1}
      exactly what happened once already in testing. -->
 <script src="streamers.js?v=11"></script>
 <script src="music.js?v=10"></script>
-<script src="boss.js?v=22"></script>
+<script src="boss.js?v=23"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2033,8 +2033,8 @@ function chance(p){
 }
 
 /* ═══════════════════════════════ the save ═════════════════════════════ */
-/* SANDBOXED SAVE - its own key, so opening this link cannot read, rewrite or
-   outgrow the live game's save. */
+/* SANDBOXED SAVE - its own key, so opening this link cannot touch the live
+   game's save. */
 var SAVE_KEY = "kenoidle.save.walker-preview", saveTimer = null;
 function saveNow(){
   saveTimer = null;

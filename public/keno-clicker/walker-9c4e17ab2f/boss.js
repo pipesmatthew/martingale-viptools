@@ -1477,6 +1477,39 @@ function doorCornerAngle(which){          /* 0 = bottom-right, 1 = top-right */
   var tx = VW()*0.985, ty = which ? VH()*0.055 : VH()*0.945;
   return Math.atan2(ty - W.y, tx - W.x);
 }
+
+/* ══════════ THE FLURRY SWEEPS ROUND, IT DOES NOT APPEAR AT ONCE ═══════════
+   The shower used to light up every bearing except the door on the same frame,
+   so the room was simply full and the safe triangle was a hole in a wall that
+   was already there. What it should do is TRAVEL: start at one edge of the
+   safe wedge, sweep the whole way round the room, and arrive back at the
+   wedge's other edge — so the storm visibly engulfs the arena and the last
+   thing it reaches is the wall of the place you are standing.
+
+   ONE FUNCTION DECIDES BOTH what emits and what burns. The sparks are drawn
+   inside the swept arc and the damage test asks the same question of the
+   player's bearing, so the wall you can see arriving IS the wall that hurts —
+   there is no second definition to drift out of step, which is the mistake
+   this attack has made in three different ways already.
+
+   It sweeps 2*pi - DOOR_SPAN, which is everything except the safe wedge, so it
+   can never run over the triangle no matter how the timing rounds. */
+function aoeSweptSpan(M){
+  if (!M || M.phase === "tell") return 0;
+  return Math.min(1, M.t/AOE_FIRE) * (6.28318 - DOOR_SPAN);
+}
+function aoeSweepStart(M){
+  var s = ((M.dir||-1) < 0) ? -1 : 1;
+  return M.doorAng + s*(DOOR_SPAN/2);      /* the safe wedge's near edge */
+}
+function aoeCovered(a){
+  var M = F.move;
+  if (!M || M.id!=="aoe" || M.doorAng===undefined) return false;
+  var s = ((M.dir||-1) < 0) ? -1 : 1;
+  var rel = ((a - aoeSweepStart(M)) * s) % 6.28318;
+  if (rel < 0) rel += 6.28318;
+  return rel < aoeSweptSpan(M);
+}
 /* the direction alternates on a fixed list, like everything else here */
 var DOOR_DIR = [-1, 1, -1, 1, 1, -1];
 var doorIx = 0;
@@ -1660,10 +1693,22 @@ function fireShot(){ patAimed(); }
 function aoeSparks(dt, rate){
   var R=walkerR()*0.94, n=rate*dt;
   var count = Math.floor(n) + (Math.random()<(n%1) ? 1 : 0);
+  var M0 = F.move, firing = !!(M0 && M0.id==="aoe" && M0.phase!=="tell" && M0.doorAng!==undefined);
+  var sgn = firing ? (((M0.dir||-1)<0)?-1:1) : 1;
+  var st0 = firing ? aoeSweepStart(M0) : 0;
+  var span0 = firing ? aoeSweptSpan(M0) : 0;
   for (var i=0;i<count;i++){
     var a, tries=0, gl=liveGaps();
-    do { a=Math.random()*6.28318; tries++; } while (gapIn(a,gl) && tries<12);
-    if (gapIn(a,gl)) continue;
+    if (firing){
+      /* SAMPLED STRAIGHT INTO THE SWEPT ARC. Rejection sampling would throw
+         away 35 of every 36 tries in the first tenth of a second, when the arc
+         is ten degrees wide — this is exact and costs one multiply. */
+      if (span0 <= 0) continue;
+      a = st0 + sgn*Math.random()*span0;
+    } else {
+      do { a=Math.random()*6.28318; tries++; } while (gapIn(a,gl) && tries<12);
+      if (gapIn(a,gl)) continue;
+    }
     /* A WIDER SPREAD OF SPEEDS, biased slower. Everything leaving at roughly
        the same rate arrives as a moving RING with clear air behind it; the
        attack wants a filled cone, which means some of it still crossing while
@@ -1808,7 +1853,12 @@ function fightStep(dt, now){
       /* strict alternation, bottom-right then top-right */
       F.move.corner = (doorIx++) % 2;
       F.move.from = doorCornerAngle(F.move.corner);
-      F.move.dir  = F.move.corner ? 1 : -1;   /* which way the WHEEL turns only */
+      F.move.dir  = F.move.corner ? 1 : -1;
+      /* HE GOES TO THE SIDE THE SAFE TRIANGLE IS ON. Which corner is open is
+         the whole question of the attack, and him crossing to it is the
+         earliest and largest possible way to say so — visible before the rim
+         lights, before the wedge draws, from anywhere on the screen. */
+      F.station = { x: VW()*0.82, y: VH()*(F.move.corner ? 0.20 : 0.80) };
     }
   }
   stepPatterns(now);
@@ -1988,7 +2038,9 @@ function fightStep(dt, now){
           if (F.aoeTick <= 0){
             F.aoeTick = AOE_TICK_MS;
             var pd2 = pC(), dd2 = Math.hypot(pd2.x-W.x, pd2.y-W.y);
-            if (!playerInGap() && dd2 <= M.front && dd2 >= walkerR()*0.5){
+            /* the same aoeCovered() the sparks are drawn from */
+            if (aoeCovered(Math.atan2(pd2.y-W.y, pd2.x-W.x)) &&
+                dd2 <= M.front && dd2 >= walkerR()*0.5){
               hurtPlayer(aoeDmg(),"aoe",true);
             }
           }
