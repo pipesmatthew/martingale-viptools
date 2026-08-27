@@ -49,6 +49,34 @@ var BUF = {}, voices = [];
 var MUSIC = null, MUSIC2 = null;
 /* which element is live, and how wide the overlap is */
 var MUSIC_CUR = null, MUSIC_VOL = 0.55, CROSSFADE_S = 4.0;
+/* ════════════════════ ONE VOLUME, AND IT SURVIVES THE TAB ════════════════════
+   MUSIC_VOL and SFX_VOL are MIX levels - they set how loud the soundtrack sits
+   against the cues, and they are not the player's business. What the player
+   wants is one knob over the top of both, so this scales them rather than
+   replacing them and the mix stays where it was set.
+
+   Every read of MUSIC_VOL goes through musVol() now. Leaving even one direct
+   read behind would mean the crossfade quietly restored full volume four
+   seconds before the end of every loop, which is the kind of bug that only
+   shows up in the one place nobody is listening for it. */
+var VOL_KEY = "kenoidle.walker.vol";
+var MASTER = (function(){
+  try {
+    var v = parseFloat(localStorage.getItem(VOL_KEY));
+    return isFinite(v) ? Math.max(0, Math.min(1, v)) : 1;
+  } catch(e){ return 1; }
+})();
+function musVol(){ return MUSIC_VOL * MASTER; }
+function setVolume(v){
+  MASTER = Math.max(0, Math.min(1, (+v) || 0));
+  try { localStorage.setItem(VOL_KEY, String(MASTER)); } catch(e){}
+  if (SFX_GAIN) SFX_GAIN.gain.value = SFX_VOL * MASTER;
+  /* only the element that is actually playing - setting the idle one would
+     undo the crossfade's ramp the moment it started */
+  try { if (MUSIC  && !MUSIC.paused)  MUSIC.volume  = musVol(); } catch(e){}
+  try { if (MUSIC2 && !MUSIC2.paused) MUSIC2.volume = musVol(); } catch(e){}
+  return MASTER;
+}
 /* ════════════════════ THE CROSSFADE, STEPPED FROM THE FRAME ════════════════════
    Called every frame while the arena is up. It does nothing at all until the
    live element is within CROSSFADE_S of its end, then starts the other one and
@@ -60,7 +88,7 @@ function musicStep(){
   if (!cur.duration || !isFinite(cur.duration)) return;
   var left = cur.duration - cur.currentTime;
   if (left > CROSSFADE_S){
-    if (other.paused) cur.volume = MUSIC_VOL;
+    if (other.paused) cur.volume = musVol();
     return;
   }
   if (other.paused){
@@ -68,11 +96,11 @@ function musicStep(){
     catch(e){ return; }
   }
   var t = Math.max(0, Math.min(1, 1 - left/CROSSFADE_S));
-  cur.volume   = MUSIC_VOL * Math.cos(t*1.5708);
-  other.volume = MUSIC_VOL * Math.sin(t*1.5708);
+  cur.volume   = musVol() * Math.cos(t*1.5708);
+  other.volume = musVol() * Math.sin(t*1.5708);
   if (left <= 0.06){
     try { cur.pause(); cur.currentTime = 0; } catch(e){}
-    cur.volume = 0; other.volume = MUSIC_VOL;
+    cur.volume = 0; other.volume = musVol();
     MUSIC_CUR = other;
   }
 }
@@ -243,6 +271,7 @@ function finCollapse(){
   F.move = null; F.station = null;
   P.vx = 0; P.vy = 0; clearKeys();
   F.over = "player";                       /* the WALKER DOWN screen, at last */
+  statsEnd(true);
   SFX.whimper();
 }
 
@@ -364,7 +393,7 @@ function sfxBus(){
   var a = ac(); if (!a) return null;
   if (!SFX_GAIN || SFX_GAIN.context !== a){
     SFX_GAIN = a.createGain();
-    SFX_GAIN.gain.value = SFX_VOL;
+    SFX_GAIN.gain.value = SFX_VOL * MASTER;
     SFX_GAIN.connect(a.destination);
   }
   return SFX_GAIN;
@@ -1241,6 +1270,7 @@ function hurtPlayer(n, src, raw){
   if (rewinding || GODMODE) return;
   if ((!raw && F.iframe>0) || !F.on || F.over) return;
   F.dmgBy[src||"?"] = (F.dmgBy[src||"?"]||0) + n;
+  F.lastHitBy = src || "?";     /* whatever lands the last one is the cause */
   F.hpM = Math.max(0, F.hpM-n);
   if (!raw){
     F.iframe = IFRAME_MS;
@@ -1261,7 +1291,7 @@ function hurtPlayer(n, src, raw){
    half-stopped soundtrack is the kind of bug nobody reports and everybody
    hears */
 function musicStop(){
-  try { if (MUSIC){ MUSIC.pause(); MUSIC.currentTime = 0; MUSIC.volume = MUSIC_VOL; } } catch(e){}
+  try { if (MUSIC){ MUSIC.pause(); MUSIC.currentTime = 0; MUSIC.volume = musVol(); } } catch(e){}
   try { if (MUSIC2){ MUSIC2.pause(); MUSIC2.currentTime = 0; MUSIC2.volume = 0; } } catch(e){}
   MUSIC_CUR = MUSIC;
 }
@@ -1274,6 +1304,54 @@ function musicResume(){
   var t = MUSIC_CUR || MUSIC;
   try { var p = t.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
 }
+/* ════════════════════ WHAT ACTUALLY HAPPENS TO PEOPLE ════════════════════
+   F.dmgBy has been accumulating damage per source this whole time and NOTHING
+   has ever read it - collected every fight and thrown away at the next
+   fightStart(). The death counter was persisted but only as a total, so the one
+   question worth asking of it ("what is killing them?") could not be answered.
+
+   Now: runs, deaths, wins, total time in the arena, the furthest phase reached,
+   and a tally of what landed the killing blow. Kept in one localStorage key as
+   JSON, loaded through a defaulted shape so a key written by an older build, or
+   half-written, or edited by hand, cannot throw on read. */
+var STATS_KEY = "kenoidle.walker.stats";
+function statsLoad(){
+  var d = { runs:0, deaths:0, wins:0, ms:0, best:0, byCause:{} };
+  try {
+    var o = JSON.parse(localStorage.getItem(STATS_KEY));
+    if (o && typeof o === "object"){
+      if (typeof o.runs   === "number") d.runs   = o.runs;
+      if (typeof o.deaths === "number") d.deaths = o.deaths;
+      if (typeof o.wins   === "number") d.wins   = o.wins;
+      if (typeof o.ms     === "number") d.ms     = o.ms;
+      if (typeof o.best   === "number") d.best   = o.best;
+      if (o.byCause && typeof o.byCause === "object") d.byCause = o.byCause;
+    }
+  } catch(e){}
+  return d;
+}
+function statsSave(){ try { localStorage.setItem(STATS_KEY, JSON.stringify(STATS)); } catch(e){} }
+var STATS = statsLoad(), statFlush = 0;
+/* TIME IS BANKED AS IT PASSES, not at the end of a run. Most runs do not end -
+   they are abandoned, reloaded, or the tab is closed - and a counter that only
+   writes on death would report a fraction of the time actually spent. Flushed
+   every five seconds so a hard close loses at most that. */
+function statsTime(dt){
+  STATS.ms += dt*1000;
+  statFlush += dt;
+  if (statFlush >= 5){ statFlush = 0; statsSave(); }
+}
+function statsEnd(won){
+  if (won) STATS.wins++;
+  else {
+    STATS.deaths++;
+    var c = F.lastHitBy || "?";
+    STATS.byCause[c] = (STATS.byCause[c]|0) + 1;
+  }
+  if ((F.won|0) > STATS.best) STATS.best = F.won|0;
+  statsSave();
+}
+
 var DEATH_KEY = "kenoidle.walker.deaths";
 function deathCount(){
   try { return (+localStorage.getItem(DEATH_KEY)) || 0; } catch(e){ return F.deaths|0; }
@@ -1288,6 +1366,7 @@ function playerDied(){
   var n = deathCount() + 1;
   try { localStorage.setItem(DEATH_KEY, String(n)); } catch(e){}
   F.deaths = n;
+  statsEnd(false);
   musicStop();
 }
 
@@ -3083,7 +3162,7 @@ function fightStep(dt, now){
     }
   }
   if (F.iframe>0) F.iframe -= dt*1000;
-  armAlways(); stepPads(dt); dmgNumStep(dt); lootStep(dt); finStep(dt);
+  armAlways(); stepPads(dt); dmgNumStep(dt); lootStep(dt); finStep(dt); statsTime(dt);
   if (F.over) return;
 
   /* BREAK 1 HAS NO BIG MOVES AT ALL, so there is nothing to schedule and the
@@ -4207,23 +4286,40 @@ function fightDraw(c){
           return disc > 0 ? Math.max(0, -bq + Math.sqrt(disc)) : 0;
         })();
         var sx0 = rn.x + dux*shellT, sy0 = rn.y + duy*shellT;
-        c.strokeStyle="rgba(0,0,0,.60)"; c.lineWidth=5+3*hcl;
+        /* ════════════════════ THE WARNING HAS TO OUTREAD THE ROOM ════════════════════
+           This is the only thing on screen that says "the floor along here is
+           about to kill you", and it was drawn at 1.6px and 0.35 alpha at the
+           START of the charge - which is precisely when it matters, because the
+           whole point of a tell is the time it buys you. Against a starfield,
+           forty drifting bullets and his own glow, that lost.
+
+           Every layer goes up, and the floor of each one goes up more than its
+           ceiling: at hcl=0 the dash was 0.35 alpha and is now 0.62, while at
+           full charge it moves 0.90 to 0.99. The line is legible the moment it
+           appears rather than only once it is nearly too late. A solid core sits
+           under the dashes so it reads as one continuous line at a glance and
+           as a moving dashed one when you look at it. */
+        c.strokeStyle="rgba(0,0,0,.72)"; c.lineWidth=9+5*hcl;
         c.beginPath(); c.moveTo(sx0,sy0); c.lineTo(ex,ey); c.stroke();
         var bmg=c.createLinearGradient(sx0,sy0,ex,ey);
-        bmg.addColorStop(0,"rgba("+hx("255,150,60")+","+(0.30*hcl).toFixed(3)+")");
+        bmg.addColorStop(0,"rgba("+hx("255,150,60")+","+(0.20+0.34*hcl).toFixed(3)+")");
         bmg.addColorStop(1,"rgba("+hx("255,90,20")+",0)");
-        c.strokeStyle=bmg; c.lineWidth=11*hcl;
+        c.strokeStyle=bmg; c.lineWidth=9+14*hcl;
+        c.beginPath(); c.moveTo(sx0,sy0); c.lineTo(ex,ey); c.stroke();
+        /* the continuous core, under the dashes */
+        c.strokeStyle="rgba("+hx("255,214,150")+","+(0.30+0.34*hcl).toFixed(3)+")";
+        c.lineWidth=1.2+1.2*hcl;
         c.beginPath(); c.moveTo(sx0,sy0); c.lineTo(ex,ey); c.stroke();
         c.save();
         c.setLineDash([26,16]); c.lineDashOffset=-(F.t*0.07)%42;
-        c.strokeStyle="rgba("+hx("255,186,110")+","+(0.35+0.55*hcl).toFixed(3)+")";
-        c.lineWidth=1.6+1.6*hcl; c.lineCap="round";
+        c.strokeStyle="rgba("+hx("255,222,170")+","+(0.62+0.37*hcl).toFixed(3)+")";
+        c.lineWidth=3.0+2.4*hcl; c.lineCap="round";
         c.beginPath(); c.moveTo(sx0,sy0); c.lineTo(ex,ey); c.stroke();
         c.restore();
-        c.strokeStyle="rgba("+hx("255,214,150")+","+(0.28+0.4*hcl).toFixed(3)+")";
-        c.lineWidth=1.4;
+        c.strokeStyle="rgba("+hx("255,236,190")+","+(0.50+0.42*hcl).toFixed(3)+")";
+        c.lineWidth=2.2;
         for (var tk=0.16; tk<0.95; tk+=0.16){
-          var tpx=sx0+(ex-sx0)*tk, tpy=sy0+(ey-sy0)*tk, tnx=-duy, tny=dux, tS=5.5;
+          var tpx=sx0+(ex-sx0)*tk, tpy=sy0+(ey-sy0)*tk, tnx=-duy, tny=dux, tS=7.5;
           c.beginPath();
           c.moveTo(tpx+tnx*tS-dux*5, tpy+tny*tS-duy*5); c.lineTo(tpx,tpy);
           c.lineTo(tpx-tnx*tS-dux*5, tpy-tny*tS-duy*5); c.stroke();
@@ -5484,6 +5580,7 @@ function fightStart(){
      and a leftover spd is a silent 15% carried into a fresh run. */
   F.brk=0; F.won=0; F.spd=1; pulseHue=0; F.mvN=0; F.pulseAt=0; F.brkPost=null; F.pulseAt=0; F.fin=null;
   F.station = topStation();
+  STATS.runs++; statsSave();
   /* ════════════════════ AND HE IS ALREADY THERE ════════════════════
      W is declared at x:0, y:0 and startFight only ever set his DESTINATION, so
      every run began with him at the top-left corner of the world sliding in.
@@ -5590,7 +5687,7 @@ function loadAssets(){
        the tab is hidden and would happily crossfade to a track nobody is
        listening to. */
     MUSIC = new Audio("../boss/music/walker_bossfight.mp3");
-    MUSIC.preload="auto"; MUSIC.loop=false; MUSIC.volume=MUSIC_VOL;
+    MUSIC.preload="auto"; MUSIC.loop=false; MUSIC.volume=musVol();
     MUSIC2 = new Audio("../boss/music/walker_bossfight.mp3");
     MUSIC2.preload="auto"; MUSIC2.loop=false; MUSIC2.volume=0;
 ;
@@ -5717,7 +5814,6 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                 /* the phase palette, exported so a test can read the colour a
                    phase actually paints with rather than guess at it */
                 hue:whue, glitch:wglitch, heat:heatRGB, hx:hx,
-                paintWalker:paintWalker,
                 resetDeaths:function(){ try{ localStorage.setItem(DEATH_KEY,"0"); }catch(e){}
                                         F.deaths=0; return 0; },
                 pause:function(){ devPauseToggle(performance.now()); },
@@ -5771,6 +5867,11 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                    he is wearing had no way to run it - and a browser pane with
                    requestAnimationFrame throttled cannot run frame() either.
                    Exported for the same reason paint() is. */
+                /* read by the preview panel, which renders them outside the
+                   arena where there is room to read */
+                stats:function(){ return statsLoad(); },
+                statsReset:function(){ STATS = { runs:0, deaths:0, wins:0, ms:0, best:0, byCause:{} }; statsSave(); },
+                vol:function(v){ return v === undefined ? MASTER : setVolume(v); },
                 paintWalker:paintWalker,
                 phase:function(){ return esc(); },
                 shieldLeft:shieldLeft, inGap:playerInGap };

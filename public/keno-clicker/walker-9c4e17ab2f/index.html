@@ -1494,7 +1494,7 @@ body.bw .corner:hover{opacity:1}
      exactly what happened once already in testing. -->
 <script src="streamers.js?v=11"></script>
 <script src="music.js?v=10"></script>
-<script src="boss.js?v=87"></script>
+<script src="boss.js?v=88"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
@@ -5956,6 +5956,90 @@ musicArm();
           go.onmouseenter = function(){ go.style.background = "#74409f"; };
           go.onmouseleave = function(){ go.style.background = "#663399"; };
         }
+
+        /* ════════════════════ WHAT HAPPENED TO YOU, AND HOW LOUD ════════════════════
+           Both live under the button because both are things you read BETWEEN
+           runs, not during one. The arena has no room for either and the panel
+           has nothing else to do while you are not fighting.
+
+           The numbers come from boss.js through Boss.stats(), which re-reads
+           localStorage rather than handing back the live object - the panel must
+           not be able to mutate the tally it is displaying. Re-read on a timer
+           because the panel is hidden during a fight and shown again after it,
+           and the interesting change always happens while it is hidden. */
+        var stats = document.createElement("div");
+        stats.id = "wStats";
+        stats.style.cssText = "margin:18px 0 2px;font:12px/1.6 " + FACE + ";color:#9a9aa4";
+        help.appendChild(stats);
+
+        var CAUSE = { bullets:"bullets", runes:"rune beams", aoe:"the spark shower",
+                      nova:"the nova", "the wall":"the wall", "?":"something" };
+        function hhmm(ms){
+          var s2 = Math.floor(ms/1000);
+          var h = Math.floor(s2/3600), m = Math.floor((s2%3600)/60), q = s2%60;
+          return h ? (h + "h " + m + "m") : (m ? (m + "m " + q + "s") : (q + "s"));
+        }
+        function drawStats(){
+          var st;
+          try { st = Boss.stats(); } catch(e){ return; }
+          var rows = [
+            ["runs",        st.runs],
+            ["deaths",      st.deaths],
+            ["wins",        st.wins],
+            ["time in the arena", hhmm(st.ms)],
+            ["best",        st.best ? (st.best + " of 4 tiles") : "\u2014"]
+          ];
+          var html = '<div style="color:#c8c8d0;font-weight:700;margin-bottom:7px">RECORD</div>' +
+                     '<div style="display:grid;grid-template-columns:auto 1fr;gap:2px 14px">';
+          for (var i=0;i<rows.length;i++)
+            html += '<span>' + rows[i][0] + '</span><span style="color:#d6d6de">' + rows[i][1] + '</span>';
+          html += '</div>';
+
+          /* the tally, biggest first - a list nobody has sorted is a list nobody
+             reads, and the whole question is which one is top */
+          var keys = [];
+          for (var k in st.byCause) if (st.byCause[k] > 0) keys.push(k);
+          keys.sort(function(a,b){ return st.byCause[b] - st.byCause[a]; });
+          if (keys.length){
+            var worst = st.byCause[keys[0]];
+            html += '<div style="color:#c8c8d0;font-weight:700;margin:13px 0 7px">KILLED BY</div>' +
+                    '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:3px 10px;align-items:center">';
+            for (var j=0;j<keys.length;j++){
+              var n = st.byCause[keys[j]], w = Math.round(100*n/worst);
+              html += '<span>' + (CAUSE[keys[j]] || keys[j]) + '</span>' +
+                      '<span style="height:7px;background:#26262d;display:block">' +
+                        '<span style="display:block;height:7px;width:' + w + '%;background:#8a5cc7"></span>' +
+                      '</span>' +
+                      '<span style="color:#d6d6de">' + n + '</span>';
+            }
+            html += '</div>';
+          }
+          stats.innerHTML = html;
+        }
+        drawStats();
+        setInterval(drawStats, 1500);
+
+        /* ════════════════════ THE VOLUME ════════════════════
+           Boss.vol() scales the music and the cues together over whatever mix
+           they are set to, and persists in localStorage, so it survives the tab
+           and the slider can just read it back on load. */
+        var vol = document.createElement("div");
+        vol.style.cssText = "margin:16px 0 2px;font:12px/1.6 " + FACE + ";color:#9a9aa4";
+        var v0 = 1;
+        try { v0 = Boss.vol(); } catch(e){}
+        vol.innerHTML =
+          '<div style="color:#c8c8d0;font-weight:700;margin-bottom:7px">VOLUME ' +
+            '<span id="wVolN" style="color:#9a9aa4;font-weight:400">' +
+              Math.round(v0*100) + '%</span></div>' +
+          '<input id="wVol" type="range" min="0" max="100" step="1" value="' +
+            Math.round(v0*100) + '" style="width:100%;accent-color:#663399;cursor:pointer">';
+        help.appendChild(vol);
+        var slider = vol.querySelector("#wVol"), readout = vol.querySelector("#wVolN");
+        slider.addEventListener("input", function(){
+          var v = (+slider.value)/100;
+          try { Boss.vol(v); } catch(e){}
+          readout.textContent = Math.round(v*100) + "%";
+        });
 
         var dpr = Math.min(2, window.devicePixelRatio || 1);
         var cvs = help.querySelectorAll("canvas");
