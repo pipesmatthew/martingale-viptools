@@ -57,6 +57,9 @@ var autoWas = null;             /* the game's auto-play state, held for the exit
    on a 820px screen — the proportion a boss wants against the thing it is
    attacking. */
 var WALK = 165;                 /* recomputed by sizeWalker(); scale 1 = arrived */
+/* THE RIGHT-HAND LIMIT OF THE ARENA, as a fraction of the width. He stations at
+   0.82, so this leaves clear air in front of him and no way round the back. */
+var PLAY_MAX_X = 0.74;
 /* HE CLEARS THE BOARD NOW; HE USED TO BITE INTO IT. The overlap was argued for
    on the grounds that a figure clear of the board reads as a picture hung above
    it — true when he was 165px against a 201px board and they were comparable
@@ -1426,7 +1429,19 @@ function patRing(){
    had to be enormous to stay dodgeable. They are separate now: the ring spins
    fast because it is throwing sparks, and the door is a corridor in the
    SHOWER that holds still because you were told where it would be. */
-var DOOR_SPAN = SEG * 0.70;        /* about 50 degrees */
+/* ══ 23 DEGREES, BECAUSE THE WEDGE POINTS ACROSS THE WHOLE ROOM ════════════
+   50 degrees was sized for a door aimed at a corner right next to him. Aimed
+   ACROSS the arena it is a completely different amount of floor: from where he
+   stands, the whole reachable half of the room only spans about 88 degrees of
+   bearing, so a 50 degree wedge is more than half of everywhere you are allowed
+   to be. Measured, that is exactly what it was — 47% of the arena safe.
+
+       50deg -> 47% safe      23deg -> 25%      13deg -> 17%
+       32deg -> 33%           18deg -> 21%       9deg -> 12%
+
+   23 gives a triangle that is a quarter of the room and still 163px across
+   where the player actually stands, which is eighteen times their hitbox. */
+var DOOR_SPAN = SEG * 0.32;        /* about 23 degrees */
 /* ══ AND IT DOES NOT DRIFT AT ALL ══════════════════════════════════════════
    26 degrees of drift sounds harmless and is not, because THE CORRIDOR YOU SEE
    IS MADE OF OLD SPARKS. A spark 560px out left him about 0.4s ago and was
@@ -1473,8 +1488,24 @@ var AOE_DRAG  = 1.16;              /* see the note on per-spark drag */
    fixed bearing would slide off the corner on a different aspect ratio. This
    re-aims at the corner every frame, which is what makes "always safe" true
    rather than nearly true. */
-function doorCornerAngle(which){          /* 0 = bottom-right, 1 = top-right */
-  var tx = VW()*0.985, ty = which ? VH()*0.055 : VH()*0.945;
+/* ══════════ THE SAFE WEDGE OPENS INTO THE ROOM, NOT INTO A CORNER ═════════
+   I aimed this at the screen corner beyond him and that was wrong. The wedge
+   in the drawing has its point near HIM and opens LEFT across the room — a long
+   triangle you stand inside, bounded on the right by the line you are not
+   allowed to cross. Aiming it at the corner put the safe space BEHIND him,
+   which is both the wrong shape and somewhere you should never be standing.
+
+   0 = the lower wedge, opening down-left.  1 = the upper, opening up-left.
+   They alternate, and he crosses to whichever side is open. */
+function doorCornerAngle(which){
+  /* AIMED AT A PLACE IN THE ROOM, NOT AT A FIXED BEARING. A fixed angle only
+     works while he stands still. He crosses to the top for the upper wedge, and
+     up-left FROM the top is off the top of the screen — measured, the safe
+     point landed at y = -126 on a 720-tall arena, i.e. the safe space did not
+     exist. Aiming at a point instead means the wedge always opens INTO the
+     room whatever height he is at, and the triangle is closed off by the top
+     or bottom edge exactly as it is in the drawing. */
+  var tx = VW()*0.28, ty = which ? VH()*0.10 : VH()*0.90;
   return Math.atan2(ty - W.y, tx - W.x);
 }
 
@@ -1494,9 +1525,19 @@ function doorCornerAngle(which){          /* 0 = bottom-right, 1 = top-right */
 
    It sweeps 2*pi - DOOR_SPAN, which is everything except the safe wedge, so it
    can never run over the triangle no matter how the timing rounds. */
+/* IT FINISHES EARLY ON PURPOSE. Damage ticks every AOE_TICK_MS, so if the
+   sweep were still travelling when the shower ended, the last stretch of it
+   would never be sampled by a tick — and that stretch is the far side of the
+   room, which is exactly where the player is. Measured with the sweep running
+   to the final frame, 63% of the reachable arena was never hit: not because it
+   was safe, but because the wall arrived after the last tick.
+
+   Completing at 70% leaves about two full ticks with the whole 310 degrees
+   burning, so everything outside the wedge is paid for. */
+var AOE_SWEEP_DONE = 0.70;
 function aoeSweptSpan(M){
   if (!M || M.phase === "tell") return 0;
-  return Math.min(1, M.t/AOE_FIRE) * (6.28318 - DOOR_SPAN);
+  return Math.min(1, (M.t/AOE_FIRE)/AOE_SWEEP_DONE) * (6.28318 - DOOR_SPAN);
 }
 function aoeSweepStart(M){
   var s = ((M.dir||-1) < 0) ? -1 : 1;
@@ -2244,12 +2285,19 @@ function playerStep(dt){
   P.x+=P.vx*dt; P.y+=P.vy*dt;
   /* one expression per axis: two ifs fight when the window is narrower than he
      is, and he ends up outside on the side he was pushed away from */
-  /* NO WALL. It was there to keep the geometry fixed while he held one side,
-     and he still holds one side — but a barrier you cannot see and did not
-     agree to is the worst kind, and the fight does not actually need it. He
-     stays on the right because that is where he stands, not because you are
-     fenced out of it. The screen edges are the only limit now. */
-  var nx=Math.max(0,Math.min(P.x,Math.max(0,VW()-P.w)));
+  /* ══════ YOU CANNOT GET BEHIND HIM ═════════════════════════════════════
+     "we shouldn't even be allowed to go behind the boss".
+
+     The barrier that came out was a half-arena divider that fenced off a third
+     of the room, and removing it was right. This is a different thing: a line
+     just short of where he stands, so the room is almost all yours and the only
+     place you cannot reach is the space behind his back.
+
+     It is also what makes the safe wedge a TRIANGLE rather than an endless
+     cone — the wedge opens out of him to the left and this clips its right-hand
+     end, which is the shape in the drawing. */
+  var wall = VW()*PLAY_MAX_X;
+  var nx=Math.max(0,Math.min(P.x,Math.max(0,wall-P.w)));
   var ny=Math.max(0,Math.min(P.y,Math.max(0,VH()-P.h)));
   if (nx!==P.x){ P.x=nx; P.vx=0; }
   if (ny!==P.y){ P.y=ny; P.vy=0; }
