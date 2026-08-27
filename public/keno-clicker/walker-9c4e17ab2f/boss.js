@@ -682,7 +682,13 @@ var shots = [];
    cannot drift out of step with the health pool again: it did exactly that
    across four rounds of balancing, ending up at 1.2% of a life while the screen
    filled with things that were supposed to be frightening. */
-var SHOT_FRAC = 0.25;
+/* {B} FIVE HITS, AND THE BAR IS DRAWN AS FIVE {B}
+   A fifth of your health per round rather than a quarter. Every source uses the
+   same fraction on purpose - a bullet, a beam tick and a shower tick all cost
+   exactly one hit - which is what lets the readout be five boxes instead of a
+   bar, and "how many more can I take" a thing you read rather than estimate. */
+var HITS_TO_DIE = 5;
+var SHOT_FRAC = 1/HITS_TO_DIE;
 function shotDmg(){ return F.hpMmax * SHOT_FRAC; }
 /* SLOW BULLETS, FAST PLAYER — the ratio is the entire difficulty of a bullet
    hell, far more than the count is. At 250px/s against a player who moves 334
@@ -730,7 +736,7 @@ var SHOT_EVERY=1050, SHOT_SPEED=155;
    The shower asks you to be inside a 23-degree wedge and the nova asks you to
    be out of the middle, and both were asking from across the arena. Both
    wind-ups gained 0.8s. They live in TUNE as well, so the panel moves them. */
-var AOE_WIND=2600, AOE_FIRE=1500, AOE_FRAC=0.25, AOE_TICK_MS=260;
+var AOE_WIND=2600, AOE_FIRE=1500, AOE_FRAC=1/HITS_TO_DIE, AOE_TICK_MS=260;
 var AOE_SPIN_UP=420;   /* ms from standstill to full sweep — see the gate */
 function aoeDmg(){ return F.hpMmax * AOE_FRAC; }
 /* LONG AND HARD, DELIBERATELY. A quarter of your health per bullet and a fight
@@ -1307,7 +1313,9 @@ function breakShield(pd){
   /* RESTORED, not accumulated - it is a refill of the one you have, so taking
      a tile with it still in hand is not wasted, it just is not doubled. */
   F.bombs = BOMB_MAX;
-  F.hpM = Math.min(F.hpMmax, F.hpM + F.hpMmax*0.25);
+  /* 30% - one and a half hits back, so a tile is worth taking even at full
+     health minus one, and never quite a free extra life */
+  F.hpM = Math.min(F.hpMmax, F.hpM + F.hpMmax*0.30);
   /* the hue is thrown forward and falls back over the next second or so */
   pulseHue = 150;
   /* every segment, not one - and the ring is the shield, so this IS the
@@ -3182,7 +3190,7 @@ function fightStep(dt, now){
           var rx2 = m2.x - rp2[b3].x, ry2 = m2.y - rp2[b3].y;
           var along = rx2*bd[0] + ry2*bd[1];
           var perp  = Math.abs(rx2*(-bd[1]) + ry2*bd[0]);
-          if (along > 0 && perp < RUNE_H + P.r) hurtPlayer(F.hpMmax*0.25, "runes");
+          if (along > 0 && perp < RUNE_H + P.r) hurtPlayer(F.hpMmax*SHOT_FRAC, "runes");
         }
         if (M.t>=RUNE_FIRE){ F.runeHeat=0; F.station=null; endMove(4000); }
       }
@@ -4324,25 +4332,65 @@ function drawHUD(c){
     c.fillText("SHIELD DOWN", w/2, by+bh+22);
   }
 
-  /* ── yours, at the bottom, deliberately small ── */
-  c.font = "700 11px ui-monospace,Consolas,monospace";
-  var mw = Math.min(240, w*0.24), mx = (w-mw)/2, my = VH()-30;
-  bar(c, mx, my, mw, 9, F.hpM/F.hpMmax, "#5ce08a", "#0f2418");
-  /* THE BOMBS ARE PIPS, not a number — you need to know at a glance whether you
-     have one, not how many you have spent. */
-  /* MORE THAN YOU STARTED WITH IS POSSIBLE NOW - a tile hands one back, so the
-     row is as long as the larger of the two rather than always three. */
-  var pipN = Math.max(BOMB_START, F.bombs);
-  for (var bi2=0;bi2<pipN;bi2++){
-    var bx2 = mx + bi2*17, by2 = my - 15;
-    c.beginPath(); c.arc(bx2+5, by2, 5.5, 0, 6.28318);
-    if (bi2 < F.bombs){ c.fillStyle="#8ad6ff"; c.fill();
-      c.strokeStyle="rgba(200,240,255,.9)"; c.lineWidth=1.5; c.stroke(); }
-    else { c.strokeStyle="rgba(120,130,145,.45)"; c.lineWidth=1.5; c.stroke(); }
+  /* {B} FIVE BOXES AND ONE BOMB {B}
+     It was a 240x9 continuous bar and a row of little pips, both of which make
+     you ESTIMATE. Every source of damage costs exactly one fifth of you, so the
+     only question the readout has to answer is "how many more can I take" - and
+     that is a countable thing, so it is drawn as countable boxes. The one you
+     are about to lose is the one on the right; a partial fills proportionally,
+     so nothing is hidden if a future source ever chips.
+
+     THE BOMB IS NOT A PIP ANY MORE. There is only ever one, and it is the single
+     most consequential key in the fight - it deserves to be the size of a
+     decision rather than a dot in a row. Lit and ringed while you hold it,
+     hollow and grey the moment it is spent, and the word underneath either way
+     so it is never a mystery symbol. */
+  var segN = HITS_TO_DIE, segW = 46, segH = 16, segGap = 4;
+  var hpW2 = segN*segW + (segN-1)*segGap;
+  var bombD = 34, blockW = hpW2 + 26 + bombD;
+  var mx = (w - blockW)/2, my = VH()-34;
+  var hpLeft = F.hpM/F.hpMmax*segN;          /* in hits, not fractions */
+
+  c.fillStyle = "rgba(3,3,6,.72)";
+  c.fillRect(mx-10, my-9, blockW+20, segH+18);
+
+  for (var sgi=0; sgi<segN; sgi++){
+    var sx3 = mx + sgi*(segW+segGap), fill = Math.max(0, Math.min(1, hpLeft - sgi));
+    c.fillStyle = "#0e1a14";
+    c.fillRect(sx3, my, segW, segH);
+    if (fill > 0){
+      /* the last box you have left runs hot, so "one hit from dead" is a colour
+         rather than a count you have to do */
+      var last = (Math.ceil(hpLeft) === sgi+1) && hpLeft <= 1.001;
+      var g3 = c.createLinearGradient(0, my, 0, my+segH);
+      if (last){ g3.addColorStop(0,"#ff8f6b"); g3.addColorStop(1,"#c8341c"); }
+      else     { g3.addColorStop(0,"#7dffb0"); g3.addColorStop(1,"#2ba465"); }
+      c.fillStyle = g3;
+      c.fillRect(sx3, my, segW*fill, segH);
+    }
+    c.strokeStyle = fill > 0 ? "rgba(190,255,220,.55)" : "rgba(110,125,120,.35)";
+    c.lineWidth = 1;
+    c.strokeRect(sx3+0.5, my+0.5, segW-1, segH-1);
   }
-  c.textAlign = "left";
-  c.fillStyle = "#6a6a76";
-  c.fillText("WASD MOVE · HOLD A TILE · SHIFT BOMB", mx + pipN*17 + 10, my-11);
+
+  var bcx = mx + hpW2 + 26 + bombD/2, bcy = my + segH/2;
+  if (F.bombs > 0){
+    var bg2 = c.createRadialGradient(bcx,bcy,1,bcx,bcy,bombD/2);
+    bg2.addColorStop(0,"#dff4ff"); bg2.addColorStop(0.55,"#6cc4f5"); bg2.addColorStop(1,"#1d5f8c");
+    c.fillStyle = bg2;
+    c.beginPath(); c.arc(bcx,bcy,bombD/2-3,0,6.28318); c.fill();
+    c.strokeStyle="rgba(215,245,255,.95)"; c.lineWidth=2;
+    c.beginPath(); c.arc(bcx,bcy,bombD/2-1,0,6.28318); c.stroke();
+  } else {
+    c.strokeStyle="rgba(110,125,140,.5)"; c.lineWidth=2;
+    c.beginPath(); c.arc(bcx,bcy,bombD/2-3,0,6.28318); c.stroke();
+  }
+  c.font = "700 9px ui-monospace,Consolas,monospace";
+  c.textAlign="center";
+  c.fillStyle = F.bombs > 0 ? "rgba(200,235,255,.9)" : "rgba(110,125,140,.6)";
+  c.fillText("SHIFT", bcx, my+segH+12);
+
+  c.font = "700 11px ui-monospace,Consolas,monospace";
   c.textAlign="center";
   c.font="700 11px ui-monospace,Consolas,monospace";
   c.fillStyle = padsActive() ? "#c9b0ff" : "#6a6a76";
