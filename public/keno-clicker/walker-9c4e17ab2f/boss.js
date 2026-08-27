@@ -232,7 +232,7 @@ function blip(ch){
    THE RULE THAT KEEPS IT FROM BECOMING NOISE: a cue exists only where it tells
    you something you cannot already see, or confirms something you must not
    miss. Four hundred bullets do not each get a sound. */
-var SFX_GAIN = null, SFX_VOL = 0.5;
+var SFX_GAIN = null, SFX_VOL = 0.34;
 function sfxBus(){
   var a = ac(); if (!a) return null;
   if (!SFX_GAIN || SFX_GAIN.context !== a){
@@ -276,22 +276,28 @@ function sfxNoise(dur, peak, f0, f1, q, delay){
 /* Named for the EVENT, not the sound, so re-tuning one never means hunting for
    its call site. Both wind-ups RISE, because a rising pitch is the only thing
    an ear reads as "not yet, not yet, NOW" without being taught it. */
+/* ════════════════════ TWO CUES, AND ONLY TWO ════════════════════
+   The first cut of this had fourteen: a rise on every wind-up, a burst on every
+   fire, a tick per second of tile charge, a beat under the shield being down.
+   Every one defensible on its own; together they were a synthesised layer
+   running more or less continuously under a soundtrack that was mastered
+   without them, and the honest verdict on hearing it was that the fight sounded
+   worse than it did in silence.
+
+   What survives is what the MUSIC cannot tell you and the screen might not: you
+   took a hit, and you died. Both are transients, both are things you need to
+   know at the instant they happen, and neither competes with anything - the
+   moves already announce themselves with 1.8 to 2.6 seconds of telegraph on
+   screen, which is a better warning than a noise.
+
+   The two primitives above stay. Adding a cue back is one line here and one at
+   its call site; the reason to be sparing is written down so the next person
+   has to argue with it rather than rediscover it. */
 var SFX = {
-  runeCharge: function(){ sfxTone("sawtooth",180,720,1.7,0.045); sfxTone("sine",90,360,1.7,0.035); },
-  runeFire:   function(){ sfxNoise(0.5,0.26,2400,400,0.8); sfxTone("sawtooth",900,120,0.45,0.14); },
-  showerWind: function(){ sfxNoise(2.5,0.085,300,3200,0.7); sfxTone("triangle",140,300,2.5,0.03); },
-  showerFire: function(){ sfxNoise(1.5,0.17,4000,1200,0.5); },
-  novaCharge: function(){ sfxTone("sine",60,240,1.7,0.08); sfxTone("sawtooth",120,480,1.7,0.03); },
-  novaFire:   function(){ sfxNoise(1.2,0.30,900,60,0.7); sfxTone("sine",160,32,1.0,0.26); },
-  hit:        function(){ sfxNoise(0.22,0.30,1800,200,1.0); sfxTone("square",320,70,0.20,0.14); },
-  bomb:       function(){ sfxNoise(0.7,0.26,200,5000,0.6); sfxTone("sine",220,40,0.6,0.24); },
-  death:      function(){ sfxTone("sawtooth",300,24,1.5,0.22); sfxNoise(1.4,0.14,800,60,0.5); },
-  tileTick:   function(f){ sfxTone("square",420+520*f,520+620*f,0.05,0.04); },
-  tileDone:   function(){ sfxTone("square",660,1320,0.16,0.10); sfxTone("square",990,1980,0.16,0.06,0.05); },
-  pulse:      function(){ sfxNoise(1.1,0.34,120,3600,0.5); sfxTone("sine",200,34,1.0,0.30);
-                          sfxTone("sawtooth",1400,180,0.7,0.12); },
-  shieldBack: function(){ sfxTone("sawtooth",700,180,0.8,0.16); sfxNoise(0.6,0.14,2200,300,0.8); },
-  bossPulse:  function(){ sfxTone("sine",78,46,0.34,0.17); sfxNoise(0.16,0.06,260,90,0.9); }
+  hit:   function(){ sfxNoise(0.16,0.28,1800,220,1.0);
+                     sfxTone("square",320,80,0.14,0.14); },
+  death: function(){ sfxTone("sawtooth",300,30,0.75,0.20);
+                     sfxNoise(0.60,0.12,700,70,0.5); }
 };
 
 var stars = [], starWarp = 0.15;
@@ -1342,13 +1348,8 @@ function stepPads(dt){
     var pd = pads[i];
     if (pd.won) continue;
     if (Math.abs(m.x-pd.x) < PAD_W*0.5 && Math.abs(m.y-pd.y) < PAD_W*0.5){
-      var was = pd.t;
       pd.t += dt*1000;
-      /* a tick every 700ms of charge, climbing in pitch - thirteen and a half
-         seconds of standing still under fire should be audibly going somewhere */
-      if (Math.floor(pd.t/700) !== Math.floor(was/700) && pd.t < PAD_CHARGE_MS)
-        SFX.tileTick(pd.t/PAD_CHARGE_MS);
-      if (pd.t >= PAD_CHARGE_MS){ pd.t = PAD_CHARGE_MS; SFX.tileDone(); breakShield(pd); }
+      if (pd.t >= PAD_CHARGE_MS){ pd.t = PAD_CHARGE_MS; breakShield(pd); }
     }
   }
 }
@@ -1416,7 +1417,6 @@ function breakShield(pd){
      to have wiped the room, which reads as the pulse not working. */
   F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 0;
   shots = []; sparks = []; patHush();
-  SFX.pulse();
   kick(2.2, 1.15, "255,220,180"); knock(1600, 520, 0.55, 0.42);
   burst(W.x, W.y, 260, 1400);
   shocks.push({ x:W.x, y:W.y, r:Math.max(VW(),VH())*1.15, t:0, ms:PULSE_GRACE });
@@ -1450,7 +1450,6 @@ function restoreShield(){
      charge has to wait for it. The tile is still there; it is just not free. */
   F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 1; F.mvN = 0; F.brkPost = null;
   shots = []; sparks = []; patHush();
-  SFX.shieldBack();
   kick(1.6, 0.8, "150,190,255"); knock(1200, 400, 0.45, 0.34);
   voicePlay("irrelevant", true);
 }
@@ -1601,7 +1600,7 @@ function rewindDone(){
 function useBomb(now){
   if (!F.on || F.over || !P.live || rewinding) return;
   if (F.bombs <= 0 || now - F.bombAt < BOMB_COOL) return;
-  F.bombs--; F.bombAt = now; SFX.bomb();
+  F.bombs--; F.bombAt = now;
   var m = pC(), i;
   for (i=shots.length-1;i>=0;i--)
     if (Math.hypot(shots[i].x-m.x, shots[i].y-m.y) < BOMB_R) shots.splice(i,1);
@@ -2861,7 +2860,6 @@ function fightStep(dt, now){
       F.lastKick = kicked;   /* readable from a test - see the pulse note */
       shocks.push({ x:W.x, y:W.y, r:pr, t:0, ms:950,
                     hue:hx(WALK_COL), hue2:hx("255,120,60") });
-      SFX.bossPulse();
       kick(0.30, 0.18, hx("255,170,70"));
     }
   }
@@ -2876,9 +2874,6 @@ function fightStep(dt, now){
     F.move = { id:pickMove(), t:0, phase:"tell" };
     /* the wind-up cue goes here, once, where the move is BORN - in the tell
        branch it would retrigger every frame for 1.8 to 2.6 seconds */
-    if (F.move.id==="runes") SFX.runeCharge();
-    else if (F.move.id==="aoe") SFX.showerWind();
-    else if (F.move.id==="nova") SFX.novaCharge();
     /* THE COPY, taken before a single spark exists — see gapIn().
 
        AND ONLY ONE DOOR, however much of him is missing. Every broken sector was
@@ -3025,7 +3020,7 @@ function fightStep(dt, now){
            the spin has not started. */
         aoeSparks(dt, 40 + 120*(M.t/AOE_WIND));
         if (M.t>=AOE_WIND){
-          M.phase="fire"; M.t=0; F.aoeTick=0; SFX.showerFire(); kick(1.3, 0.75, "255,170,70");
+          M.phase="fire"; M.t=0; F.aoeTick=0; kick(1.3, 0.75, "255,170,70");
           /* THE DOOR HAS TO OPEN INTO THE ROOM. He fires from the top of the
              arena, so a gap pointing UP is a safe sector the player cannot
              reach — the attack would be unavoidable through no fault of theirs.
@@ -3218,7 +3213,7 @@ function fightStep(dt, now){
             }
           }
           if (M.t>=NOVA_TELL){
-            M.phase="fire"; M.t=0; F.novaHeat=1; F.aoeTick=0; SFX.novaFire();
+            M.phase="fire"; M.t=0; F.novaHeat=1; F.aoeTick=0;
             kick(1.6, 0.9, "255,190,110"); knock(80,26,0.7,0.36);
             shocks.push({ x:nc.x, y:nc.y, t:0, ms:900, r:sr });
           }
@@ -3293,7 +3288,7 @@ function fightStep(dt, now){
           }
         }
         if (M.t>=RUNE_CHARGE){
-          M.phase="fire"; M.t=0; F.runeHeat=1; SFX.runeFire();
+          M.phase="fire"; M.t=0; F.runeHeat=1;
           kick(1.1, 0.6, "255,170,70"); knock(150,40,0.5,0.30);
         }
       } else {
@@ -4329,20 +4324,80 @@ function drawPads(c, now){
      passing through him rather than hitting him. His ring is the armour and it
      is the thing being cut, so the line stops on its outer edge and the impact
      sits where the damage is actually being done. */
-  var wdt=6+k*5.5;
-  var rda=Math.atan2(W.y-fp.y, W.x-fp.x), rdr=walkerR()*0.99;
-  var hitx=W.x-Math.cos(rda)*rdr, hity=W.y-Math.sin(rda)*rdr;
-  c.strokeStyle="rgba(190,150,255,.75)"; c.lineWidth=wdt;
+  /* ════════════════════ IT SHEARS ACROSS THE SHELL, IT DOES NOT JUST STOP ════════════════════
+     Two problems with the old ray: it ran to W.x,W.y - his CENTRE - so it
+     crossed the knotwork and terminated behind his nose, and it was a flat
+     lavender line with a white line on top of it, which is a laser from a
+     placeholder. A beam that ends in a soft dot reads as being ABSORBED. This
+     one is supposed to be four keno tiles cutting at a shield that is holding.
+
+     So it lands on the rim and then WRAPS. Two arcs run off the contact point
+     around the curve of his shell, brightest where the beam meets it and dying
+     away as they travel - the light being turned by a surface it cannot get
+     through. That is what makes it read as shearing rather than as landing.
+
+     The beam itself gets three passes and a flicker: a wide soft bloom, the
+     body, and a white core whose width breathes frame to frame so it looks
+     like something under load rather than a drawn rectangle. Embers come off
+     the contact along the tangent - along the shell, not back down the beam -
+     because that is the direction material actually leaves a cut.
+
+     ALL OF IT IS COSMETIC. The damage is padDPS() on a timer and does not know
+     any of this exists. */
+  var wdt = 6 + k*5.5;
+  var rda = Math.atan2(W.y-fp.y, W.x-fp.x), rdr = walkerR()*0.99;
+  var hitx = W.x - Math.cos(rda)*rdr, hity = W.y - Math.sin(rda)*rdr;
+  var flick = 0.86 + 0.14*Math.sin(now*0.045) * Math.sin(now*0.017);
+
+  /* the bloom */
+  c.strokeStyle = "rgba(150,110,255,.30)"; c.lineWidth = wdt*2.1;
   c.beginPath(); c.moveTo(fp.x,fp.y); c.lineTo(hitx,hity); c.stroke();
-  c.strokeStyle="rgba(255,252,255,.95)"; c.lineWidth=wdt*0.38;
+  /* the body */
+  c.strokeStyle = "rgba(190,150,255,.80)"; c.lineWidth = wdt;
   c.beginPath(); c.moveTo(fp.x,fp.y); c.lineTo(hitx,hity); c.stroke();
-  /* the point of contact, which is where the numbers come off */
-  var hg=c.createRadialGradient(hitx,hity,0,hitx,hity,wdt*2.6);
-  hg.addColorStop(0,"rgba(255,255,255,.85)");
-  hg.addColorStop(0.4,"rgba(210,175,255,.45)");
-  hg.addColorStop(1,"rgba(160,120,255,0)");
-  c.fillStyle=hg; c.beginPath(); c.arc(hitx,hity,wdt*2.6,0,6.28318); c.fill();
-  c.globalCompositeOperation="source-over";
+  /* the core, breathing */
+  c.strokeStyle = "rgba(255,252,255,.97)"; c.lineWidth = wdt*0.34*flick;
+  c.beginPath(); c.moveTo(fp.x,fp.y); c.lineTo(hitx,hity); c.stroke();
+
+  /* ════════════════════ THE WRAP ════════════════════
+     Arcs along the shell either side of the contact, fading as they go. Drawn
+     as a handful of short segments rather than one stroke so each can carry its
+     own alpha - a single arc with a gradient cannot fade along its own path. */
+  var hitA = Math.atan2(hity-W.y, hitx-W.x), segs = 7;
+  for (var wi=0; wi<segs; wi++){
+    var t0 = wi/segs, t1 = (wi+1)/segs;
+    var spread = 0.62 + 0.10*k;
+    var aA = (0.16 + 0.9*k*0.02);
+    for (var sgn=-1; sgn<=1; sgn+=2){
+      var a0 = hitA + sgn*spread*t0, a1 = hitA + sgn*spread*t1;
+      var fade = Math.pow(1 - t0, 2.2);
+      c.strokeStyle = "rgba(214,180,255," + (0.55*fade*flick).toFixed(3) + ")";
+      c.lineWidth = (wdt*0.55) * (1 - t0*0.75);
+      c.beginPath(); c.arc(W.x, W.y, rdr, a0, a1, sgn < 0); c.stroke();
+      c.strokeStyle = "rgba(255,250,255," + (0.42*fade*flick).toFixed(3) + ")";
+      c.lineWidth = (wdt*0.20) * (1 - t0*0.8);
+      c.beginPath(); c.arc(W.x, W.y, rdr, a0, a1, sgn < 0); c.stroke();
+    }
+  }
+
+  /* the contact itself */
+  var hg = c.createRadialGradient(hitx,hity,0,hitx,hity,wdt*2.9);
+  hg.addColorStop(0,"rgba(255,255,255,.92)");
+  hg.addColorStop(0.35,"rgba(214,180,255,.50)");
+  hg.addColorStop(1,"rgba(150,110,255,0)");
+  c.fillStyle = hg;
+  c.beginPath(); c.arc(hitx,hity,wdt*2.9,0,6.28318); c.fill();
+
+  /* embers, along the shell rather than back down the beam */
+  if (Math.random() < 0.55){
+    var tang = hitA + 1.5708*(Math.random()<0.5?1:-1);
+    var spd2 = 120 + Math.random()*220;
+    addSpark(hitx, hity,
+             Math.cos(tang)*spd2 + (Math.random()-0.5)*70,
+             Math.sin(tang)*spd2 + (Math.random()-0.5)*70,
+             0.28 + Math.random()*0.30, 1, 0.25);
+  }
+  c.globalCompositeOperation = "source-over";
   F.hitPt = { x:hitx, y:hity };
 }
 
@@ -4366,12 +4421,11 @@ function drawPhaseTag(c){
   var lines = [
     ['700 15px ui-monospace,Consolas,monospace', F.brk ? "#ffb08a" : "#a8c0ff", 22,
       "PHASE " + row + "/8   " + name],
-    ['600 12px ui-monospace,Consolas,monospace', "rgba(206,198,192,.88)", 18,
-      F.won + "/" + PAD_FORCE + " tiles    speed x" + F.spd.toFixed(2) +
-      "    " + breakSeconds() + "s breaks"],
-    ['600 12px ui-monospace,Consolas,monospace', "rgba(206,198,192,.88)", 20,
-      "hp " + (100*F.hpW/F.hpWmax).toFixed(1) + "%" +
-      (F.brk ? ("   ->  gate " + gate + "%") : "    shield UP")],
+    /* THE TUNING NUMBERS ARE GONE. Tiles, speed multiplier, break length, hp
+       and the gate were all here because they were useful while the phase model
+       was being built - and none of them is useful while PLAYING it. Which of
+       the eight you are in is the one thing a tester cannot get from the
+       screen; everything else is on the bar, on the floor, or in his colour. */
     ['600 12px ui-monospace,Consolas,monospace',
       DEVPAUSE.on ? "#ffd36b" : (GODMODE ? "#ff6b6b" : "rgba(150,144,140,.70)"), 0,
       DEVPAUSE.on ? "PAUSED \u2014 ` to resume" : (GODMODE ? "INVULNERABLE \u2014 i to turn it off"
@@ -4499,8 +4553,17 @@ function drawHUD(c){
   c.font = NAME_FONT;
   c.lineJoin = "round"; c.miterLimit = 2;
   var ny = by + bh/2 + 1;
+  /* ════════════════════ PURPLE, AND IT DOES NOT TRIP WITH HIM ════════════════════
+     The heavy outline was #2f4fd8, a flat blue that belonged to nothing else on
+     the screen. Purple is his - it is what his Discord name is, and the ring
+     around his avatar with it.
+
+     Deliberately NOT run through hx(). Everything else he owns descends the
+     rainbow, but a name is an identity rather than a state: if it went green at
+     break 2 and blue at break 3 it would stop being his name and start being
+     another readout of the phase, which the bar behind it is already giving. */
   c.strokeStyle = "#05050c"; c.lineWidth = 13; c.strokeText(BOSS_NAME, w/2, ny);
-  c.strokeStyle = "#2f4fd8"; c.lineWidth = 7;  c.strokeText(BOSS_NAME, w/2, ny);
+  c.strokeStyle = "#7c3aed"; c.lineWidth = 7;  c.strokeText(BOSS_NAME, w/2, ny);
   c.fillStyle   = "#ffffff";                   c.fillText(BOSS_NAME, w/2, ny);
   c.textBaseline = "alphabetic";
 
@@ -4605,9 +4668,10 @@ function drawHUD(c){
   c.font = "700 11px ui-monospace,Consolas,monospace";
   c.textAlign="center";
   c.font="700 11px ui-monospace,Consolas,monospace";
-  c.fillStyle = padsActive() ? "#c9b0ff" : "#6a6a76";
-  c.fillText(padsActive()+" / "+pads.length+" TILES LIT"+
-             (padsActive() ? "   ·   "+Math.round(padDPS())+" DPS" : ""), w/2, my+24);
+  /* NO TILES-LIT LINE, NO DPS. Both are numbers about a system rather than
+     about the next second: the lit tiles are already four glowing squares
+     feeding a visible ray, and DPS is a figure you can do nothing with while
+     dodging. The bar moving is the only damage readout the player needs. */
   c.textAlign="left";
   c.textAlign = "center";
 
@@ -5113,9 +5177,19 @@ function loadAssets(){
        IF TRACK TWO IS NOT THERE, TRACK ONE LOOPS AS BEFORE. The handover is
        wired off `ended` and a load error just puts the loop back, so dropping
        the file in is the whole install and nothing breaks before it arrives. */
-    MUSIC = new Audio("../boss/music/walker_bossfight.mp3");
+    /* ════════════════════ IRON RITES OPENS; THE OLD THEME TAKES THE BACK HALF ════════════════════
+       Track one is the 3m01s Iron Rites and it plays ONCE. The original boss
+       theme is 2m41s and loops underneath everything after it. Between them
+       that is 5m42s before a single repeat, against a fight that runs about
+       four minutes - so the loop is a safety net rather than something anyone
+       should actually hear.
+
+       The 34.8MB PCM master stays on disk and is gitignored, exactly as
+       walker_bossfight.wav already was; only the 160kbps mp3 ships, matched to
+       the bitrate the first track was already encoded at. */
+    MUSIC = new Audio("../boss/music/walker_ironrites.mp3");
     MUSIC.preload="auto"; MUSIC.loop=false; MUSIC.volume=0.55;
-    MUSIC2 = new Audio("../boss/music/walker_bossfight2.mp3");
+    MUSIC2 = new Audio("../boss/music/walker_bossfight.mp3");
     MUSIC2.preload="auto"; MUSIC2.loop=true; MUSIC2.volume=0.55;
     MUSIC2.addEventListener("error", function(){ MUSIC2 = null; MUSIC.loop = true; });
     MUSIC.addEventListener("ended", function(){

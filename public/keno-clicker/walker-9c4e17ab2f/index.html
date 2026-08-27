@@ -12,6 +12,25 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<style>
+/* ════════════════════ THE PREVIEW IS THE FIGHT AND NOTHING ELSE ════════════════════
+   The keno board, the shop rail, the balance corners and the rest of the game
+   around it do nothing while a boss fight is being tested, and sitting there
+   they imply there is something to play besides the fight.
+
+   These are the game's OWN selectors, lifted verbatim from the `body.boss`
+   rule that already hides all of this once the arena is up - applied here
+   unconditionally instead, so the page looks the same before the fight starts
+   as it does during it. Reusing that list rather than guessing at ids is what
+   keeps this from silently missing a panel when the layout changes.
+
+   display:none rather than the opacity the original uses, because these are in
+   flow: faded, they still take their space and the column centres on the wrong
+   height. */
+.col-right, #colShop, .railtabs, .balcorner,
+#devHint, .autonote, .corner, .cornerL,
+#boardCard, #histCard { display:none !important; }
+</style>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Keno Idle</title>
@@ -1475,7 +1494,7 @@ body.bw .corner:hover{opacity:1}
      exactly what happened once already in testing. -->
 <script src="streamers.js?v=11"></script>
 <script src="music.js?v=10"></script>
-<script src="boss.js?v=76"></script>
+<script src="boss.js?v=80"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
@@ -5793,24 +5812,35 @@ musicArm();
   function strip(){
     var card = document.getElementById("devCard");
     if (!card) return;
-    var rows = card.querySelectorAll(".devrow"), i, kept = 0;
+    /* ════════════════════ THE ONLY CONTROL IS "FIGHT" ════════════════════
+       Cash, upgrades, streamers, draws, pings, reveal, paytable and the rate
+       readout are real tools and pure noise when the thing under test is a boss
+       fight. So is the keno board itself, and the upgrade column beside it -
+       neither does anything once the arena is up, and both sit there implying
+       there is a game to play around the fight.
+
+       Even inside the Walker row, only "Fight (skip intro)" survives: the
+       cutscene is seven beats nobody testing a phase wants to sit through, and
+       ESC already leaves the arena without a button to say so.
+
+       ALL OF THIS IS THE PREVIEW COPY ONLY, done by label and by id rather than
+       by editing the game's own markup - so the real dev panel is untouched and
+       nothing has to be put back when this merges. */
+    var rows = card.querySelectorAll(".devrow"), i;
     for (i=0;i<rows.length;i++){
       var lab = rows[i].querySelector(".devlab");
       var t = lab ? lab.textContent.trim().toLowerCase() : "";
-      /* THE PHASE JUMP IS OFF. It set the three numbers a phase is - tiles,
-         shield, health - and measured correct every time, but it never behaved
-         in play: a jumped phase inherits whatever the fight was already doing
-         and the timers, the move index and the pattern clocks all carry across.
-         Rather than leave a control that lies, the row is gone. Start the fight
-         and play to the phase, or use shift+enter to retry it.
-         devJump() itself is still in boss.js and still exported. */
-      if (t === "walker"){ kept++; continue; }
-      rows[i].style.display = "none";
+      if (t !== "walker") rows[i].style.display = "none";
+    }
+    var btns = card.querySelectorAll('[data-dev]');
+    for (i=0;i<btns.length;i++){
+      if (btns[i].getAttribute("data-dev") !== "bossskip") btns[i].style.display = "none";
     }
     var note = card.querySelector(".cardhead .note");
     if (note) note.textContent = "walker test rig · ` to hide";
     var h2 = card.querySelector(".cardhead h2");
-    if (h2 && kept) h2.textContent = "Walker";
+    if (h2) h2.textContent = "Walker";
+
   }
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", strip);
