@@ -3,3 +3,8 @@ Thumbs.db
 *.log
 node_modules/
 .venv/
+
+# The 30.9MB PCM master of the boss music. It ships as boss/music/
+# walker_bossfight.mp3 (3.2MB, identical 160.68s) - see boss.js. Kept on disk
+# as the master, never deployed.
+public/keno-clicker/boss/music/*.wav
