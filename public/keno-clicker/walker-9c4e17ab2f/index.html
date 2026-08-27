@@ -5612,7 +5612,7 @@ $("devCard").addEventListener("click", function(e){
        hang off the stage ladder, the way the mine does. Until then this is how
        you get to the arena, and ESC is how you leave it. */
     if (!window.Boss){ devSay("boss.js did not load"); }
-    else { Boss.start(what === "bossskip"); devSay("arena — WASD, SPACE shoots, SHIFT blocks, ESC leaves"); }
+    else { Boss.start(what === "bossskip"); devSay("WASD moves · SHIFT blows a mine · stand on a tile to charge it"); }
   }
   else if (what === "bossend"){
     if (window.Boss) Boss.stop();
@@ -5841,6 +5841,47 @@ musicArm();
     var h2 = card.querySelector(".cardhead h2");
     if (h2) h2.textContent = "Walker";
 
+    /* ════════════════════ TELL THEM HOW IT WORKS BEFORE THEY DIE TO IT ════════════════════
+       The line under the button read "arena - WASD, SPACE shoots, SHIFT blocks,
+       ESC leaves", and three quarters of that was false: there is no shooting,
+       SHIFT does not block, and "arena" is a word for a thing the tester is
+       already looking at. Meanwhile the four rules that actually decide whether
+       someone survives their first run - what their hitbox is, what standing on
+       a tile does, what SHIFT does, and where health comes from - were written
+       down nowhere at all.
+
+       Built here rather than in the game's markup, like the rest of the strip:
+       preview copy only, nothing to put back when this merges. */
+    if (!document.getElementById("wHelp")){
+      var row = null, rws = card.querySelectorAll(".devrow");
+      for (i=0;i<rws.length;i++){
+        var l2 = rws[i].querySelector(".devlab");
+        if (l2 && l2.textContent.trim().toLowerCase() === "walker"){ row = rws[i]; break; }
+      }
+      if (row){
+        var help = document.createElement("div");
+        help.id = "wHelp";
+        help.style.cssText =
+          "grid-column:1/-1;margin:10px 0 2px;padding:11px 13px;border-radius:7px;" +
+          "background:rgba(255,96,70,.05);border:1px solid rgba(255,96,70,.20);" +
+          "font:12px/1.65 ui-monospace,Consolas,monospace;color:#cfc6c2";
+        help.innerHTML =
+          '<div style="color:#ff6046;letter-spacing:.09em;font-weight:700;margin-bottom:7px">' +
+            'HOW THE FIGHT WORKS</div>' +
+          '<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 11px">' +
+            '<b style="color:#ffb0a0">WASD</b><span>moves you. Nothing else moves you, and you never shoot.</span>' +
+            '<b style="color:#ffb0a0">hitbox</b><span>is the small bright <b>dot</b> at your centre &mdash; only that. ' +
+              'The triangle around it is a pointer, not a body; bullets pass straight through it.</span>' +
+            '<b style="color:#ffb0a0">tiles</b><span><b>Stand on a numbered tile</b> to charge it. Fill one and a pulse ' +
+              'clears the room and strips his shield &mdash; the shield being down is the <i>only</i> time he takes damage.</span>' +
+            '<b style="color:#ffb0a0">health</b><span>comes from lighting a tile: <b>+30% health and your mines back</b>. ' +
+              'There is no other source. Five hits kill you.</span>' +
+            '<b style="color:#ffb0a0">SHIFT</b><span>detonates a <b>mine</b>, wiping every bullet on screen. ' +
+              'You hold one per tile you have taken, so early on you have none.</span>' +
+          '</div>';
+        row.parentNode.insertBefore(help, row.nextSibling);
+      }
+    }
   }
   if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", strip);
