@@ -1266,7 +1266,13 @@ function restoreShield(){
     if (!pads[i].won) pads[i].t = 0;
   }
   F.broken = [segmentAt(Math.PI/2)];
-  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 0;
+  /* ════════════════════ THE SHIELD COMES BACK AND THE TRIANGLE IS ALREADY COMING ════════════════════
+     Coming out of a break used to hand you a clean floor and a rotation that
+     opened on the runes, which is the most forgiving thing he does - so the
+     first seconds of every main phase were free tile time. moveIx = 1 puts the
+     SHOWER first instead: you get the pulse, then a wedge to be inside, and the
+     charge has to wait for it. The tile is still there; it is just not free. */
+  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 1;
   shots = []; sparks = []; patHush();
   kick(1.6, 0.8, "150,190,255"); knock(1200, 400, 0.45, 0.34);
   voicePlay("irrelevant", true);
@@ -1799,7 +1805,13 @@ var TUNE = {
      Slower also lengthens the lead again - 762px at 200px/s is 3.8s - which is
      the trade: you see it coming from further out, and it is aimed at somewhere
      you were longer ago. The weave is what keeps that from being free. */
-  aimed:200, aimEvery:700, aimWave:200, aimWaveHz:0.50,
+  /* DIALLED IN ON THE PANEL, NOT DERIVED. 350 at a 700ms gap is 245px between
+     rounds; the weave is left at 60 with its frequency at ZERO, which switches
+     it off - sin(0*t + phase) is constant, and both starting phases give zero
+     lateral. The spacing did the work and the weave was not needed. It stays in
+     the code with its amplitude parked, so turning the Hz up is a drag rather
+     than a rebuild. */
+  aimed:350, aimEvery:700, aimWave:60, aimWaveHz:0,
   fan:110, fanW:460, fanRows:1,
   ring:112, spiral:124, counter:105, snipe:496, volley:660,
   runeTell:1800, aoeTell:2600, novaTell:1800
@@ -2268,6 +2280,19 @@ var patAt = [0,0,0,0,0,0,0];
 function bigMoveActive(){
   if (!F.move) return 0;
   if (F.move.id!=="aoe" && F.move.id!=="nova" && F.move.id!=="runes") return 0;
+  /* ════════════════════ A BREAK DOES NOT STOP FOR HIM ════════════════════
+     This is where the "random sections of completely free space" came from.
+     Every big move silenced the patterns - everything during its FIRE, all but
+     the aimed round during its wind-up - and in breaks 3 and 4 he is winding up
+     or firing for most of the phase. So the bullet hell kept switching itself
+     off, the board drained, and what was left was a wide empty room with one
+     attack in it.
+
+     In a MAIN phase that silence is right: the big move is the whole question
+     and the patterns would bury the answer. In a BREAK the patterns ARE the
+     phase, and the big move is a second thing on top. So the suppression is a
+     main-phase rule now. */
+  if (F.brk) return 0;
   return F.move.phase==="fire" ? 2 : 1;      /* 2 = silence, 1 = aimed only */
 }
 
@@ -3473,6 +3498,14 @@ function padEdge(pd,h,f){
 }
 function drawPads(c, now){
   if (!F.on) return;
+  /* ════════════════════ THEY ARE NOT NEEDED WHILE THE SHIELD IS DOWN, AND THEY ARE IN THE WAY ════════════════════
+     A lit tile is a filled rainbow square with a radial glow under it, four of
+     them, in the middle of the floor you are trying to read four hundred bullets
+     across. They do nothing during a break either - every tile you own burns him
+     whether you stand on it or not - so the one phase where the screen is
+     busiest is the one phase they can be absent for. They come back with the
+     shield. */
+  if (F.brk) return;
   var live=[], m=pC(), i, fp=focusPos();
   for (i=0;i<pads.length;i++){
     var pd=pads[i], h=PAD_W*0.5;
@@ -3521,6 +3554,26 @@ function drawPads(c, now){
       c.strokeStyle = hot ? "hsla("+pd.hue+",95%,72%,1)" : "hsla("+pd.hue+",70%,55%,.8)";
       c.lineWidth = hot ? 3 : 2;
       c.strokeRect(pd.x-h+1, pd.y-h+1, PAD_W-2, PAD_W-2);
+      /* ════════════════════ SAY WHAT STANDING HERE IS BUYING ════════════════════
+         A tile pays a bomb and a quarter of your health, and nothing on the
+         screen said so - the bar moved after the fact and you had to infer it.
+         Drawn INSIDE the tile's own rotation, along the back edge, so it lies
+         parallel to the square and reads as part of it rather than as a label
+         floating over the arena. The back edge is local -x because the rotation
+         points +x at the focus he is being shot with. */
+      if (hot){
+        c.save();
+        c.translate(pd.x - h - 13, pd.y);
+        c.rotate(-1.5708);
+        c.textAlign = "center"; c.textBaseline = "middle";
+        c.font = '700 15px ui-monospace,Consolas,monospace';
+        c.strokeStyle = "rgba(3,10,6,.92)"; c.lineWidth = 4;
+        c.strokeText("RESTORING", 0, 0);
+        c.fillStyle = "#5cff9a";
+        c.fillText("RESTORING", 0, 0);
+        c.restore();
+        c.textBaseline = "alphabetic";
+      }
     }
 
     /* THE NUMBER FACES HIM. A keno tile lying in the arena is a tile that has
