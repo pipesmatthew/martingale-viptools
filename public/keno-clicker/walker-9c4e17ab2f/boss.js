@@ -1690,11 +1690,62 @@ function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
      300       aimed             presses, you cannot stand still
      496-660   snipe, volley     flinch, you react or you are hit */
 var TUNE = {
-  aimed:300, fan:110, fanW:460, fanRows:1,
+  /* ════════════════════ SPACING IS SPEED TIMES INTERVAL ════════════════════
+     The complaint was that the aimed stream arrives as a line with no room in
+     it, and there are two ways to open that up: make each round weave off its
+     own bearing, and put more GROUND between consecutive rounds. Both are here
+     and both are on the panel, because which one does the work is a matter of
+     taste and one slider settles it.
+
+       spacing = aimed x (aimEvery/1000)
+       300 x 0.23 =  69px   <- what it was. Take off 18px of round and 9px of
+                               player and 42px of it is actually yours, which
+                               is not a gap you navigate, it is one you survive
+       200 x 0.70 = 140px   <- now, and slower, so it reads on the way in
+
+     BEWARE THE TIGHTENING. Every interval is divided by 1 + 0.18*(ph - from),
+     so by break 4 this gap is 94px rather than 140 - the escalation eats it
+     back. If "always" turns out to mean the late breaks too, the aimed row is
+     the one to lift out of that divisor.
+
+     Slower also lengthens the lead again - 762px at 200px/s is 3.8s - which is
+     the trade: you see it coming from further out, and it is aimed at somewhere
+     you were longer ago. The weave is what keeps that from being free. */
+  aimed:200, aimEvery:700, aimWave:200, aimWaveHz:0.50,
+  fan:110, fanW:460, fanRows:1,
   ring:112, spiral:124, counter:105, snipe:496, volley:660,
   runeTell:1800, aoeTell:2600, novaTell:1800
 };
-function patAimed(){ bullet(aimAtPlayer(), TUNE.aimed, 9); }
+/* ════════════════════ IT WAS A LINE, AND A LINE IS NOT A DODGE ════════════════════
+   One round every 230ms, every one of them aimed at exactly where you are
+   standing, all of them travelling dead straight: that is not a pattern, it is
+   a hose. On a tile - where you have to stand still for ten seconds - it was
+   a stream arriving down a single bearing with nothing to read and nowhere to
+   be, which is the opposite of what "punishes standing still" is supposed to
+   mean. It should cost you a step, not the charge.
+
+   So each round leaves on the bearing it was aimed at and then WEAVES across
+   it: a lateral velocity that swings sinusoidally about its own heading. The
+   path is an S, the arrival point is offset from the aim point by up to
+   wave/(2*pi*hz) - about 64px at the defaults - and consecutive rounds start
+   half a cycle apart so the stream braids instead of snaking as one rope.
+
+   The bearing is still AT you. What it is not any more is a ruler. */
+var aimIx = 0;
+function patAimed(){
+  var a = aimAtPlayer(), n0 = shots.length;
+  bullet(a, TUNE.aimed, 9);
+  if (shots.length === n0) return;
+  var b = shots[shots.length-1];
+  /* the base speed is read back off the round rather than from TUNE, because
+     bullet() has already applied the phase's speed multiplier to it */
+  b.bs = Math.hypot(b.vx, b.vy);
+  b.bx = Math.cos(a); b.by = Math.sin(a);
+  b.wv = TUNE.aimWave;
+  b.wf = TUNE.aimWaveHz * 6.28318;
+  b.wp = (aimIx++ % 2) ? 3.14159 : 0;    /* alternate, so they braid */
+  b.wt = 0;
+}
 /* ══════ THE FAN IS A WIDTH, NOT AN ANGLE ══════════════════════════════════
    A fixed 0.15 rad step means the spread grows with range, and the range is
    large - the player works the tiles most of a screen away from him. Seven
@@ -2103,7 +2154,9 @@ function patVolley(){
    bullets every 55ms, about 73 a second against the 26 the other three manage
    together - and the main phase was supposed to be untouched. */
 var PATTERNS = [
-  { fn:patAimed,   every: 230, from:1 },
+  /* `evK` names a TUNE key that overrides `every`, so an interval can be
+     dragged on the panel like a speed. Only the aimed round has one so far. */
+  { fn:patAimed,   every: 230, from:1, evK:"aimEvery" },
   { fn:patFan,     every: 800, from:1 },
   { fn:patRing,    every:1900, from:1 },
   { fn:patSpiral,  every:  55, from:2 },
@@ -2178,6 +2231,18 @@ function stepPatterns(now){
        walk across a lit one mid-bullet-hell and you were billed for a charge
        you were not doing. */
     if (P2.fn===patSnipe && (F.brk || !onAnyPad())){ patAt[i] = now; continue; }
+    /* ════════════════════ AND THE VOLLEY GOES WITH IT ════════════════════
+       This is what was actually still sniping people during the hell. The snipe
+       itself measured zero once it was gated - what kept arriving was the
+       VOLLEY: three aimed rounds down one line at 667/713/759, in a warm cream
+       three shades off the snipe's, which is why it read as the same attack.
+
+       The two are a pair by design - "the first one moves you and the next two
+       punish moving carelessly" - and both are the fast AIMED band. A break is
+       the phase where you are supposed to be reading arms and routing through
+       them; a 759px/s round arriving down your own bearing is a different game
+       being played on top of that one. Off with the shield down, both of them. */
+    if (P2.fn===patVolley && F.brk){ patAt[i] = now; continue; }
     /* EVERY PATTERN TIGHTENS AS HE LOSES SEGMENTS, on top of unlocking new
        ones. Without it the last two phases fire at the same rate as the one
        that introduced them and the fight plateaus exactly where it should be
@@ -2188,7 +2253,7 @@ function stepPatterns(now){
        the clamp a pattern let through ahead of its row would fire SLOWER than
        its table interval rather than not at all, in the one direction that
        looks deliberate. */
-    var every = P2.every / Math.max(1, 1 + 0.18*(ph - P2.from));
+    var every = (P2.evK ? TUNE[P2.evK] : P2.every) / Math.max(1, 1 + 0.18*(ph - P2.from));
     if (now - patAt[i] < every) continue;
     patAt[i] = now; P2.fn();
   }
@@ -2284,7 +2349,17 @@ function armAlways(){ F.armed = true; }
 function stepShots(dt){
   var m=pC();
   for (var i=shots.length-1;i>=0;i--){
-    var p=shots[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; p.rot+=p.rotV*dt;
+    var p=shots[i];
+    /* THE WEAVE IS RE-INTEGRATED, NOT BAKED IN. Its heading is the aim; what
+       oscillates is a lateral velocity perpendicular to that heading, so the
+       round keeps its bearing on average and only its PATH is an S. */
+    if (p.wv){
+      p.wt += dt;
+      var lat = Math.sin(p.wt*p.wf + p.wp) * p.wv;
+      p.vx = p.bx*p.bs - p.by*lat;
+      p.vy = p.by*p.bs + p.bx*lat;
+    }
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.rot+=p.rotV*dt;
     /* RETURN, DO NOT CONTINUE. hurtPlayer detonates the clearing blast, and the
        blast splices this very array — from inside its own loop. Carrying on
        with the old index reads past the new end and throws on the next element.
@@ -3417,30 +3492,41 @@ function drawPhaseTag(c){
   if (typeof DEV === "undefined" || !DEV || !F.on) return;
   var row = F.brk ? 2*F.brk : 2*F.won + 1;
   var name = F.brk ? ("BREAK " + F.brk) : "MAIN";
-  var pad = 12, x = 14, y = 14, w = 268, h = 74;
+  /* ════════════════════ THE BOX HAS TO FIT ITS OWN LAST LINE ════════════════════
+     It was 74px tall around four lines whose last baseline sat at 66 with 12px
+     of font under it - so the hint line was sliced in half by the border, which
+     is what the screenshot showed. Laid out from one line table now, and the
+     height is COMPUTED from it rather than guessed, so adding a fifth line
+     cannot re-break it. */
+  var pad = 14, x = 14, y = 14, w = 292;
+  var gate = Math.round(100*GATE[F.brk||0]);
+  var lines = [
+    ['700 15px ui-monospace,Consolas,monospace', F.brk ? "#ffb08a" : "#a8c0ff", 22,
+      "PHASE " + row + "/8   " + name],
+    ['600 12px ui-monospace,Consolas,monospace', "rgba(206,198,192,.88)", 18,
+      F.won + "/" + PAD_FORCE + " tiles    speed x" + F.spd.toFixed(2) +
+      "    " + breakSeconds() + "s breaks"],
+    ['600 12px ui-monospace,Consolas,monospace', "rgba(206,198,192,.88)", 20,
+      "hp " + (100*F.hpW/F.hpWmax).toFixed(1) + "%" +
+      (F.brk ? ("   ->  gate " + gate + "%") : "    shield UP")],
+    ['600 12px ui-monospace,Consolas,monospace',
+      DEVPAUSE.on ? "#ffd36b" : "rgba(150,144,140,.70)", 0,
+      DEVPAUSE.on ? "PAUSED \u2014 ` to resume" : "`  panel      shift+enter  retry"]
+  ];
+  var h = pad*2 + 12;                    /* the last line's own descent */
+  for (var li=0; li<lines.length; li++) h += lines[li][2];
   c.save();
-  c.fillStyle = "rgba(6,6,10,.80)";
+  c.fillStyle = "rgba(6,6,10,.84)";
   c.fillRect(x, y, w, h);
   c.strokeStyle = F.brk ? "rgba(226,120,96,.65)" : "rgba(120,140,190,.55)";
   c.lineWidth = 1;
   c.strokeRect(x+0.5, y+0.5, w-1, h-1);
   c.textAlign = "left"; c.textBaseline = "top";
-  c.font = '700 15px ui-monospace,Consolas,monospace';
-  c.fillStyle = F.brk ? "#ffb08a" : "#a8c0ff";
-  c.fillText("PHASE " + row + "/8   " + name, x+pad, y+pad);
-  c.font = '600 12px ui-monospace,Consolas,monospace';
-  c.fillStyle = "rgba(206,198,192,.88)";
-  c.fillText(F.won + "/" + PAD_FORCE + " tiles     speed x" + F.spd.toFixed(2) +
-             "     " + breakSeconds() + "s breaks", x+pad, y+pad+22);
-  var gate = Math.round(100*GATE[F.brk||0]);
-  c.fillText("hp " + (100*F.hpW/F.hpWmax).toFixed(1) + "%" +
-             (F.brk ? ("  ->  gate " + gate + "%") : "   shield UP"), x+pad, y+pad+40);
-  if (DEVPAUSE.on){
-    c.fillStyle = "#ffd36b";
-    c.fillText("PAUSED  \u2014  ` to resume", x+pad, y+pad+58 - 4);
-  } else {
-    c.fillStyle = "rgba(150,144,140,.65)";
-    c.fillText("` for the tuning panel", x+pad, y+pad+58 - 4);
+  var ty = y + pad;
+  for (var li2=0; li2<lines.length; li2++){
+    c.font = lines[li2][0]; c.fillStyle = lines[li2][1];
+    c.fillText(lines[li2][3], x+pad, ty);
+    ty += lines[li2][2];
   }
   c.textBaseline = "alphabetic";
   c.restore();
@@ -3590,12 +3676,26 @@ function drawHUD(c){
     c.strokeText(F.over==="player" ? "WALKER DOWN" : "YOU DIED", w/2, VH()*0.42);
     c.fillStyle = F.over==="player" ? "#7dffb0" : "#ff6b4b";
     c.fillText(F.over==="player" ? "WALKER DOWN" : "YOU DIED", w/2, VH()*0.42);
-    c.font = "700 12px ui-monospace,Consolas,monospace";
-    c.fillStyle = "#8b8b93"; c.fillText("press ESC to leave the arena", w/2, VH()*0.42+30);
-    /* the tally, so a testing session has a number on it */
+    /* ════════════════════ WHAT YOU DO NEXT, AT THE SIZE YOU DO IT ════════════════════
+       "press ESC to leave the arena" was the only instruction on a death
+       screen whose entire purpose is to get you back in - so the retry is the
+       line that gets the weight, drawn in the same face as YOU DIED with the
+       same dark outline so it survives a floor covered in bullets. ESC still
+       works; it does not need announcing. */
+    var dy = VH()*0.42;
+    c.font = '400 27px "Archivo Black","Arial Black",Impact,sans-serif';
+    c.strokeStyle = "#08080f"; c.lineWidth = 10;
+    c.strokeText("PRESS SHIFT+ENTER TO RETRY", w/2, dy+46);
+    c.fillStyle = "#ffd36b";
+    c.fillText("PRESS SHIFT+ENTER TO RETRY", w/2, dy+46);
+    /* the tally, big enough to read across the room */
     if (F.over !== "player"){
-      c.fillStyle = "#6f6f78";
-      c.fillText("DEATHS  " + (F.deaths || deathCount()), w/2, VH()*0.42+50);
+      var dn = F.deaths || deathCount();
+      c.font = '700 19px ui-monospace,Consolas,monospace';
+      c.strokeStyle = "#08080f"; c.lineWidth = 7;
+      c.strokeText("DEATHS   " + dn, w/2, dy+82);
+      c.fillStyle = "#e2b9ae";
+      c.fillText("DEATHS   " + dn, w/2, dy+82);
     }
   }
 }
@@ -3790,6 +3890,9 @@ var DEVPAUSE = { on:false, at:0, el:null };
 
 var TUNE_SPEC = [
   ["aimed",    "aimed",           60,  600,   5],
+  ["aimEvery", "aimed gap (ms)",  100, 1200,  10],
+  ["aimWave",  "aimed weave (px/s)",0,  500,  10],
+  ["aimWaveHz","aimed weave (Hz)",  0,    2, 0.05],
   ["fan",      "fan",             60,  600,   5],
   ["fanW",     "fan width (px)",  120,  900,  10],
   ["fanRows",  "fan rows in air",   1,    6,   1],
