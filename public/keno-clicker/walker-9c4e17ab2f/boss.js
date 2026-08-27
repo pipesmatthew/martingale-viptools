@@ -1385,15 +1385,13 @@ function edgeDist(a){
   return best;
 }
 
-/* the same bullet, born out in the arena instead of at his rim */
-function bulletAt(a, dist, speed, r, hue){
+/* the same bullet, born anywhere and pointed anywhere - bullet() ties the two
+   together because everything else he throws leaves his rim outward, and these
+   do the opposite: they come in from the walls */
+function bulletFrom(x, y, ang, speed, r, hue){
   var n = shots.length;
-  bullet(a, speed, r, hue);
-  if (shots.length > n){
-    var b = shots[shots.length-1];
-    b.x = W.x + Math.cos(a)*dist;
-    b.y = W.y + Math.sin(a)*dist;
-  }
+  bullet(ang, speed, r, hue);
+  if (shots.length > n){ var b = shots[shots.length-1]; b.x = x; b.y = y; }
 }
 function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
 
@@ -1614,10 +1612,9 @@ var AOE_SWEEP_DONE = 0.70;
    middle of the room, so nothing is discarded and 84 became 84: a ring with
    21px between bullets, which is not a wall to dodge through, it is a wall.
    26 is the same ring with room in it. */
-var NOVA_WALL_AT = 0.82;      /* fraction of the blast when it appears */
-var NOVA_WALL_R  = 0.75;      /* of the distance to the room's edge, per bearing */
-var NOVA_WALL_N  = 26;
-var NOVA_WALL_SPEED = 58;     /* px/s outward - slow enough to still be there */
+var NOVA_CREEP_EVERY = 150;   /* ms between arrivals during the cast */
+var NOVA_CREEP_N     = 2;     /* how many arrive each time */
+var NOVA_CREEP_SPEED = 78;    /* px/s inward - slow enough to still be there after */
 function aoeSweptSpan(M){
   if (!M || M.phase === "tell") return 0;
   return Math.min(1, (M.t/AOE_FIRE)/AOE_SWEEP_DONE) * (6.28318 - DOOR_SPAN);
@@ -2194,6 +2191,37 @@ function fightStep(dt, now){
     } else if (M.id==="nova"){
       var nc = novaCentre(), sr = novaSafeR();
       if (M.phase==="tell"){
+        /* ══════ THEY COME IN FROM THE WALLS WHILE HE CASTS ════════════════
+           The nova's answer is distance, so it ends with you parked in a corner
+           doing nothing for the length of the charge and then walking back
+           through an empty room. Both halves of that were dead time.
+
+           So galaxies gather at the OUTSIDE of the room during the cast and
+           edge inward at wherever you are standing. They are aimed at you when
+           they spawn and then fly straight, so they are not homing - they are a
+           net closing on the place you chose, which means the corner that saves
+           you from the blast is also the corner they are all converging on.
+
+           Slow enough to still be in the room afterwards, so the walk back is
+           through them. That is what the ring at the end of the blast was for,
+           and this does the same job while giving the charge something to do.
+
+           Born just OUTSIDE the boundary, so they arrive from off the arena
+           rather than appearing inside it. */
+        if (M.creepAt === undefined) M.creepAt = NOVA_CREEP_EVERY;
+        M.creepAt += dt*1000;
+        if (M.creepAt >= NOVA_CREEP_EVERY){
+          M.creepAt = 0;
+          var cm = pC();
+          for (var ci=0; ci<NOVA_CREEP_N; ci++){
+            var ca = Math.random()*6.28318, cd = edgeDist(ca)*1.06;
+            if (!(cd > 0) || cd > 4000) continue;
+            var sx = nc.x + Math.cos(ca)*cd, sy = nc.y + Math.sin(ca)*cd;
+            bulletFrom(sx, sy, Math.atan2(cm.y-sy, cm.x-sx),
+                       NOVA_CREEP_SPEED, 8, "226,72,178");
+          }
+        }
+
         /* HE ARRIVES FIRST, THEN WINDS UP. Travelling and charging at once gives
            the player no clean cue for when the clock actually started. */
         F.station = nc;
@@ -2242,35 +2270,6 @@ function fightStep(dt, now){
           F.aoeTick = AOE_TICK_MS;
           var pc2 = pC(), dn = Math.hypot(pc2.x-nc.x, pc2.y-nc.y);
           if (dn < sr && dn <= M.front) hurtPlayer(aoeDmg(),"nova",true);
-        }
-        /* ══════ THE WALL YOU COME BACK THROUGH ═══════════════════════════
-           THIS is the attack that needed it. The nova clears the entire room
-           and the only answer is distance, so surviving it always ends with you
-           pinned against the outside edge — and the walk back to the tiles was
-           free, because the attack was over and nothing stood in the way.
-
-           I put this on the wedge AOE first, which was the wrong one: there you
-           are already standing in a safe corridor pointing at the room, so a
-           ring around HIM is not across your path at all.
-
-           A ring is left standing at 82% of the blast, three quarters of the
-           way out from the middle, drifting outward slowly. It is the tail of
-           the nova and it is between you and the board. Born out in the arena
-           rather than at his rim, because the point is that it is already there
-           when you turn round.
-
-           Measured PER BEARING to the edge of the play area rather than at one
-           radius — he is dead centre for this move so every direction has real
-           room in it, unlike the wedge AOE where he stands past the wall. */
-        if (!M.wallback && M.t >= NOVA_FIRE*NOVA_WALL_AT){
-          M.wallback = true;
-          var wOff = (stationIx*0.7)%1;
-          for (var wi=0; wi<NOVA_WALL_N; wi++){
-            var wa = (wi+wOff)*6.28318/NOVA_WALL_N;
-            var wd = edgeDist(wa)*NOVA_WALL_R;
-            if (wd < 170) continue;
-            bulletAt(wa, wd, NOVA_WALL_SPEED, 8, "226,72,178");
-          }
         }
         if (M.t>=NOVA_FIRE){ W.spin=0.24; F.novaHeat=0; F.aoeGlow=0; F.station=null; endMove(4200); }
       }
