@@ -1323,7 +1323,7 @@ function restoreShield(){
      first seconds of every main phase were free tile time. moveIx = 1 puts the
      SHOWER first instead: you get the pulse, then a wedge to be inside, and the
      charge has to wait for it. The tile is still there; it is just not free. */
-  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 1;
+  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 1; F.mvN = 0;
   shots = []; sparks = []; patHush();
   kick(1.6, 0.8, "150,190,255"); knock(1200, 400, 0.45, 0.34);
   voicePlay("irrelevant", true);
@@ -1874,7 +1874,7 @@ var TUNE = {
      than a rebuild. */
   aimed:350, aimEvery:700, aimWave:60, aimWaveHz:0,
   fan:110, fanW:460, fanRows:1,
-  ring:170, spiral:170, counter:145, snipe:496, volley:660, padCharge:13500, moveGap:0.75, novaOrbEvery:210,
+  ring:170, spiral:170, counter:145, snipe:496, volley:660, padCharge:13500, moveGap:0.75, novaOrbEvery:210, mainRush:1500, mainRest:3500,
   runeTell:1800, aoeTell:2600, novaTell:1800
 };
 /* ════════════════════ IT WAS A LINE, AND A LINE IS NOT A DODGE ════════════════════
@@ -2527,7 +2527,17 @@ function aoeSpin(){ return 0.36 + 0.21*esc(); }   /* rad/s */
    sorting themselves out — they demand a flinch, and there is no room to flinch
    in yet. Everything else resumes immediately; only the fast pair waits. */
 var BIG_QUIET = 1000;
-/* ════════════════════ THE GAPS WERE WRITTEN FOR A LONGER PHASE THAN THIS ════════════════════
+/* ════════════════════ THE LATER MAIN PHASES RUSH, THEN BREATHE ════════════════════
+   One flat rest gives every main phase the same shape, and by the third one the
+   player has it memorised. Phases 3, 5 and 7 open with all three abilities back
+   to back - about a second and a half apart, enough to step onto a tile and not
+   enough to stay there - and then stop, so the rest of the phase is the charge
+   you were promised. After that first cycle the rest goes long.
+
+   Phase 1 is untouched: it is the arena introducing itself, it opens on the
+   runes deliberately, and this only applies once you own a tile.
+
+   ════════════════════ THE GAPS WERE WRITTEN FOR A LONGER PHASE THAN THIS ════════════════════
    4000-4400ms of rest between moves, on top of 3.2-4.1s of wind-up and fire, is
    a seven-and-a-half-second cycle. A main phase is the thirteen and a half
    seconds a tile takes, so he was landing ONE ability in it and the player spent
@@ -2539,7 +2549,13 @@ var BIG_QUIET = 1000;
 function endMove(gap){
   if (F.move && (F.move.id==="aoe"||F.move.id==="nova"||F.move.id==="runes"))
     F.bigEnd = F.t;
-  F.move=null; F.next=F.t+gap*TUNE.moveGap;
+  F.move = null;
+  F.mvN = (F.mvN|0) + 1;
+  var g;
+  if (F.brk || !F.won) g = gap*TUNE.moveGap;   /* the breaks, and the opening */
+  else if (F.mvN < 3)  g = TUNE.mainRush;      /* first cycle, back to back */
+  else                 g = TUNE.mainRest;      /* and then room to stand */
+  F.next = F.t + g;
 }
 
 /* `F.armed` IS NOW ALWAYS TRUE and this is the one place that says so. Kept
@@ -3300,10 +3316,20 @@ function fightDraw(c){
   if (F.move && F.move.id==="aoe" && F.move.doorAng !== undefined){
     var far=Math.max(VW(),VH())*1.5;
     var a0=F.move.doorAng - DOOR_SPAN/2;
+    /* {B} A CUT IN THE FLOOR, NOT A SEARCHLIGHT {B}
+       The wedge was a bright cyan cone laid over the arena, and at the width it
+       needs to be that is an enormous glowing object sitting on top of the one
+       part of the screen you are trying to read. It does not need to glow: the
+       swept ground either side of it is now scrubbed dark and hatched, so the
+       CONTRAST already says where to stand. What was missing was the cut.
+
+       So the fill drops to a whisper - just enough that the safe ground reads
+       as deliberately clean rather than as a gap in the hatching - and the two
+       edges get the weight instead. Those are the slice. */
     var lit=(F.move.phase==="tell") ? (0.30+0.42*F.aoeGlow) : 0.30;
     var gr=c.createRadialGradient(W.x,W.y,walkerR()*0.9,W.x,W.y,far);
-    gr.addColorStop(0,"rgba("+hx("140,225,255")+","+(lit*0.55).toFixed(3)+")");
-    gr.addColorStop(0.45,"rgba("+hx("140,225,255")+","+(lit*0.22).toFixed(3)+")");
+    gr.addColorStop(0,"rgba("+hx("140,225,255")+","+(lit*0.13).toFixed(3)+")");
+    gr.addColorStop(0.45,"rgba("+hx("140,225,255")+","+(lit*0.06).toFixed(3)+")");
     gr.addColorStop(1,"rgba("+hx("140,225,255")+",0)");
     c.fillStyle=gr;
     c.beginPath(); c.moveTo(W.x,W.y);
@@ -3312,8 +3338,19 @@ function fightDraw(c){
     /* THE TWO EDGES, AS LINES. The gradient says roughly where; the edges say
        exactly where, which is what you need when it is 50 degrees wide and
        moving. */
-    c.strokeStyle="rgba("+hx("170,240,255")+","+(lit*0.75).toFixed(3)+")";
-    c.lineWidth=2;
+    /* THE EDGES CARRY IT NOW - a hard pair of lines with a dark keyline under
+       them, which is what makes it read as the ground having been CUT rather
+       than as light falling on it. */
+    c.strokeStyle="rgba(0,0,0,.75)"; c.lineWidth=5;
+    for (var ke=0; ke<2; ke++){
+      var kea=a0+ke*DOOR_SPAN;
+      c.beginPath();
+      c.moveTo(W.x+Math.cos(kea)*walkerR()*0.9, W.y+Math.sin(kea)*walkerR()*0.9);
+      c.lineTo(W.x+Math.cos(kea)*far, W.y+Math.sin(kea)*far);
+      c.stroke();
+    }
+    c.strokeStyle="rgba("+hx("190,246,255")+","+Math.min(1,(lit*1.25)).toFixed(3)+")";
+    c.lineWidth=2.5;
     for (var ee=0; ee<2; ee++){
       var ea=a0+ee*DOOR_SPAN;
       c.beginPath();
@@ -3456,6 +3493,21 @@ function fightDraw(c){
         c.fillStyle=og; c.fillRect(0,-hh*3,far2,hh*6);
 
         /* the band that burns — solid to the edge, no falloff */
+        /* ════════════════════ SCORCH, ALL OF IT OUTSIDE THE BAND ════════════════════
+           The band is the best-drawn thing in the fight and does not change.
+           What it lacked was any sense of DISCHARGE - a perfect rectangle that
+           appears and vanishes. Every mark here lives beyond +/-RUNE_H, where
+           nothing is tested, so `perp < RUNE_H + P.r` stays exactly as true. */
+        c.save(); c.globalCompositeOperation="lighter";
+        for (var sc=0; sc<9; sc++){
+          var sct=(sc*0.11+0.05), scy=(sc%2?1:-1)*(hh*1.25+(sc*7)%18);
+          var scg=c.createLinearGradient(far2*sct,0,far2*(sct+0.16),0);
+          scg.addColorStop(0,"rgba("+hx("255,150,60")+",0)");
+          scg.addColorStop(0.5,"rgba("+hx("255,190,110")+",.30)");
+          scg.addColorStop(1,"rgba("+hx("255,150,60")+",0)");
+          c.fillStyle=scg; c.fillRect(far2*sct, scy-1, far2*0.16, 2);
+        }
+        c.restore();
         var lg=c.createLinearGradient(0,-hh,0,hh);
         lg.addColorStop(0,   "rgba("+hx("255,140,35")+",.97)");
         lg.addColorStop(0.30,"rgba("+hx("255,214,150")+",1)");
@@ -3465,16 +3517,57 @@ function fightDraw(c){
         c.fillStyle=lg; c.fillRect(0,-hh,far2,hh*2);
 
         /* the edge itself. This is the line the player reads, so it is a line. */
+        /* A FRINGE JUST OUTSIDE THE EDGE. One pixel of cold either side is
+           what stops the band reading as a painted rectangle, and it sits
+           BEYOND the white line, so the burn edge is still where it says. */
+        c.strokeStyle="rgba(150,235,255,.55)"; c.lineWidth=1;
+        c.beginPath();
+        c.moveTo(0,-hh-2.5); c.lineTo(far2,-hh-2.5);
+        c.moveTo(0, hh+2.5); c.lineTo(far2, hh+2.5);
+        c.stroke();
         c.strokeStyle="rgba(255,255,255,.92)"; c.lineWidth=2;
         c.beginPath();
         c.moveTo(0,-hh); c.lineTo(far2,-hh);
         c.moveTo(0, hh); c.lineTo(far2, hh);
         c.stroke();
+        /* THE MOUTH, so the beam looks emitted rather than placed */
+        var mfg=c.createRadialGradient(0,0,0,0,0,hh*4.2);
+        mfg.addColorStop(0,"rgba(255,255,255,.85)");
+        mfg.addColorStop(0.35,"rgba("+hx("255,214,150")+",.45)");
+        mfg.addColorStop(1,"rgba("+hx("255,110,20")+",0)");
+        c.fillStyle=mfg; c.beginPath(); c.arc(0,0,hh*4.2,0,6.28318); c.fill();
         c.restore();
       } else if (F.runeHeat>0.15){
-        c.strokeStyle="rgba("+hx("255,140,40")+","+(0.10+0.4*F.runeHeat).toFixed(3)+")";
-        c.lineWidth=1+2*F.runeHeat;
+        /* {B} A BARE STROKE ON A STARFIELD IS NOT A TELEGRAPH {B}
+           One line, no shadow, no structure - so the most important warning in
+           the fight read as a rendering artefact among the galaxies. Same
+           geometry, four passes: a dark underlay so it separates from the
+           stars, a bloom falling off toward the far end, dashes that MARCH
+           outward so the line has a direction before anything fires, and
+           chevrons confirming it. */
+        var hcl=F.runeHeat, ddx=ex-rn.x, ddy=ey-rn.y;
+        var dL=Math.hypot(ddx,ddy)||1, dux=ddx/dL, duy=ddy/dL;
+        c.strokeStyle="rgba(0,0,0,.60)"; c.lineWidth=5+3*hcl;
         c.beginPath(); c.moveTo(rn.x,rn.y); c.lineTo(ex,ey); c.stroke();
+        var bmg=c.createLinearGradient(rn.x,rn.y,ex,ey);
+        bmg.addColorStop(0,"rgba("+hx("255,150,60")+","+(0.30*hcl).toFixed(3)+")");
+        bmg.addColorStop(1,"rgba("+hx("255,90,20")+",0)");
+        c.strokeStyle=bmg; c.lineWidth=11*hcl;
+        c.beginPath(); c.moveTo(rn.x,rn.y); c.lineTo(ex,ey); c.stroke();
+        c.save();
+        c.setLineDash([26,16]); c.lineDashOffset=-(F.t*0.07)%42;
+        c.strokeStyle="rgba("+hx("255,186,110")+","+(0.35+0.55*hcl).toFixed(3)+")";
+        c.lineWidth=1.6+1.6*hcl; c.lineCap="round";
+        c.beginPath(); c.moveTo(rn.x,rn.y); c.lineTo(ex,ey); c.stroke();
+        c.restore();
+        c.strokeStyle="rgba("+hx("255,214,150")+","+(0.28+0.4*hcl).toFixed(3)+")";
+        c.lineWidth=1.4;
+        for (var tk=0.16; tk<0.95; tk+=0.16){
+          var tpx=rn.x+ddx*tk, tpy=rn.y+ddy*tk, tnx=-duy, tny=dux, tS=5.5;
+          c.beginPath();
+          c.moveTo(tpx+tnx*tS-dux*5, tpy+tny*tS-duy*5); c.lineTo(tpx,tpy);
+          c.lineTo(tpx-tnx*tS-dux*5, tpy-tny*tS-duy*5); c.stroke();
+        }
       }
       /* the mark itself, lit from cold to white-hot */
       if (F.runeHeat>0.04){
@@ -3483,6 +3576,18 @@ function fightDraw(c){
         gr2.addColorStop(1,"rgba("+hx("255,80,0")+",0)");
         c.fillStyle=gr2; c.beginPath();
         c.arc(rn.x,rn.y,17*(2.4+3.4*F.runeHeat),0,6.28318); c.fill();
+        /* IT IS WHERE THE BEAM COMES FROM, so it gets a rim and spokes rather
+           than only a glow - a glow anywhere else on this screen is a bullet */
+        c.strokeStyle="rgba("+hx("255,236,200")+","+(0.5+0.4*F.runeHeat).toFixed(2)+")";
+        c.lineWidth=1.4;
+        c.beginPath(); c.arc(rn.x,rn.y,10+5*F.runeHeat,0,6.28318); c.stroke();
+        for (var sk=0;sk<6;sk++){
+          var sa=sk*1.0472 + F.t*0.0006;
+          c.beginPath();
+          c.moveTo(rn.x+Math.cos(sa)*(13+5*F.runeHeat), rn.y+Math.sin(sa)*(13+5*F.runeHeat));
+          c.lineTo(rn.x+Math.cos(sa)*(19+7*F.runeHeat), rn.y+Math.sin(sa)*(19+7*F.runeHeat));
+          c.stroke();
+        }
       }
     }
   }
@@ -3625,16 +3730,45 @@ function padEdge(pd,h,f){
 }
 /* the label is its own pass because it needs the tile's POSITION without the
    tile's ORIENTATION - see the note at the call site */
+/* {B} CORNER TICKS ARE THE CHEAPEST "THIS IS A CARD" {B}
+   Four L-shaped registration marks, the way a printed tile is trimmed. It is
+   the one detail that stops a stroked rectangle reading as a stroked
+   rectangle. */
+function padCorners(c, pd, h, col, w){
+  c.strokeStyle=col; c.lineWidth=w||2;
+  var L=11, o=2.5, i, sg=[[-1,-1],[1,-1],[-1,1],[1,1]];
+  for (i=0;i<4;i++){
+    var x=pd.x+sg[i][0]*(h-o), y=pd.y+sg[i][1]*(h-o);
+    c.beginPath();
+    c.moveTo(x-sg[i][0]*L, y); c.lineTo(x,y); c.lineTo(x, y-sg[i][1]*L);
+    c.stroke();
+  }
+}
+
 function padLabel(pd, h){
   var c = FX; if (!c) return;
+  /* {B} ALONG THE FLATTEST EDGE THE TILE ACTUALLY HAS {B}
+     Picking "the back edge" and then flipping it to stay readable produced a
+     label at an angle that matched no edge you could see - technically parallel
+     to one of them, visually arbitrary, and overlapping the corner.
+
+     A rotated square has four edges at th, th+90, th+180, th+270. Take the one
+     whose SCREEN bearing is closest to horizontal, put the text just outside
+     it, and it is unambiguously parallel to a line the player can see, always
+     within 45 degrees of level, and never on top of the tile. */
   var fp = focusPos();
   var th = Math.atan2(fp.y-pd.y, fp.x-pd.x);        /* the tile's own facing */
-  /* the middle of the back edge, in world space */
-  var bx = pd.x + Math.cos(th)*(-h-14), by = pd.y + Math.sin(th)*(-h-14);
-  /* along that edge, and never past vertical */
-  var ta = th - 1.5708;
-  var n = Math.atan2(Math.sin(ta), Math.cos(ta));
-  if (n > 1.5708 || n < -1.5708) ta += 3.14159;
+  var ta = th, bestA = 9;
+  for (var q=0; q<4; q++){
+    var cand = th + q*1.5708;
+    var nc = Math.atan2(Math.sin(cand), Math.cos(cand));
+    if (Math.abs(nc) < bestA){ bestA = Math.abs(nc); ta = nc; }
+  }
+  /* outward from the centre, perpendicular to that edge, on the lower side so
+     it never sits between the tile and the gem it is feeding */
+  var ox = Math.cos(ta + 1.5708), oy = Math.sin(ta + 1.5708);
+  if (oy < 0){ ox = -ox; oy = -oy; }
+  var bx = pd.x + ox*(h + 15), by = pd.y + oy*(h + 15);
   c.save();
   c.translate(bx, by); c.rotate(ta);
   c.textAlign = "center"; c.textBaseline = "middle";
@@ -3694,20 +3828,61 @@ function drawPads(c, now){
       rg.addColorStop(1,"hsla("+((ph*360)|0)+",100%,62%,0)");
       c.fillStyle=rg; c.beginPath(); c.arc(pd.x,pd.y,h*2.4,0,6.28318); c.fill();
 
-      c.fillStyle=lg; c.fillRect(pd.x-h, pd.y-h, PAD_W, PAD_W);
-      c.strokeStyle="rgba(255,255,255,.9)"; c.lineWidth=2.5;
-      c.strokeRect(pd.x-h+1, pd.y-h+1, PAD_W-2, PAD_W-2);
+      /* {B} THE SPECTRUM BELONGS IN THE RIM, NOT THE FACE {B}
+         A full-saturation seven-stop rainbow FILL is the loudest object on a
+         screen whose whole palette is rust, dried blood and cold starlight -
+         and it was painted across the floor you read four hundred rounds over,
+         four times. The rim keeps every bit of "this one is firing": it is
+         still brighter than anything else down there and it still drifts. The
+         face going dark is the floor being handed back. */
+      var lf=c.createRadialGradient(pd.x,pd.y,2,pd.x,pd.y,h*1.1);
+      lf.addColorStop(0,"hsla("+((ph*360)|0)+",100%,70%,.30)");
+      lf.addColorStop(1,"rgba(5,5,10,.92)");
+      c.fillStyle=lf; c.fillRect(pd.x-h, pd.y-h, PAD_W, PAD_W);
+      c.strokeStyle=lg; c.lineWidth=3.5;
+      c.strokeRect(pd.x-h+1.75, pd.y-h+1.75, PAD_W-3.5, PAD_W-3.5);
+      c.strokeStyle="rgba(255,255,255,.35)"; c.lineWidth=1;
+      c.strokeRect(pd.x-h+4.5, pd.y-h+4.5, PAD_W-9, PAD_W-9);
+      padCorners(c, pd, h, "rgba(255,255,255,.9)");
       live.push(pd);
     } else {
-      c.fillStyle="rgba(8,7,14,.72)";
+      /* {B} A KENO TILE, NOT A STROKED RECT {B}
+         Black square, 2px outline, done - legible, and a placeholder. A double
+         frame, a diagonal sheen and corner ticks are the vocabulary of a
+         physical numbered tile, which is the one thing these actually are. */
+      c.fillStyle="rgba(6,6,11,.82)";
       c.fillRect(pd.x-h, pd.y-h, PAD_W, PAD_W);
+      var shn=c.createLinearGradient(pd.x-h,pd.y-h,pd.x+h,pd.y+h);
+      shn.addColorStop(0,"hsla("+pd.hue+",60%,60%,.10)");
+      shn.addColorStop(0.5,"hsla("+pd.hue+",60%,60%,0)");
+      c.fillStyle=shn; c.fillRect(pd.x-h, pd.y-h, PAD_W, PAD_W);
       if (frac>0){
-        c.fillStyle="hsla("+pd.hue+",90%,60%,.34)";
-        c.fillRect(pd.x-h, pd.y+h-PAD_W*frac, PAD_W, PAD_W*frac);
+        /* {B} THE MENISCUS {B}
+           A flat translucent fill creeping up the square cannot be read at a
+           glance - 40% and 55% look the same. One bright line at the surface of
+           the fill is the most readable progress cue there is, and thirteen and
+           a half seconds of standing still under fire has earned one. */
+        var top=pd.y+h-PAD_W*frac;
+        var flg=c.createLinearGradient(0,pd.y+h,0,top);
+        flg.addColorStop(0,"hsla("+pd.hue+",92%,55%,.42)");
+        flg.addColorStop(1,"hsla("+pd.hue+",92%,66%,.16)");
+        c.fillStyle=flg; c.fillRect(pd.x-h, top, PAD_W, PAD_W*frac);
+        c.fillStyle="hsla("+pd.hue+",100%,80%,.28)"; c.fillRect(pd.x-h, top-7, PAD_W, 6);
+        c.fillStyle="hsla("+pd.hue+",100%,86%,.95)"; c.fillRect(pd.x-h, top-1.5, PAD_W, 2.5);
       }
-      c.strokeStyle = hot ? "hsla("+pd.hue+",95%,72%,1)" : "hsla("+pd.hue+",70%,55%,.8)";
-      c.lineWidth = hot ? 3 : 2;
-      c.strokeRect(pd.x-h+1, pd.y-h+1, PAD_W-2, PAD_W-2);
+      c.strokeStyle="hsla("+pd.hue+",55%,40%,.55)"; c.lineWidth=1;
+      c.strokeRect(pd.x-h+0.5, pd.y-h+0.5, PAD_W-1, PAD_W-1);
+      c.strokeStyle = hot ? "hsla("+pd.hue+",95%,72%,1)" : "hsla("+pd.hue+",75%,58%,.85)";
+      c.lineWidth = hot ? 2.5 : 1.5;
+      c.strokeRect(pd.x-h+5.5, pd.y-h+5.5, PAD_W-11, PAD_W-11);
+      /* quarters on the frame, so the number is readable without a number */
+      c.strokeStyle="hsla("+pd.hue+",90%,70%,.45)"; c.lineWidth=1;
+      for (var qq=0; qq<3; qq++){
+        var qy=pd.y+h-PAD_W*(0.25+0.25*qq);
+        c.beginPath(); c.moveTo(pd.x-h,qy); c.lineTo(pd.x-h+7,qy);
+        c.moveTo(pd.x+h,qy); c.lineTo(pd.x+h-7,qy); c.stroke();
+      }
+      padCorners(c, pd, h, "hsla("+pd.hue+",90%,70%,.95)");
       /* ════════════════════ PARALLEL TO THE TILE, BUT NEVER UPSIDE DOWN ════════════════════
          A tile pays a bomb and a quarter of your health and nothing on screen
          said so. This was drawn inside the tile's own rotation, which put it
@@ -3771,13 +3946,29 @@ function drawPads(c, now){
     fg.addColorStop(1,"rgba(160,120,255,0)");
     c.fillStyle=fg; c.beginPath(); c.arc(0,0,sz*3.2,0,6.28318); c.fill();
   }
+  if (!k){
+    /* {B} A LOOSE GEM ON THE FLOOR IS A PICKUP {B}
+       Sitting there dimmed with nothing happening, the most valuable-looking
+       object in the product reads as something to go and collect - which is
+       exactly the wrong instruction in a room where the floor is the hazard.
+       It is not there until a tile feeds it. The first ray is what installs
+       it, and after that the brackets below say it is mounted, not dropped. */
+    c.restore();
+    return;
+  }
   if (GEM_IMG && GEM_IMG.naturalWidth){
-    /* DARKENED WHILE NOTHING FEEDS IT. The stone is the same stone either way;
-       what changes is whether it is lit, which is the state the player is
-       actually being told about. */
-    c.globalAlpha = k ? 1 : 0.42;
+    /* THE MOUNT. Four brackets around the stone, so even mid-fight it reads as
+       apparatus the tiles are wired into rather than treasure. */
+    c.strokeStyle="rgba(196,178,240,.85)"; c.lineWidth=2.5;
+    var mb=sz*1.34, ml=sz*0.46, mi;
+    for (mi=0; mi<4; mi++){
+      var mA=mi*1.5708 + 0.7854;
+      var mx=Math.cos(mA)*mb, my=Math.sin(mA)*mb;
+      c.save(); c.translate(mx,my); c.rotate(mA);
+      c.beginPath(); c.moveTo(-ml*0.5,-ml*0.5); c.lineTo(0,0); c.lineTo(-ml*0.5, ml*0.5);
+      c.stroke(); c.restore();
+    }
     c.drawImage(GEM_IMG, -sz, -sz, sz*2, sz*2);
-    c.globalAlpha = 1;
   } else {
     /* the old rhombus, kept as the fallback for the frames before the data URI
        has decoded - without it the focus vanishes for the first frame or two */
@@ -4234,6 +4425,8 @@ var TUNE_SPEC = [
   ["padCharge","tile charge (ms)",2000,25000, 250],
   ["moveGap",  "rest between moves",0.15, 1.5, 0.05],
   ["novaOrbEvery","nova orbs (ms apart)",60, 700,  10],
+  ["mainRush", "main: first cycle gap",300, 4000, 100],
+  ["mainRest", "main: later gap",       500, 7000, 100],
   ["runeTell", "rune wind-up",   400, 5000,  50],
   ["aoeTell",  "shower wind-up", 400, 6000,  50],
   ["novaTell", "nova charge",    400, 5000,  50]
@@ -4397,7 +4590,7 @@ function fightStart(){
      leftover brk starts the fight already hittable with the ring intact, a
      leftover won puts the escalation at the top with no tiles on the floor,
      and a leftover spd is a silent 15% carried into a fresh run. */
-  F.brk=0; F.won=0; F.spd=1; pulseHue=0;
+  F.brk=0; F.won=0; F.spd=1; pulseHue=0; F.mvN=0;
   F.station = topStation();
   /* THE FIRING CLOCKS RESET WITH THE FIGHT. Both are "the timestamp of the last
      shot", compared against a monotonic clock — which is safe in play and not
