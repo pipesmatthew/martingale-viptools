@@ -5849,10 +5849,11 @@ musicArm();
        that is already obvious - and the grey bar under the card explained a
        shortcut for hiding a panel nobody wanted to hide. Three pieces of
        chrome around the one thing on the page. */
-    var note = card.querySelector(".cardhead .note");
-    if (note) note.style.display = "none";
-    var h2 = card.querySelector(".cardhead h2");
-    if (h2) h2.style.display = "none";
+    /* THE WHOLE HEADER GOES, not its two children. Hiding the h2 and the note
+       individually left .cardhead standing as an empty strip with a
+       border-bottom - a rule across the top of the card underlining nothing. */
+    var chead = card.querySelector(".cardhead");
+    if (chead) chead.style.display = "none";
     var hint = document.getElementById("devHint");
     if (hint) hint.style.display = "none";
     /* devOut is the grey line under the buttons. Its resting text is "Press `
