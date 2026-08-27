@@ -46,6 +46,31 @@ services:
       # The page is self-contained apart from Google Fonts, so it can afford to
       # say so. If a future version pulls in anything else, this is the line
       # that will stop it — which is the point of writing it down now.
+      #
+      # `connect-src 'self'` was added 2026-08-26 for the Keno Clicker score.
+      # Web Audio cannot schedule a sound it has not decoded, and
+      # `decodeAudioData` needs an ArrayBuffer, which means `fetch` — and a
+      # fetch with no `connect-src` falls back to `default-src 'none'` and is
+      # refused before anything is heard. It is deliberately `connect-src` and
+      # not `media-src`: an `<audio>` element would be permitted by the latter
+      # and is not accurate enough to land a cue on a given frame, so allowing
+      # it would only invite the wrong approach back in.
+      #
+      # 'self' and nothing else. The audio ships from this origin.
+      # `media-src 'self'` was added 2026-08-26, and the note above is why it
+      # was missing. Choosing connect-src over media-src was deliberate - an
+      # <audio> element is not accurate enough to land a cue on a given frame,
+      # so refusing it steered the code to fetch + decodeAudioData.
+      #
+      # The boss VOICE lines do exactly that and always worked. The boss MUSIC
+      # is a `new Audio()` element, which is governed by media-src - absent, so
+      # it fell back to default-src 'none' and was blocked outright. In
+      # production there was simply no music, and locally there is no CSP at
+      # all, so nothing short of loading the deployed page could show it.
+      #
+      # 'self' only: the audio ships from this origin. The frame-accuracy
+      # argument still stands and the music should move to decodeAudioData like
+      # the voices did - but a silent boss fight is not the way to enforce it.
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
+        value: "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"

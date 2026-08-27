@@ -2,10 +2,8 @@
 <html lang="en">
 <head>
 <!-- Unlisted preview of the Walker fight. NO <base> TAG: the site sends
-     base-uri 'none' and Chrome refuses it outright, which is a production-only
-     failure a local server never shows. The three scripts are served from this
-     folder instead, and their asset paths are rewritten to ../ so the 10.9MB of
-     art and audio is still shared with the live directory. -->
+     base-uri 'none' and Chrome refuses it, so the three scripts are served from
+     this folder with asset paths rewritten to ../ instead. -->
 <meta name="robots" content="noindex,nofollow">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1451,7 +1449,7 @@ body.bw .corner:hover{opacity:1}
      exactly what happened once already in testing. -->
 <script src="streamers.js?v=11"></script>
 <script src="music.js?v=10"></script>
-<script src="boss.js?v=16"></script>
+<script src="boss.js?v=18"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2036,7 +2034,7 @@ function chance(p){
 
 /* ═══════════════════════════════ the save ═════════════════════════════ */
 /* SANDBOXED SAVE - its own key, so opening this link cannot read, rewrite or
-   outgrow the live game's save. Verified: live save 285 bytes, unchanged. */
+   outgrow the live game's save. */
 var SAVE_KEY = "kenoidle.save.walker-preview", saveTimer = null;
 function saveNow(){
   saveTimer = null;

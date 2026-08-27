@@ -100,6 +100,21 @@ var P = { x:0, y:0, vx:0, vy:0, live:false, w:52, h:52, aim:0, r:4.5 };
 var P_ACC = 2900, P_DRAG = 0.0012;       /* top speed = ACC / -ln(DRAG) = 430 */
 var keys = {};
 
+/* ══════════ THE BOSS CANVASES WERE THE ONLY ONES NOT DPR-AWARE ════════════
+   index.html has sized its canvases to Math.min(2, devicePixelRatio) in three
+   places since long before any of this. The two canvases boss.js owns did not:
+   they set width = VW(), which is CSS pixels, so on any HiDPI screen the
+   backing store was HALF the resolution of the box it is stretched across.
+
+   Everything the fight draws lives on those two canvases - the galaxy bullets,
+   the shower, the beams - so on a retina display every one of them was an
+   upscaled blur. "some people have fuzzy balls for the galaxies and i have the
+   actual galaxies" is one number, and this is it. The machine it was written on
+   is DPR 1, which is why it always looked right here.
+
+   Capped at 2 like the rest of the file: past that the pixels cost more than
+   they show, and this fight is already the heaviest thing on the page. */
+function DPR(){ return Math.min(2, window.devicePixelRatio || 1); }
 function VW(){ return window.innerWidth; }
 function VH(){ return window.innerHeight; }
 function boardBox(){
@@ -228,9 +243,14 @@ function makeNebula(){
 }
 function drawStars(){
   var cv = $("bossSky"); if (!cv) return;
-  if (cv.width!==VW()||cv.height!==VH()){ cv.width=VW(); cv.height=VH(); }
-  var c = cv.getContext("2d"), SW = cv.width, SH = cv.height;
-  c.clearRect(0,0,SW,SH);
+  var dp=DPR(), bw=Math.round(VW()*dp), bh=Math.round(VH()*dp);
+  if (cv.width!==bw||cv.height!==bh){ cv.width=bw; cv.height=bh; }
+  var c = cv.getContext("2d"), SW = VW(), SH = VH();
+  /* the backing store is in device pixels; everything below is written in CSS
+     pixels, so the transform does the conversion once and nothing else changes */
+  c.setTransform(1,0,0,1,0,0);
+  c.clearRect(0,0,cv.width,cv.height);
+  c.setTransform(dp,0,0,dp,0,0);
   for (var n=0;n<nebula.length;n++){
     var nb=nebula[n], nx=nb.x*SW, ny=nb.y*SH, nr=nb.r*Math.max(SW,SH);
     var ng=c.createRadialGradient(nx,ny,0,nx,ny,nr);
@@ -269,6 +289,28 @@ var sparks = [], shards = [];
    no shadows, no per-particle state beyond six numbers. Fill rate is the cost,
    and a 34px hairline costs almost none of it. */
 var SPARK_G = 620, SPARK_DRAG = 0.86, SPARK_MAX = 10000;
+var SPARK_BINS = null;
+
+/* ══════════ THE SHOWER IS SIZED TO THE MACHINE THAT IS RUNNING IT ══════════
+   Ten thousand sparks is a budget picked on one computer. Somewhere slower it
+   is a slideshow, and the fight becomes unplayable exactly during the attack
+   that needs to be dodged. Rather than pick a lower number and make it worse
+   for everybody, measure: if the frame rate is not being held, spend fewer
+   sparks until it is.
+
+   It only ever scales the SHOWER — the bullets, the beams and every hitbox in
+   the game are untouched, so two players on different hardware are playing the
+   same fight and only seeing a thinner or thicker version of the same storm.
+   That is the one kind of difference that is safe to have. */
+var QUALITY = 1, qAcc = 0, qFrames = 0;
+function qualityStep(dt){
+  qAcc += dt; qFrames++;
+  if (qAcc < 0.5) return;
+  var fps = qFrames/qAcc;
+  if (fps < 50)      QUALITY = Math.max(0.25, QUALITY - 0.15);
+  else if (fps > 58) QUALITY = Math.min(1,    QUALITY + 0.08);
+  qAcc = 0; qFrames = 0;
+}
 /* ════════════════ THE SHOWER IS COSMIC, NOT A GRINDER ═════════════════════
    The old ramp was white -> orange -> red -> black, which is the colour of hot
    steel and exactly right for a welding spark. It is exactly wrong for this:
@@ -313,7 +355,7 @@ function heatRGB(h){
    screen has white, orange, violet and blue in it at once, which is what a
    nebula actually looks like. */
 function addSpark(x,y,vx,vy,ttl,heat,g,d){
-  if (sparks.length>=SPARK_MAX) return;
+  if (sparks.length >= SPARK_MAX*QUALITY) return;
   sparks.push({x:x,y:y,vx:vx,vy:vy,t:0,ttl:ttl,
                h0:(heat===undefined?1:heat), g:(g===undefined?1:g),
                d:(d===undefined?1:d),
@@ -370,33 +412,77 @@ function sparkStep(dt){
 /* THE STREAK IS A FIXED SLICE OF TIME, CLAMPED — not the distance covered since
    the last frame, which ties the look of a spark to the frame rate. */
 function sparkDraw(c){
-  /* LONGER AND FATTER. 34px was measured against a 165px Walker; he is now ~280
-     and the shower has to cross the arena, so the streak grows with him. The
-     alpha floor comes up too — a spark that fades to 0.35 in the middle of two
-     thousand others is invisible, and the point of the attack is that you
-     cannot see through it. */
-  /* LONGER AND THINNER THAN A SPARK. A short fat dash is a spark; a long fine
-     streak is a trail through space, and the arena is space. The extra length
-     also means fewer of them are needed to read as full. */
-  for (var i=0;i<sparks.length;i++){
+  var n = sparks.length; if (!n) return;
+
+  /* ═══════ ONE PATH PER BUCKET, NOT ONE PER SPARK ═════════════════════════
+     This drew every spark with its own beginPath/moveTo/lineTo/stroke, so a
+     full shower was up to TEN THOUSAND separate draw calls a frame. On the
+     machine it was written on that survives; on anything slower it does not,
+     and the attack that fills the screen is exactly when the frame budget is
+     already gone. It is the single most expensive thing in the fight.
+
+     A spark's whole appearance is two numbers: `heat` decides the colour and
+     `f` (how much life is left) decides the alpha and the width. So the sparks
+     are bucketed by those two, and each bucket is stroked as ONE path holding
+     hundreds of segments. Forty draw calls instead of ten thousand, and the
+     picture is the same to within one bucket of colour.
+
+     The bins are allocated once and emptied by setting length = 0, because
+     allocating forty arrays a frame during a bullet hell is asking the garbage
+     collector for a pause at the worst possible moment. */
+  var HB=10, FB=4, NB=HB*FB, i, b;
+  if (!SPARK_BINS){ SPARK_BINS=new Array(NB); for(i=0;i<NB;i++) SPARK_BINS[i]=[]; }
+  for (i=0;i<NB;i++) SPARK_BINS[i].length=0;
+
+  for (i=0;i<n;i++){
     var s=sparks[i], f=1-s.t/s.ttl;
-    var col=heatRGB(s.h0*Math.pow(f, s.k||2));
-    var v=Math.hypot(s.vx,s.vy)||1, L=Math.min(78, v*0.086);
-    c.strokeStyle="rgba("+col[0]+","+col[1]+","+col[2]+","+(0.42+0.5*f).toFixed(3)+")";
-    c.lineWidth=Math.max(0.75, 2.3*f);
-    c.beginPath(); c.moveTo(s.x-s.vx/v*L, s.y-s.vy/v*L); c.lineTo(s.x,s.y); c.stroke();
-    /* the hottest tenth get a head, so the leading edge of the storm has
-       structure instead of being a uniform wash */
-    if (f > 0.9){
-      c.fillStyle="rgba(255,248,236,"+(0.7*(f-0.9)*10).toFixed(3)+")";
-      c.beginPath(); c.arc(s.x,s.y,1.7,0,6.28318); c.fill();
-    }
+    if (f<0) f=0; else if (f>1) f=1;
+    var heat = s.h0*Math.pow(f, s.k||2);
+    var hi = (heat*HB)|0; if (hi>=HB) hi=HB-1; else if (hi<0) hi=0;
+    var fi = (f*FB)|0;    if (fi>=FB) fi=FB-1;
+    SPARK_BINS[hi*FB+fi].push(s);
   }
+
+  for (b=0;b<NB;b++){
+    var arr=SPARK_BINS[b], m=arr.length; if (!m) continue;
+    var hMid = (((b/FB)|0)+0.5)/HB, fMid = ((b%FB)+0.5)/FB;
+    var col = heatRGB(hMid);
+    c.strokeStyle="rgba("+col[0]+","+col[1]+","+col[2]+","+(0.42+0.5*fMid).toFixed(3)+")";
+    c.lineWidth = Math.max(0.75, 2.3*fMid);
+    c.beginPath();
+    for (var j=0;j<m;j++){
+      var t=arr[j], v=Math.hypot(t.vx,t.vy)||1, L=Math.min(78, v*0.086);
+      c.moveTo(t.x - t.vx/v*L, t.y - t.vy/v*L); c.lineTo(t.x, t.y);
+    }
+    c.stroke();
+  }
+
+  /* the hottest tenth get a head, and they are one path too */
+  c.fillStyle="rgba(255,248,236,0.55)";
+  c.beginPath();
+  var any=false;
+  for (i=0;i<n;i++){
+    var s2=sparks[i], f2=1-s2.t/s2.ttl;
+    if (f2>0.9){ c.moveTo(s2.x+1.7, s2.y); c.arc(s2.x,s2.y,1.7,0,6.28318); any=true; }
+  }
+  if (any) c.fill();
 }
 
 /* ── the fight ─────────────────────────────────────────────────────────── */
 var SEGS = 5, SEG = 6.28318/SEGS;
-var IDLE_SPIN = 0.020;      /* his resting turn — see "the wheel is the tell" */
+/* ══════════ RADIANS PER SECOND. EVERYTHING HERE USED TO BE PER FRAME ═══════
+   `W.ang += W.spin` had no dt in it, so every rotation in the fight was
+   measured in radians per FRAME. On the 60Hz machine it was written on that is
+   the intended speed; on a 144Hz monitor he span 2.4 times faster, and on
+   anything dropping to 30fps he span half as fast. Not a rendering difference —
+   the ring's angle IS the AOE's safe corridor, so the attack itself arrived at
+   a different speed for every player, and the ones with good monitors got the
+   hardest version of the fight.
+
+   Every spin constant below is now rad/SECOND and the integration multiplies by
+   dt, so the fight is the same fight at any refresh rate. The numbers are the
+   old per-frame values times 60. */
+var IDLE_SPIN = 1.20;       /* rad/s — his resting turn */
 var F = {
   on:false, move:null, t:0, next:0, over:null,
   /* HIS POOL IS SIZED TO HIS HITBOX, and it had to move when he grew. Sizing
@@ -1522,7 +1608,7 @@ function fireShot(){ patAimed(); }
    spray uses, which is why they need their own call rather than a bigger rate
    on the old one. */
 function aoeSparks(dt, rate){
-  var R=walkerR()*0.94, n=rate*dt;
+  var R=walkerR()*0.94, n=rate*QUALITY*dt;
   var count = Math.floor(n) + (Math.random()<(n%1) ? 1 : 0);
   for (var i=0;i<count;i++){
     var a, tries=0, gl=liveGaps();
@@ -1536,7 +1622,7 @@ function aoeSparks(dt, rate){
        him; at AOE_DRAG a particle travels very nearly v0*t, so the SLOWEST one
        needs v0*ttl >= 2142. 950px/s over 2.4s is 2280. Nothing dies mid-flight
        any more - they all leave the screen. */
-    var out=950+Math.random()*1500, tang=W.spin*60*R*0.55;
+    var out=950+Math.random()*1500, tang=W.spin*R*0.55;   /* W.spin is rad/s now */
     addSpark(W.x+Math.cos(a)*R, W.y+Math.sin(a)*R,
              Math.cos(a)*out-Math.sin(a)*tang, Math.sin(a)*out+Math.cos(a)*tang,
              2.40+Math.random()*1.30, 0.9+Math.random()*0.1, 0.04, AOE_DRAG);
@@ -1559,7 +1645,7 @@ function aoeSparks(dt, rate){
    0.006 to 0.020 sweeps roughly 40 to 130 degrees across the 1.1s shower —
    enough that standing still in the door does not work, and little enough that
    following it is a thing a person can actually do. */
-function aoeSpin(){ return 0.006 + 0.0035*Math.max(0, F.broken.length-1); }
+function aoeSpin(){ return 0.36 + 0.21*Math.max(0, F.broken.length-1); }   /* rad/s */
 /* ══ A BIG MOVE DOES NOT END THE INSTANT IT STOPS FIRING ═══════════════════
    The screen is still full of the shower when the patterns come back, and the
    620-660px/s aimed rounds are the ones that punish a player who is still
@@ -1731,8 +1817,8 @@ function fightStep(dt, now){
            none of that is needed: he just winds up, and the door is already
            parked where it was promised. */
         var Tw = AOE_WIND/1000, tw = Math.min(Tw, M.t/1000);
-        var S0 = IDLE_SPIN*60;
-        W.spin = (M.dir || -1) * (S0 + (AOE_RING_SPIN-S0)*(tw/Tw)) / 60;
+        var S0 = IDLE_SPIN;
+        W.spin = (M.dir || -1) * (S0 + (AOE_RING_SPIN-S0)*(tw/Tw));
         /* HELD. This is the promise the whole move is built on. */
         M.doorAng = M.from;
         F.aoeGlow = Math.min(1, M.t/AOE_WIND);
@@ -1808,7 +1894,7 @@ function fightStep(dt, now){
            The emission keeps a 120ms ramp, which is two frames of fade-in so a
            thousand sparks do not appear between one frame and the next. */
         var up = Math.min(1, M.t / 120);
-        W.spin = (M.dir || -1) * AOE_RING_SPIN / 60;      /* the wheel */
+        W.spin = (M.dir || -1) * AOE_RING_SPIN;           /* the wheel */
         /* the door, drifting off the bearing it was held on — a nudge, not a
            chase. It carries on the way the wheel turns so the two still agree
            about direction even though they no longer agree about speed. */
@@ -1853,7 +1939,7 @@ function fightStep(dt, now){
             }
           }
         }
-        if (M.t>=AOE_FIRE){ W.spin=0.004; F.aoeGlow=0; F.station=null; endMove(4400); }
+        if (M.t>=AOE_FIRE){ W.spin=0.24; F.aoeGlow=0; F.station=null; endMove(4400); }
       }
 
     } else if (M.id==="nova"){
@@ -1870,7 +1956,7 @@ function fightStep(dt, now){
              charges freeze the wheel; this one winds it to four times his
              resting speed, so the three are told apart by the wheel alone
              before any of the other art has resolved. */
-          W.spin = IDLE_SPIN + 0.06*F.novaHeat;
+          W.spin = IDLE_SPIN + 3.6*F.novaHeat;
           for (var nq=0;nq<3;nq++){
             if (Math.random() < 90*dt*F.novaHeat){
               var na=Math.random()*6.28318, nd=340+Math.random()*520;
@@ -1885,11 +1971,11 @@ function fightStep(dt, now){
           }
         }
       } else {
-        W.spin = 0.05;
+        W.spin = 3.0;
         /* NO GAP AT ALL. Every other shower he has contains a door; this one
            does not, which is exactly why the answer has to be distance rather
            than angle. */
-        var R2=walkerR()*0.94, n2=26000*dt;
+        var R2=walkerR()*0.94, n2=26000*QUALITY*dt;
         var cnt=Math.floor(n2)+(Math.random()<(n2%1)?1:0);
         for (var i2=0;i2<cnt;i2++){
           var a2=Math.random()*6.28318, out2=950+Math.random()*1500;
@@ -1908,7 +1994,7 @@ function fightStep(dt, now){
           var pc2 = pC(), dn = Math.hypot(pc2.x-nc.x, pc2.y-nc.y);
           if (dn < sr && dn <= M.front) hurtPlayer(aoeDmg(),"nova",true);
         }
-        if (M.t>=NOVA_FIRE){ W.spin=0.004; F.novaHeat=0; F.aoeGlow=0; F.station=null; endMove(4200); }
+        if (M.t>=NOVA_FIRE){ W.spin=0.24; F.novaHeat=0; F.aoeGlow=0; F.station=null; endMove(4200); }
       }
 
     } else if (M.id==="runes"){
@@ -1976,7 +2062,7 @@ function fightStep(dt, now){
            as. One number, and it is this one. */
         W.ang = Math.sin(M.t/230) * RUNE_ROLL;
         W.spin = 0;
-        W.scale += ((1.06 + Math.sin(M.t/44)*0.04) - W.scale) * 0.22;
+        W.scale += ((1.06 + Math.sin(M.t/44)*0.04) - W.scale) * (1-Math.pow(1-0.22, dt*60));
         var rp2 = runePos(), m2 = pC();
         for (var b3=0;b3<2;b3++){
           /* the beam sheds along its length, so the line burns rather than
@@ -2032,7 +2118,7 @@ function fightStep(dt, now){
      ram left it. The whole "the safe sector is a moving target" design was
      inert, and the AOE was a static wedge you could walk into once and stand in
      forever. One line, and it was the line the mechanic was made of. */
-  W.ang += W.spin;
+  W.ang += W.spin * dt;
 
   stepShots(dt); stepShocks(dt);
 }
@@ -2752,9 +2838,9 @@ function introStep(now){
   if (b.id==="approach"){
     var e=ease(p), y0=-WALK*0.75;
     W.scale=0.45+0.55*e; W.x=rest.x; W.y=y0+(rest.y-y0)*e;
-    W.spin=0.030*(1-e)+0.004;
+    W.spin=1.80*(1-e)+0.24;
   } else if (b.id==="greet" || b.id==="reply"){
-    W.y=rest.y+Math.sin(now/700)*5; W.spin=0.004;
+    W.y=rest.y+Math.sin(now/700)*5; W.spin=0.24;
   } else if (b.id==="recoil"){
     if (bangAt && now>=bangAt){ bangAt=0; showBang(); }
     W.y-=1.1; W.scale+=(0.86-W.scale)*0.05;
@@ -2771,10 +2857,10 @@ function introStep(now){
   } else if (b.id==="ram"){
     W.demon=1;
     var hit=boardBox().y;
-    if (p<0.3) W.y+=(hit-W.y)*0.5; else { W.y+=(rest.y-W.y)*0.10; W.spin*=0.93; }
+    if (p<0.3) W.y+=(hit-W.y)*0.5; else { W.y+=(rest.y-W.y)*0.10; W.spin*=Math.pow(0.93,DT*60); }
     W.shake=Math.max(0,1-p*2.2);
   }
-  W.ang+=W.spin;
+  W.ang += W.spin * DT;
   if (b.text) typeOut(b, now);
   if (p>=1) nextBeat();
 }
@@ -2788,6 +2874,7 @@ function frame(now){
   lastPaint = now;
   CLOCK = now;
 
+  qualityStep(DT);
   drawStars();
   introStep(now);
   fightStep(DT, now);
@@ -2805,9 +2892,12 @@ function frame(now){
   decayFx(DT);
   var cv=$("bossFx");
   if (cv){
-    if (cv.width!==VW()||cv.height!==VH()){ cv.width=VW(); cv.height=VH(); }
+    var dp2=DPR(), fw=Math.round(VW()*dp2), fh=Math.round(VH()*dp2);
+    if (cv.width!==fw||cv.height!==fh){ cv.width=fw; cv.height=fh; }
     var c=cv.getContext("2d");
+    c.setTransform(1,0,0,1,0,0);
     c.clearRect(0,0,cv.width,cv.height);
+    c.setTransform(dp2,0,0,dp2,0,0);
 
     c.save();
     if (SHAKE > 0){
