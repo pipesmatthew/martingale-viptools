@@ -629,7 +629,7 @@ var SHOT_EVERY=1050, SHOT_SPEED=155;
    which is most of the way to where the fight already leaves you standing, so
    the run is a fraction of that and the long charge became exactly the dead
    waiting the nova was told off for. */
-var AOE_WIND=2000, AOE_FIRE=1500, AOE_FRAC=0.25, AOE_TICK_MS=260;
+var AOE_WIND=1800, AOE_FIRE=1500, AOE_FRAC=0.25, AOE_TICK_MS=260;
 var AOE_SPIN_UP=420;   /* ms from standstill to full sweep — see the gate */
 function aoeDmg(){ return F.hpMmax * AOE_FRAC; }
 /* LONG AND HARD, DELIBERATELY. A quarter of your health per bullet and a fight
