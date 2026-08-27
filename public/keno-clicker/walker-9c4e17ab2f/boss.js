@@ -683,23 +683,29 @@ var REPAIR_MS=2400, IFRAME_MS=850;
    charge alone, without needing the walk at all. */
 var NOVA_TELL=1000, NOVA_FIRE=1400;
 var NOVA_SAFE=0.86;                /* of the half-diagonal */
-/* ══════ THE MIDDLE OF THE ROOM, NOT THE MIDDLE OF THE SCREEN ══════════════
-   Both of these were measured off the whole window, and the window stopped
-   being the room when the wall went in at 0.66. The screen centre is 218px to
-   the RIGHT of where the play area's centre actually is, and the safe radius
-   was a fraction of the screen's half-diagonal rather than the room's — so the
-   blast was aimed off-centre and sized for space the player is not allowed to
-   occupy.
+/* ══════ HE STANDS IN THE MIDDLE OF THE SCREEN ════════════════════════
+   Not the middle of the play area. I moved it there when the wall went in and
+   that was wrong: the arena the player LOOKS at is the whole screen, and a
+   360-degree blast that is visibly off-centre reads as a mistake however
+   correct the arithmetic is.
 
-   Measured before this: the safe region was 5% of the reachable arena, a sliver
-   hugging the far left edge, and running to it from the middle of the board
-   took 1.23s against a 1.00s charge. From mid-board the nova simply could not
-   be survived, and nothing about it looked wrong.
+   THE RADIUS IS THE PART THAT HAS TO KNOW ABOUT THE WALL. He is at the screen
+   centre, but the right-hand third of the screen is not yours - so the only
+   places far enough away are on the LEFT, and how far you must run has to be
+   measured against how far you can actually GET rather than against how wide
+   the screen is.
 
-   Off the play area, the four corners of the ROOM are the answer again, which
-   is what this attack was always supposed to ask for. */
-function novaCentre(){ return { x:VW()*PLAY_MAX_X*0.5, y:VH()*0.5 }; }
-function novaSafeR(){ return NOVA_SAFE * Math.hypot(VW()*PLAY_MAX_X*0.5, VH()*0.5); }
+   Sized off the screen's half-diagonal it left a 5% sliver on the far edge
+   needing 1.23s to reach against a 1.00s charge: unsurvivable from mid-board,
+   and nothing about it looked wrong on screen. novaReach() is the distance to
+   the furthest corner you are ALLOWED to stand in, so his position is the
+   screen's and the run is the room's. */
+function novaCentre(){ return { x:VW()*0.5, y:VH()*0.5 }; }
+function novaReach(){
+  var c = novaCentre();          /* furthest legal corner: both are on the left */
+  return Math.max(Math.hypot(c.x, c.y), Math.hypot(c.x, VH()-c.y));
+}
+function novaSafeR(){ return NOVA_SAFE * novaReach(); }
 
 var RUNE_X=0.31, RUNE_Y=0.02;      /* rune offset, as a fraction of his box */
 var RUNE_CHARGE=1800, RUNE_FIRE=1400, RUNE_H=26;
