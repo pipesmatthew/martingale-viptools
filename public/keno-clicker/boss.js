@@ -1584,7 +1584,7 @@ function patRing(){
   /* the ring's phase walks by a fixed step, so successive rings interleave
      instead of landing on top of each other — and it is the same walk on every
      run */
-  var n = 24 + 4*esc(), off = (ringIx++) * 0.41;
+  var n = 24 + 4*Math.max(0, esc()-1), off = (ringIx++) * 0.41;
   for (var i=0;i<n;i++) bullet(off + i*6.28318/n, SHOT_SPEED*0.72, 8, "226,72,178");
 }
 /* WHERE THE DOOR OPENS, as fractions of the arena. All well inside the player's
@@ -1911,20 +1911,27 @@ function patVolley(){
    spiral doubled to four arms, and every one of them still tightens further per
    tile you have taken on top of this.
 
-   THE `from:` COLUMN IS GONE, not defaulted. It said which broken-segment
-   count unlocked each pattern, and nothing reads it any more - six of these
-   run from the first break and the counter-arm is gated on the last break by
-   name in stepPatterns(). A dead column that reads as a live unlock ladder is
-   the more expensive of the two mistakes: the last rewrite of this table cost
-   a day because a field changed meaning while still looking like itself. */
+   THE `from:` COLUMN SURVIVED THE PHASE REWRITE, and deleting it was a
+   regression. It reads against esc()+1 now rather than the broken-segment
+   count, but the numbers in it are the ORIGINAL ones and they still mean the
+   same thing, because the two counts line up: the fight opens one segment
+   down from the intro ram, so old phase 1 IS esc 0.
+
+     esc 0  (main phase 1)   aimed, fan, ring, snipe
+     esc 1  (break 1 on)     + spiral, volley
+     esc 4  (break 4 only)   + the counter-arm
+
+   Dropping it made the OPENING four times busier - the spiral alone is 4
+   bullets every 55ms, about 73 a second against the 26 the other three manage
+   together - and the main phase was supposed to be untouched. */
 var PATTERNS = [
-  { fn:patAimed,   every: 230 },
-  { fn:patFan,     every: 800 },
-  { fn:patRing,    every:1900 },
-  { fn:patSpiral,  every:  55 },
-  { fn:patCounter, every:  62 },
-  { fn:patSnipe,   every: 900 },
-  { fn:patVolley,  every:2300 }
+  { fn:patAimed,   every: 230, from:1 },
+  { fn:patFan,     every: 800, from:1 },
+  { fn:patRing,    every:1900, from:1 },
+  { fn:patSpiral,  every:  55, from:2 },
+  { fn:patCounter, every:  62, from:3 },
+  { fn:patSnipe,   every: 900, from:1 },
+  { fn:patVolley,  every:2300, from:2 }
 ];
 var patAt = [0,0,0,0,0,0,0];
 
@@ -1952,20 +1959,22 @@ function stepPatterns(now){
   F.clock = now;
   var big = bigMoveActive();
   if (big === 2) return;
-  var ph = esc();
+  /* ════════════════════ esc()+1, BECAUSE HE STARTS ONE SEGMENT DOWN ════════════════════
+     The `from:` numbers were written against F.broken.length, which is 1 at
+     the opening because the intro ram takes the segment facing the board. The
+     escalation counts tiles and starts at 0. Adding the one lines the two up
+     exactly, so every pattern arrives and tightens on the same schedule it
+     always did - the opening is the four it always was, and the spiral and
+     volley come in with the first break. */
+  var ph = esc() + 1;
   for (var i=0;i<PATTERNS.length;i++){
     var P2 = PATTERNS[i];
-    /* ═══ SIX FROM THE FIRST BREAK; THE COUNTER-ARM IS THE LAST CARD ═══════
-       The `from:` column used to decide which patterns existed yet, and it was
-       also the only reason the tightening divisor below could never fall under
-       1. Both jobs are gone. Everything but the counter-arm runs from break 1,
-       and the divisor is anchored to esc() with a floor under it.
-
-       IF THE GATE EVER COMES BACK, THE FLOOR STAYS. `1 + 0.18*(ph - from)`
-       drops BELOW one for any pattern that has not unlocked, which does not
-       leave it off - it leaves it firing SLOWER than its table interval, in
-       the one direction that looks deliberate. */
-    if (P2.fn === patCounter && F.brk !== PAD_FORCE) continue;
+    /* THE COUNTER-ARM IS THE LAST CARD, and it is held by BREAK rather than by
+       the ladder - `from:3` would have let it in at the third tile, and it is
+       meant for the fourth break only. Checked first so the row's own `from`
+       never gets a say. */
+    if (P2.fn === patCounter){ if (F.brk !== PAD_FORCE) continue; }
+    else if (ph < P2.from) continue;
     if (big === 1 && P2.fn !== patAimed) continue;
     /* the fast aimed pair, silent for a second after any big move */
     if ((P2.fn===patSnipe || P2.fn===patVolley) &&
@@ -1988,7 +1997,13 @@ function stepPatterns(now){
        ones. Without it the last two phases fire at the same rate as the one
        that introduced them and the fight plateaus exactly where it should be
        peaking. */
-    var every = P2.every / (1 + 0.18*Math.max(0, ph));
+    /* THE FLOOR STAYS even though the gate above now guarantees ph >= from
+       for everything except the counter-arm - which is exactly the exception
+       that needs it, since it fires at esc 4 against a `from` of 3. Without
+       the clamp a pattern let through ahead of its row would fire SLOWER than
+       its table interval rather than not at all, in the one direction that
+       looks deliberate. */
+    var every = P2.every / Math.max(1, 1 + 0.18*(ph - P2.from));
     if (now - patAt[i] < every) continue;
     patAt[i] = now; P2.fn();
   }
