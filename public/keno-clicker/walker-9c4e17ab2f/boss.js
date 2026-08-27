@@ -1869,7 +1869,14 @@ function stepPatterns(now){
        ones. Without it the last two phases fire at the same rate as the one
        that introduced them and the fight plateaus exactly where it should be
        peaking. */
-    var every = P2.every / (1 + 0.18*(ph - P2.from));
+    /* P2.in[0] IS THE ROUND IT FIRST APPEARS. This read P2.from, which stopped
+       existing when the table moved to explicit round lists - so it was
+       ph - undefined, which is NaN, which made `every` NaN, which made
+       `now - patAt[i] < every` false forever. Every pattern fired EVERY FRAME.
+       Measured before the fix: 15,422 ring bullets on screen at once, and the
+       spiral arms turning at sixty a second instead of eighteen. A NaN in a
+       comparison does not throw and does not warn; it just quietly answers no. */
+    var every = P2.every / (1 + 0.18*(ph - P2.in[0]));
     if (now - patAt[i] < every) continue;
     patAt[i] = now; P2.fn();
   }
