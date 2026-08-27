@@ -1287,7 +1287,7 @@ body.bw .corner:hover{opacity:1}
         <span class="devlab">Walker</span>
         <span class="devbtns">
           <button data-dev="boss">Fight (cutscene)</button>
-          <button data-dev="bossskip">Fight (skip intro)</button>
+          <button data-dev="bossskip">Play now</button>
           <button data-dev="bossend">Leave arena</button>
         </span>
       </div>
@@ -5831,27 +5831,50 @@ musicArm();
       var lab = rows[i].querySelector(".devlab");
       var t = lab ? lab.textContent.trim().toLowerCase() : "";
       if (t !== "walker") rows[i].style.display = "none";
+      /* and the surviving row loses its own "WALKER" label too. It labelled a
+         column of buttons back when there were eight rows to tell apart; with
+         one row and one button reading "Play now" it is a title for a thing
+         that says what it is. */
+      else if (lab) lab.style.display = "none";
     }
     var btns = card.querySelectorAll('[data-dev]');
     for (i=0;i<btns.length;i++){
       if (btns[i].getAttribute("data-dev") !== "bossskip") btns[i].style.display = "none";
     }
+    /* ════════════════════ NO TITLE, NO NOTE, NO HINT BAR ════════════════════
+       "WALKER" over a panel whose only button starts the Walker fight, and
+       "walker test rig · ` to hide" beside it, are two labels for a thing
+       that is already obvious - and the grey bar under the card explained a
+       shortcut for hiding a panel nobody wanted to hide. Three pieces of
+       chrome around the one thing on the page. */
     var note = card.querySelector(".cardhead .note");
-    if (note) note.textContent = "walker test rig · ` to hide";
+    if (note) note.style.display = "none";
     var h2 = card.querySelector(".cardhead h2");
-    if (h2) h2.textContent = "Walker";
+    if (h2) h2.style.display = "none";
+    var hint = document.getElementById("devHint");
+    if (hint) hint.style.display = "none";
+    /* devOut is the grey line under the buttons. Its resting text is "Press `
+       to hide this panel. Add ?dev to the URL to open it on load." - a shortcut
+       for hiding the panel, and an instruction for reaching a URL they are
+       already at. devSay() writes here too, and there is nothing left worth
+       saying that the panel above does not show. */
+    var dout = document.getElementById("devOut");
+    if (dout) dout.style.display = "none";
 
-    /* ════════════════════ TELL THEM HOW IT WORKS BEFORE THEY DIE TO IT ════════════════════
-       The line under the button read "arena - WASD, SPACE shoots, SHIFT blocks,
-       ESC leaves", and three quarters of that was false: there is no shooting,
-       SHIFT does not block, and "arena" is a word for a thing the tester is
-       already looking at. Meanwhile the four rules that actually decide whether
-       someone survives their first run - what their hitbox is, what standing on
-       a tile does, what SHIFT does, and where health comes from - were written
-       down nowhere at all.
+    /* ════════════════════ SHOW THE THING, DO NOT DESCRIBE IT ════════════════════
+       The first cut of this panel was a monospace list in a red-tinted box, and
+       it had the same flaw as the line it replaced: it told a tester their
+       hitbox was "the dot, not the triangle" and left them to picture it. The
+       one fact that most decides whether a first run feels fair is a SIZE, and
+       a size is not a sentence.
 
-       Built here rather than in the game's markup, like the rest of the strip:
-       preview copy only, nothing to put back when this merges. */
+       So each row DRAWS the real object at the real proportion, with the same
+       geometry and the same colours the arena uses: the 52px sprite with its
+       9px dot inside it, a tile part-charged, the five health boxes, the mines.
+       None of it is a mock-up - every constant is lifted from boss.js.
+
+       Set in the page's own --sans, on the card's own background, with no
+       panel, no border and no tint. */
     if (!document.getElementById("wHelp")){
       var row = null, rws = card.querySelectorAll(".devrow");
       for (i=0;i<rws.length;i++){
@@ -5861,25 +5884,166 @@ musicArm();
       if (row){
         var help = document.createElement("div");
         help.id = "wHelp";
-        help.style.cssText =
-          "grid-column:1/-1;margin:10px 0 2px;padding:11px 13px;border-radius:7px;" +
-          "background:rgba(255,96,70,.05);border:1px solid rgba(255,96,70,.20);" +
-          "font:12px/1.65 ui-monospace,Consolas,monospace;color:#cfc6c2";
-        help.innerHTML =
-          '<div style="color:#ff6046;letter-spacing:.09em;font-weight:700;margin-bottom:7px">' +
-            'HOW THE FIGHT WORKS</div>' +
-          '<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 11px">' +
-            '<b style="color:#ffb0a0">WASD</b><span>moves you. Nothing else moves you, and you never shoot.</span>' +
-            '<b style="color:#ffb0a0">hitbox</b><span>is the small bright <b>dot</b> at your centre &mdash; only that. ' +
-              'The triangle around it is a pointer, not a body; bullets pass straight through it.</span>' +
-            '<b style="color:#ffb0a0">tiles</b><span><b>Stand on a numbered tile</b> to charge it. Fill one and a pulse ' +
-              'clears the room and strips his shield &mdash; the shield being down is the <i>only</i> time he takes damage.</span>' +
-            '<b style="color:#ffb0a0">health</b><span>comes from lighting a tile: <b>+30% health and your mines back</b>. ' +
-              'There is no other source. Five hits kill you.</span>' +
-            '<b style="color:#ffb0a0">SHIFT</b><span>detonates a <b>mine</b>, wiping every bullet on screen. ' +
-              'You hold one per tile you have taken, so early on you have none.</span>' +
-          '</div>';
-        row.parentNode.insertBefore(help, row.nextSibling);
+        /* ════════════════════ NOT THE DEFAULT SANS ════════════════════
+           --sans is Segoe UI, which is the same face as the rest of the app and
+           the same face as every generated page on the internet. Trebuchet is
+           web-safe on Windows and macOS both, has actual character in its
+           lowercase g and its numerals, and belongs to nobody's default stack.
+           The panel and the button share it, because a button set in a
+           different face from its own paragraph looks like a mistake. */
+        var FACE = '"Trebuchet MS","Lucida Grande",Verdana,sans-serif';
+        help.style.cssText = "grid-column:1/-1;margin:14px 0 4px;" +
+          "font:13px/1.55 " + FACE + ";color:#c8c8d0";
+
+        var ROWS = [
+          [150, 62, "Only the <b>dot</b> can be hit &mdash; 9px inside a 52px sprite. " +
+                    "The triangle is a pointer, and shots pass straight through it."],
+          [150, 62, "<b>Stand on a tile to charge it.</b> Filling one strips his shield, " +
+                    "and that is the only time he takes damage."],
+          [150, 62, "<b>Five hits.</b> Lighting a tile is the only thing that heals you, for +30%."],
+          [150, 62, "<b>SHIFT</b> sets off a mine, clearing every bullet on screen. " +
+                    "You hold one per tile taken &mdash; so none at the start."]
+        ];
+
+        var html = '<div style="margin:0 0 12px;color:#e8e8ee">' +
+                   '<b>WASD</b> moves you. You never shoot.</div>' +
+                   '<div style="display:grid;grid-template-columns:auto minmax(0,1fr);' +
+                   'gap:12px 14px;align-items:center">';
+        for (var q=0;q<ROWS.length;q++){
+          html += '<canvas data-help="' + q + '" style="width:' + ROWS[q][0] +
+                  'px;height:' + ROWS[q][1] + 'px"></canvas><span>' + ROWS[q][2] + '</span>';
+        }
+        html += '</div>';
+        help.innerHTML = html;
+        row.parentNode.insertBefore(help, row);
+
+        /* ════════════════════ THE BUTTON GOES UNDER WHAT IT NEEDS YOU TO HAVE READ ════════════════════
+           Above the panel it was the first thing on the page, which meant the
+           explanation existed for people who had already pressed it. Underneath,
+           it reads as the end of a short page: here is how it works, now play.
+
+           Purple because that is the PLAYER's colour - #c9b0ff is the stroke on
+           the triangle and on the dot you steer, and it is the one hue in the
+           arena that is neither Walker's nor a bullet's. */
+        var go = row.querySelector('[data-dev="bossskip"]');
+        if (go){
+          /* MOVED OUT OF THE ROW, not just restyled. .devrow is a 74px label
+             column beside a content column, so width:100% inside it produced a
+             62px button that wrapped "Play now" onto two lines. Appending it to
+             the panel lets it span the card, and the emptied row is hidden. */
+          help.appendChild(go);
+          row.style.display = "none";
+          /* ════════════════════ A RECTANGLE, IN AN ORDINARY PURPLE ════════════════════
+             The first cut was a vivid violet gradient with 10px corners and a
+             glow - three effects, none of which the page had asked for, and the
+             combination is the house style of every generated landing page
+             there is. Flat #663399 instead: rebeccapurple, a real named colour
+             and an unremarkable one. Square corners, one border, no shadow, no
+             gradient. The hover just gets lighter. */
+          go.style.cssText =
+            "display:block;width:100%;margin:16px 0 4px;padding:13px 20px;" +
+            "font:700 16px " + FACE + ";letter-spacing:.02em;color:#fff;" +
+            "background:#663399;border:1px solid #7b46b3;border-radius:0;" +
+            "cursor:pointer;box-shadow:none";
+          go.onmouseenter = function(){ go.style.background = "#74409f"; };
+          go.onmouseleave = function(){ go.style.background = "#663399"; };
+        }
+
+        var dpr = Math.min(2, window.devicePixelRatio || 1);
+        var cvs = help.querySelectorAll("canvas");
+        for (var z=0; z<cvs.length; z++){
+          var cv = cvs[z], k = +cv.getAttribute("data-help");
+          var W2 = ROWS[k][0], H2 = ROWS[k][1];
+          cv.width  = Math.round(W2*dpr);
+          cv.height = Math.round(H2*dpr);
+          var g = cv.getContext("2d");
+          g.setTransform(dpr,0,0,dpr,0,0);
+          var cx = W2/2, cy = H2/2;
+
+          if (k === 0){
+            /* THE PLAYER AT 1:1. s2 is half of P's 52px box and the dot is
+               P.r = 4.5 - the two numbers straight out of boss.js, so the
+               ratio a tester sees here is the ratio they are dodging with. */
+            var s2 = 26;
+            g.save(); g.translate(cx, cy+2);
+            g.beginPath();
+            g.moveTo(0,-s2); g.lineTo(s2*0.94, s2*0.80); g.lineTo(-s2*0.94, s2*0.80); g.closePath();
+            var pg = g.createLinearGradient(0,-s2,0,s2*0.8);
+            pg.addColorStop(0,"#2a1b45"); pg.addColorStop(1,"#14101f");
+            g.fillStyle = pg; g.fill();
+            g.strokeStyle = "rgba(160,120,255,.30)"; g.lineWidth = 6; g.stroke();
+            g.lineWidth = 2.4; g.strokeStyle = "#c9b0ff"; g.stroke();
+            g.fillStyle = "rgba(0,0,0,.85)";
+            g.beginPath(); g.arc(0,0,7,0,6.28318); g.fill();
+            g.fillStyle = "rgba(190,255,215,.95)";
+            g.beginPath(); g.arc(0,0,4.5,0,6.28318); g.fill();
+            g.fillStyle = "rgba(255,255,255,.95)";
+            g.beginPath(); g.arc(0,0,1.89,0,6.28318); g.fill();
+            g.restore();
+          }
+
+          else if (k === 1){
+            /* a tile part way through its charge, filling from the far edge */
+            var TS = 52, hh = TS/2, hue = 8, frac = 0.74;   /* clear of the numeral */
+            g.save(); g.translate(cx, cy);
+            g.fillStyle = "hsla(" + hue + ",30%,10%,.95)";
+            g.fillRect(-hh,-hh,TS,TS);
+            var fg2 = g.createLinearGradient(-hh,0,-hh+TS*frac,0);
+            fg2.addColorStop(0,"hsla(" + hue + ",92%,55%,.42)");
+            fg2.addColorStop(1,"hsla(" + hue + ",92%,66%,.16)");
+            g.fillStyle = fg2; g.fillRect(-hh,-hh,TS*frac,TS);
+            g.fillStyle = "hsla(" + hue + ",100%,86%,.95)";
+            g.fillRect(-hh+TS*frac-1.25,-hh,2.5,TS);
+            g.strokeStyle = "hsla(" + hue + ",75%,58%,.85)"; g.lineWidth = 1.5;
+            g.strokeRect(-hh+2.5,-hh+2.5,TS-5,TS-5);
+            g.fillStyle = "hsla(" + hue + ",95%,74%,1)";
+            g.font = '700 20px ' + FACE;
+            g.textAlign = "center"; g.textBaseline = "middle";
+            g.fillText("1", 0, 1);
+            g.restore();
+          }
+
+          else if (k === 2){
+            /* the readout's own boxes - 52x16 at gap 4, scaled to fit */
+            var sc = 0.52, sw = 52*sc, sh = 16*0.95, gp = 4*sc, n5 = 5, left = 3;
+            var tot = n5*sw + (n5-1)*gp, x0 = cx - tot/2, y0 = cy - sh/2;
+            for (var q2=0; q2<n5; q2++){
+              var sx = x0 + q2*(sw+gp);
+              g.fillStyle = "#0e1a14"; g.fillRect(sx,y0,sw,sh);
+              if (q2 < left){
+                var hg = g.createLinearGradient(0,y0,0,y0+sh);
+                hg.addColorStop(0,"#7dffb0"); hg.addColorStop(1,"#2ba465");
+                g.fillStyle = hg; g.fillRect(sx,y0,sw,sh);
+                g.fillStyle = "rgba(0,0,0,.22)";
+                for (var nn=1; nn<3; nn++) g.fillRect(sx+sw*nn/3-0.5,y0,1,sh);
+              }
+              g.strokeStyle = q2<left ? "rgba(190,255,220,.55)" : "rgba(110,125,120,.35)";
+              g.lineWidth = 1; g.strokeRect(sx+0.5,y0+0.5,sw-1,sh-1);
+            }
+          }
+
+          else {
+            /* two held, two spent - the row exactly as the readout draws it */
+            var bd = 18, gap2 = 6, nb = 4, held = 2;
+            var totb = nb*bd + (nb-1)*gap2, bx = cx - totb/2 + bd/2;
+            for (var q3=0; q3<nb; q3++){
+              g.save(); g.translate(bx + q3*(bd+gap2), cy); g.rotate(0.7854);
+              var bs = bd*0.66;
+              if (q3 < held){
+                var bg2 = g.createLinearGradient(-bs/2,-bs/2,bs/2,bs/2);
+                bg2.addColorStop(0,"#dff4ff");
+                bg2.addColorStop(0.55,"#6cc4f5");
+                bg2.addColorStop(1,"#1d5f8c");
+                g.fillStyle = bg2; g.fillRect(-bs/2,-bs/2,bs,bs);
+                g.strokeStyle = "rgba(215,245,255,.95)";
+              } else {
+                g.strokeStyle = "rgba(110,125,140,.5)";
+              }
+              g.lineWidth = 2; g.strokeRect(-bs/2,-bs/2,bs,bs);
+              g.restore();
+            }
+          }
+        }
       }
     }
   }
