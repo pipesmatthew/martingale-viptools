@@ -46,7 +46,7 @@ var ART = {
 var IMG = {}, artLeft = 0;
 var VOICE = ["greeting","whatdidyousay","fuckyou","goatblast","irrelevant"];
 var BUF = {}, voices = [];
-var MUSIC = null;
+var MUSIC = null, MUSIC2 = null;
 var autoWas = null;             /* the game's auto-play state, held for the exit */
 
 /* ── geometry ──────────────────────────────────────────────────────────── */
@@ -521,6 +521,9 @@ var IDLE_SPIN = 1.20;       /* rad/s — his resting turn */
    them every phase would take that away at exactly the point the screen is
    busiest. What shifts is HIM and what leaves him: his art, his sparks, his
    telegraphs. What comes at you keeps its name. */
+/* his own hot red, and the base every marking that belongs to HIM is drawn
+   from - it goes through hx() like his art does, so it tracks the phase */
+var WALK_COL = "255,96,70";
 var PHASE_HUE    = [0, 48, 118, 196, 272];
 var PHASE_GLITCH = [0, 0.12, 0.30, 0.55, 1.00];
 /* the shield coming off throws the hue forward and it falls back - the pulse
@@ -983,8 +986,15 @@ function shardsClear(){ shards.forEach(function(s){ s.el.remove(); }); shards = 
    bullets did 368-624, and the player who NEVER MOVED took less AOE than the
    ones who dodged — a stationary target sits inside a 72-degree gap one time in
    five by luck. The signature mechanic was a dice roll. */
+/* {B} INVULNERABLE, FOR TESTING ONLY {B}
+   Reading a phase properly means watching it for its full thirty seconds, and
+   at a quarter of your health per round that is not something you get to do
+   twice running. `I` toggles it, `?dev` only, and the phase tag says so in red
+   the whole time it is on - so a balance reading is never taken through it by
+   accident. */
+var GODMODE = false;
 function hurtPlayer(n, src, raw){
-  if (rewinding) return;
+  if (rewinding || GODMODE) return;
   if ((!raw && F.iframe>0) || !F.on || F.over) return;
   F.dmgBy[src||"?"] = (F.dmgBy[src||"?"]||0) + n;
   F.hpM = Math.max(0, F.hpM-n);
@@ -1002,6 +1012,22 @@ function hurtPlayer(n, src, raw){
    It used to be one assignment to F.over, which left the shard coasting under
    its own momentum across the arena while YOU DIED sat on the screen, the boss
    music still going, and nothing anywhere counting. */
+/* one place that knows about both, because there are now five callers and a
+   half-stopped soundtrack is the kind of bug nobody reports and everybody
+   hears */
+function musicStop(){
+  try { if (MUSIC){ MUSIC.pause(); MUSIC.currentTime = 0; } } catch(e){}
+  try { if (MUSIC2){ MUSIC2.pause(); MUSIC2.currentTime = 0; } } catch(e){}
+}
+function musicPause(){
+  try { if (MUSIC) MUSIC.pause(); } catch(e){}
+  try { if (MUSIC2) MUSIC2.pause(); } catch(e){}
+}
+function musicResume(){
+  if (muted()) return;
+  var t = (MUSIC2 && MUSIC2.currentTime > 0) ? MUSIC2 : MUSIC;
+  try { var p = t.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
+}
 var DEATH_KEY = "kenoidle.walker.deaths";
 function deathCount(){
   try { return (+localStorage.getItem(DEATH_KEY)) || 0; } catch(e){ return F.deaths|0; }
@@ -1015,9 +1041,7 @@ function playerDied(){
   var n = deathCount() + 1;
   try { localStorage.setItem(DEATH_KEY, String(n)); } catch(e){}
   F.deaths = n;
-  if (typeof MUSIC !== "undefined" && MUSIC){
-    try { MUSIC.pause(); MUSIC.currentTime = 0; } catch(e){}
-  }
+  musicStop();
 }
 
 /* ══════════════════ THE HIT CLEARS THE ROOM ════════════════════════════════
@@ -1272,6 +1296,8 @@ function breakShield(pd){
      after the third break throws its creeping galaxies 15% faster than the one
      that opened the fight, without a number inside the move changing. */
   F.spd = 1 + 0.05*(F.won - 1);
+  F.brkPost = topStation();      /* where he plants for this whole break */
+  F.pulseAt = 0;
   /* ════════════════════ EVERY TILE PAYS YOU ════════════════════
      Ten seconds standing still in a bullet hell is the most dangerous thing the
      fight asks for, and until now the only thing it bought was a bigger number
@@ -1323,7 +1349,7 @@ function restoreShield(){
      first seconds of every main phase were free tile time. moveIx = 1 puts the
      SHOWER first instead: you get the pulse, then a wedge to be inside, and the
      charge has to wait for it. The tile is still there; it is just not free. */
-  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 1; F.mvN = 0;
+  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 1; F.mvN = 0; F.brkPost = null;
   shots = []; sparks = []; patHush();
   kick(1.6, 0.8, "150,190,255"); knock(1200, 400, 0.45, 0.34);
   voicePlay("irrelevant", true);
@@ -1511,9 +1537,55 @@ function drawShocks(c){
    bet buy a bigger number on a bar that still took the same thirty seconds;
    this way the damage you brought is what decides how long you have to survive
    for, which is the whole reason the tiles are a staircase. */
+/* {B} THE BAR MOVES; NOTHING SAYS BY HOW MUCH {B}
+   Four tiles feeding a stone that fires a line into him, a bar creeping left,
+   and no number anywhere - so the difference between one tile and four is
+   something you infer from how bored you are. The damage is accumulated and
+   thrown off the point of contact roughly four times a second, because a
+   number per frame at 205 dps is a smear rather than a readout.
+
+   They rise, drift toward the arena so they clear his art, and fade. Purely
+   cosmetic: nothing here is read back by anything. */
+var dmgNums = [], dmgAcc = 0, dmgAt = 0;
+var DMG_EVERY = 260;
+function dmgNumStep(dt){
+  for (var i=dmgNums.length-1; i>=0; i--){
+    var d=dmgNums[i];
+    d.t += dt*1000;
+    if (d.t >= d.ttl){ dmgNums.splice(i,1); continue; }
+    d.x += d.vx*dt; d.y += d.vy*dt; d.vy += 26*dt;
+  }
+}
+function dmgNumDraw(c){
+  if (!dmgNums.length) return;
+  c.save();
+  c.textAlign="center"; c.textBaseline="middle";
+  c.lineJoin="round"; c.miterLimit=2;
+  for (var i=0;i<dmgNums.length;i++){
+    var d=dmgNums[i], p=d.t/d.ttl, a=(1-p*p);
+    c.font="700 "+d.sz.toFixed(0)+"px ui-monospace,Consolas,monospace";
+    c.strokeStyle="rgba(6,4,14,"+(0.88*a).toFixed(3)+")"; c.lineWidth=4;
+    c.strokeText(d.txt, d.x, d.y);
+    c.fillStyle="rgba(255,236,190,"+a.toFixed(3)+")";
+    c.fillText(d.txt, d.x, d.y);
+  }
+  c.restore();
+  c.textBaseline="alphabetic";
+}
+function dmgNumPush(v){
+  if (dmgNums.length > 26) return;
+  var p = F.hitPt || { x:W.x, y:W.y };
+  var jx = (Math.random()-0.5)*38, jy = (Math.random()-0.5)*30;
+  dmgNums.push({ x:p.x+jx, y:p.y+jy, vx:-58-Math.random()*40, vy:-78-Math.random()*36,
+                 t:0, ttl:900, sz:16+Math.min(12, v/34), txt:String(Math.round(v)) });
+}
+
 function hitWalker(n){
   if (!F.on || F.over || !F.brk || rewinding) return;
   F.hpW = Math.max(0, F.hpW - n);
+  /* banked and thrown off in readable lumps rather than per frame */
+  dmgAcc += n;
+  if (F.t - dmgAt >= DMG_EVERY){ dmgAt = F.t; if (dmgAcc >= 1) dmgNumPush(dmgAcc); dmgAcc = 0; }
   if (F.hpW <= 0){ startRewind(); return; }
   if (F.hpW/F.hpWmax <= GATE[F.brk]) restoreShield();
 }
@@ -2632,8 +2704,21 @@ function fightStep(dt, now){
      it belongs to stood still. It is part of the simulation, so it decays with
      the simulation. */
   if (pulseHue > 0) pulseHue = Math.max(0, pulseHue - dt*170);
+  /* {B} PLANTED, SO HE PULSES INSTEAD {B}
+     Up here rather than down with the patrol, because the move branches return
+     before they reach it and he would have pulsed once at the top of a break
+     and then never again. A ring off his rim every 1.5s while the shield is
+     down: the arms are being DRIVEN by something rather than merely happening,
+     and it is the beat that replaces the pacing. */
+  if (F.brk && !F.over && !rewinding){
+    if (!F.pulseAt || F.t > F.pulseAt){
+      F.pulseAt = F.t + 1500;
+      shocks.push({ x:W.x, y:W.y, r:walkerR()*2.7, t:0, ms:950 });
+      kick(0.30, 0.18, "255,170,70");
+    }
+  }
   if (F.iframe>0) F.iframe -= dt*1000;
-  armAlways(); stepPads(dt);
+  armAlways(); stepPads(dt); dmgNumStep(dt);
   if (F.over) return;
 
   /* BREAK 1 HAS NO BIG MOVES AT ALL, so there is nothing to schedule and the
@@ -2687,7 +2772,10 @@ function fightStep(dt, now){
 
          It is still the loudest possible tell, just inverted: he rises, so you
          go low. */
-      F.station = { x: VW()*0.76, y: VH()*(F.move.corner ? 0.82 : 0.18) };
+      /* likewise - crossing to the far side is a TELL, and a good one, but it
+         is a main-phase tell. The wedge is aimed at a point in the room, so it
+         opens into the arena correctly wherever he happens to be standing. */
+      if (!F.brk) F.station = { x: VW()*0.76, y: VH()*(F.move.corner ? 0.82 : 0.18) };
     }
   }
   stepPatterns(now);
@@ -2696,7 +2784,26 @@ function fightStep(dt, now){
      from the same bearing and the correct answer never changes. A new post
      every couple of seconds keeps the angles moving without ever bringing him
      down into the arena. */
-  if (!F.station || (F.roamAt && F.t > F.roamAt && !F.move)){
+  /* {B} HE STOPS PACING ONCE THE SHIELD IS OFF {B}
+     The patrol exists so the AIMED patterns keep changing their answer - park
+     him and every bullet arrives down the same bearing. That reasoning is a
+     main-phase one: during a break he is not the question, the floor is, and a
+     boss sliding up and down his wall while four hundred rounds come off him
+     reads as fidgeting rather than as menace.
+
+     So he plants. What replaces the movement is a PULSE on a beat - a ring off
+     his rim every 1.5s, which says the arms are being driven by something
+     rather than merely happening. */
+  if (F.brk){
+    /* {B} ONE POST FOR THE WHOLE BREAK {B}
+       Gating the patrol was not enough: every move ENDS with F.station = null,
+       so the next frame took a fresh post off the patrol table and he slid to
+       it. That is the up-and-down, arriving by a different route than the one
+       that was closed. The post is chosen once when the shield comes off and
+       restored every frame until it goes back on. */
+    if (!F.brkPost) F.brkPost = topStation();
+    F.station = F.brkPost;
+  } else if (!F.station || (F.roamAt && F.t > F.roamAt && !F.move)){
     F.station = topStation(); F.roamAt = F.t + 2300;
   }
   if (F.station){
@@ -2912,7 +3019,16 @@ function fightStep(dt, now){
              floor fills between him and the walls, and the walk back is through
              them - and it does it from the source everything else uses. */
           for (var ci=0; ci<NOVA_CREEP_N; ci++){
-            bullet(Math.random()*6.28318, NOVA_CREEP_SPEED, 8, "226,72,178");
+            var n0 = shots.length;
+            bullet(Math.random()*6.28318, NOVA_CREEP_SPEED, 8, "255,150,240");
+            /* {B} BIGGER TO LOOK AT, THE SAME SIZE TO HIT {B}
+               These are the slowest thing in the fight and they were the
+               hardest to see - a mid magenta at r8 drifting across a starfield,
+               with the phase palette pulling it darker every break. `sz` scales
+               only the DRAWING (rr = r*1.7*sz); `r` is the hitbox and is
+               untouched, so they read at half again the size and are no more
+               dangerous than they were. */
+            if (shots.length > n0) shots[shots.length-1].sz = 1.55;
           }
         }
 
@@ -2974,7 +3090,14 @@ function fightStep(dt, now){
          comes up F.station is already non-null and the conditional never fired
          - which is exactly how the beam ended up walking the patrol's table
          instead of its own, and never leaving the lower half. */
-      if (!M.stationSet){ M.stationSet = 1; F.station = runeStation(); }
+      /* {B} HE DOES NOT CROSS THE ROOM FOR THIS DURING A BREAK {B}
+         The beam fires along HIS axis at HIS height, so varying where it lands
+         means moving him - which is exactly the sliding that looks ridiculous
+         with four hundred rounds already coming off him. During a break he
+         holds whatever post he took when the shield came off, so the beam is
+         at one height for that break and a different one the next time. The
+         variety survives; the pacing does not. */
+      if (!M.stationSet && !F.brk){ M.stationSet = 1; F.station = runeStation(); }
       if (M.phase==="tell"){
         F.runeHeat = Math.min(1, M.t/RUNE_CHARGE);
         W.spin = 0;                            /* stopped: see "the wheel is the tell" */
@@ -3328,9 +3451,16 @@ function fightDraw(c){
        edges get the weight instead. Those are the slice. */
     var lit=(F.move.phase==="tell") ? (0.30+0.42*F.aoeGlow) : 0.30;
     var gr=c.createRadialGradient(W.x,W.y,walkerR()*0.9,W.x,W.y,far);
-    gr.addColorStop(0,"rgba("+hx("140,225,255")+","+(lit*0.13).toFixed(3)+")");
-    gr.addColorStop(0.45,"rgba("+hx("140,225,255")+","+(lit*0.06).toFixed(3)+")");
-    gr.addColorStop(1,"rgba("+hx("140,225,255")+",0)");
+    /* ════════════════════ THE SAFE GROUND IS DRAWN IN HIS COLOUR ════════════════════
+       It was cyan - a colour belonging to nothing else in the fight - which
+       made the one marking on the floor look like a UI overlay rather than
+       something HE is doing to the room. WALK_COL is his own red run through
+       the same phase palette his art and his sparks use, so the wedge is amber
+       when he is amber and violet when he is violet, and the floor marking and
+       the thing marking it are visibly the same event. */
+    gr.addColorStop(0,"rgba("+hx(WALK_COL)+","+(lit*0.15).toFixed(3)+")");
+    gr.addColorStop(0.45,"rgba("+hx(WALK_COL)+","+(lit*0.07).toFixed(3)+")");
+    gr.addColorStop(1,"rgba("+hx(WALK_COL)+",0)");
     c.fillStyle=gr;
     c.beginPath(); c.moveTo(W.x,W.y);
     c.arc(W.x,W.y,far,a0,a0+DOOR_SPAN); c.closePath(); c.fill();
@@ -3349,7 +3479,7 @@ function fightDraw(c){
       c.lineTo(W.x+Math.cos(kea)*far, W.y+Math.sin(kea)*far);
       c.stroke();
     }
-    c.strokeStyle="rgba("+hx("190,246,255")+","+Math.min(1,(lit*1.25)).toFixed(3)+")";
+    c.strokeStyle="rgba("+hx(WALK_COL)+","+Math.min(1,(lit*1.35)).toFixed(3)+")";
     c.lineWidth=2.5;
     for (var ee=0; ee<2; ee++){
       var ea=a0+ee*DOOR_SPAN;
@@ -3746,37 +3876,26 @@ function padCorners(c, pd, h, col, w){
 }
 
 function padLabel(pd, h){
-  var c = FX; if (!c) return;
-  /* {B} ALONG THE FLATTEST EDGE THE TILE ACTUALLY HAS {B}
-     Picking "the back edge" and then flipping it to stay readable produced a
-     label at an angle that matched no edge you could see - technically parallel
-     to one of them, visually arbitrary, and overlapping the corner.
+  /* ════════════════════ LEVEL. IT WAS NEVER GOING TO WORK PARALLEL. ════════════════════
+     Three goes at "along the tile's edge" and all three read as wrong on the
+     screen: inside the rotation it came out mirrored, flipped-to-readable it
+     matched no edge you could see, and nearest-to-level put it across a corner.
+     The tiles are rotated by where the gem is, which is an angle chosen for the
+     TILES - there is no reason a word has to inherit it.
 
-     A rotated square has four edges at th, th+90, th+180, th+270. Take the one
-     whose SCREEN bearing is closest to horizontal, put the text just outside
-     it, and it is unambiguously parallel to a line the player can see, always
-     within 45 degrees of level, and never on top of the tile. */
-  var fp = focusPos();
-  var th = Math.atan2(fp.y-pd.y, fp.x-pd.x);        /* the tile's own facing */
-  var ta = th, bestA = 9;
-  for (var q=0; q<4; q++){
-    var cand = th + q*1.5708;
-    var nc = Math.atan2(Math.sin(cand), Math.cos(cand));
-    if (Math.abs(nc) < bestA){ bestA = Math.abs(nc); ta = nc; }
-  }
-  /* outward from the centre, perpendicular to that edge, on the lower side so
-     it never sits between the tile and the gem it is feeding */
-  var ox = Math.cos(ta + 1.5708), oy = Math.sin(ta + 1.5708);
-  if (oy < 0){ ox = -ox; oy = -oy; }
-  var bx = pd.x + ox*(h + 15), by = pd.y + oy*(h + 15);
+     So it is horizontal, centred under the tile, every time. It cannot mirror,
+     it cannot collide with a corner, and it reads at a glance from anywhere in
+     the arena - which is the whole job of a label that appears while you are
+     being shot at. */
+  var c = FX; if (!c) return;
   c.save();
-  c.translate(bx, by); c.rotate(ta);
   c.textAlign = "center"; c.textBaseline = "middle";
   c.font = '700 15px ui-monospace,Consolas,monospace';
-  c.strokeStyle = "rgba(3,10,6,.92)"; c.lineWidth = 4;
-  c.strokeText("RESTORING", 0, 0);
+  c.lineJoin = "round"; c.miterLimit = 2;
+  c.strokeStyle = "rgba(3,10,6,.92)"; c.lineWidth = 4.5;
+  c.strokeText("RESTORING", pd.x, pd.y + h + 17);
   c.fillStyle = "#5cff9a";
-  c.fillText("RESTORING", 0, 0);
+  c.fillText("RESTORING", pd.x, pd.y + h + 17);
   c.restore();
   c.textBaseline = "alphabetic";
 }
@@ -3992,13 +4111,27 @@ function drawPads(c, now){
     c.strokeStyle="rgba(255,255,255,.6)"; c.lineWidth=1.2;
     c.beginPath(); c.moveTo(live[b].x,live[b].y); c.lineTo(fp.x,fp.y); c.stroke();
   }
-  /* one ray out, and it is the only thing that touches him */
+  /* {B} IT LANDS ON THE SHELL, NOT IN HIS FACE {B}
+     The ray ran to W.x,W.y - his CENTRE - so it crossed the knotwork and the
+     head and terminated somewhere behind his nose, which reads as the beam
+     passing through him rather than hitting him. His ring is the armour and it
+     is the thing being cut, so the line stops on its outer edge and the impact
+     sits where the damage is actually being done. */
   var wdt=6+k*5.5;
+  var rda=Math.atan2(W.y-fp.y, W.x-fp.x), rdr=walkerR()*0.99;
+  var hitx=W.x-Math.cos(rda)*rdr, hity=W.y-Math.sin(rda)*rdr;
   c.strokeStyle="rgba(190,150,255,.75)"; c.lineWidth=wdt;
-  c.beginPath(); c.moveTo(fp.x,fp.y); c.lineTo(W.x,W.y); c.stroke();
+  c.beginPath(); c.moveTo(fp.x,fp.y); c.lineTo(hitx,hity); c.stroke();
   c.strokeStyle="rgba(255,252,255,.95)"; c.lineWidth=wdt*0.38;
-  c.beginPath(); c.moveTo(fp.x,fp.y); c.lineTo(W.x,W.y); c.stroke();
+  c.beginPath(); c.moveTo(fp.x,fp.y); c.lineTo(hitx,hity); c.stroke();
+  /* the point of contact, which is where the numbers come off */
+  var hg=c.createRadialGradient(hitx,hity,0,hitx,hity,wdt*2.6);
+  hg.addColorStop(0,"rgba(255,255,255,.85)");
+  hg.addColorStop(0.4,"rgba(210,175,255,.45)");
+  hg.addColorStop(1,"rgba(160,120,255,0)");
+  c.fillStyle=hg; c.beginPath(); c.arc(hitx,hity,wdt*2.6,0,6.28318); c.fill();
   c.globalCompositeOperation="source-over";
+  F.hitPt = { x:hitx, y:hity };
 }
 
 /* ════════════════════ WHICH OF THE EIGHT AM I LOOKING AT ════════════════════
@@ -4028,8 +4161,9 @@ function drawPhaseTag(c){
       "hp " + (100*F.hpW/F.hpWmax).toFixed(1) + "%" +
       (F.brk ? ("   ->  gate " + gate + "%") : "    shield UP")],
     ['600 12px ui-monospace,Consolas,monospace',
-      DEVPAUSE.on ? "#ffd36b" : "rgba(150,144,140,.70)", 0,
-      DEVPAUSE.on ? "PAUSED \u2014 ` to resume" : "`  panel      shift+enter  retry"]
+      DEVPAUSE.on ? "#ffd36b" : (GODMODE ? "#ff6b6b" : "rgba(150,144,140,.70)"), 0,
+      DEVPAUSE.on ? "PAUSED \u2014 ` to resume" : (GODMODE ? "INVULNERABLE \u2014 i to turn it off"
+                             : "`  panel   shift+enter  retry   i  invuln")]
   ];
   var h = pad*2 + 12;                    /* the last line's own descent */
   for (var li=0; li<lines.length; li++) h += lines[li][2];
@@ -4367,6 +4501,7 @@ function frame(now){
     drawPads(c, CLOCK);
     drawBullets(c);
     drawShocks(c);
+    dmgNumDraw(c);
     drawPlayer(c);
     c.restore();
 
@@ -4490,7 +4625,7 @@ function devPauseToggle(now){
     DEVPAUSE.on = true; DEVPAUSE.at = now;
     tunePanel().style.display = "block";
     clearKeys();
-    if (typeof MUSIC !== "undefined" && MUSIC){ try { MUSIC.pause(); } catch(e){} }
+    musicPause();
   } else {
     /* EVERY MONOTONIC STAMP MOVES FORWARD BY THE TIME WE STOOD STILL, or the
        whole pattern table is overdue on the first frame back. */
@@ -4502,9 +4637,7 @@ function devPauseToggle(now){
     if (F.bombAt)  F.bombAt  += d;
     DEVPAUSE.on = false;
     if (DEVPAUSE.el) DEVPAUSE.el.style.display = "none";
-    if (typeof MUSIC !== "undefined" && MUSIC && !muted()){
-      try { var mp = MUSIC.play(); if (mp && mp.catch) mp.catch(function(){}); } catch(e){}
-    }
+    musicResume();
   }
 }
 
@@ -4522,9 +4655,10 @@ function restartFight(){
   if (DEVPAUSE.on) devPauseToggle(performance.now());
   clearKeys();
   playerReveal(); fightStart();
-  if (typeof MUSIC !== "undefined" && MUSIC && !muted()){
-    try { MUSIC.currentTime = 0; var mp = MUSIC.play(); if (mp && mp.catch) mp.catch(function(){}); }
-    catch(e){}
+  /* a retry starts the score again from the top, like the fight does */
+  musicStop();
+  if (!muted()){
+    try { var mp = MUSIC.play(); if (mp && mp.catch) mp.catch(function(){}); } catch(e){}
   }
 }
 
@@ -4540,6 +4674,9 @@ window.addEventListener("keydown", function(e){
   /* before the freeze guard, so it works while frozen and from the death screen */
   if (e.code==="Enter" && e.shiftKey && typeof DEV !== "undefined" && DEV){
     restartFight(); e.preventDefault(); return;
+  }
+  if (e.code==="KeyI" && typeof DEV !== "undefined" && DEV){
+    GODMODE = !GODMODE; e.preventDefault(); return;
   }
   if (DEVPAUSE.on) return;              /* the arena is frozen; it gets no input */
   var k=KEYMAP[e.code]; if (!k) return;
@@ -4590,7 +4727,7 @@ function fightStart(){
      leftover brk starts the fight already hittable with the ring intact, a
      leftover won puts the escalation at the top with no tiles on the floor,
      and a leftover spd is a silent 15% carried into a fresh run. */
-  F.brk=0; F.won=0; F.spd=1; pulseHue=0; F.mvN=0;
+  F.brk=0; F.won=0; F.spd=1; pulseHue=0; F.mvN=0; F.pulseAt=0; F.brkPost=null; F.pulseAt=0;
   F.station = topStation();
   /* THE FIRING CLOCKS RESET WITH THE FIGHT. Both are "the timestamp of the last
      shot", compared against a monotonic clock — which is safe in play and not
@@ -4610,7 +4747,7 @@ function fightStart(){
      just been given control. Ninety objects moving at once is not a backdrop,
      it reads as the fight having already started without you. The shatter is
      the CUTSCENE's; the fight gets a clean floor. */
-  shots=[]; shocks=[]; sparks=[]; shardsClear(); buildPads();
+  shots=[]; shocks=[]; sparks=[]; shardsClear(); dmgNums=[]; dmgAcc=0; buildPads();
   /* AFTER buildPads(), because that is what reads padPower, and his pool is
      derived from it. Both are frozen for the fight here so a purchase between
      phases cannot resize him halfway down the bar. */
@@ -4657,8 +4794,30 @@ function loadAssets(){
        Nothing else about the cue changes: still one Audio element decoded up
        front, because the fight's beats are timed off it. The .wav stays on
        disk as the master and is gitignored - it is not something to deploy. */
+    /* {B} THE FIRST TRACK DOES NOT LOOP, IT HANDS OVER {B}
+       It was `loop = true`, so what "the song running out" actually is is the
+       seam - three minutes of build arriving back at bar one with the fight
+       two tiles further along than it was. A boss that escalates for four
+       minutes cannot be scored by one loop.
+
+       So track one plays once and track two takes over and loops under the
+       back half. Two is the one that has to hold: by the time it starts he is
+       violet, the counter-arm is out, and the room does not go quiet for his
+       own moves any more.
+
+       IF TRACK TWO IS NOT THERE, TRACK ONE LOOPS AS BEFORE. The handover is
+       wired off `ended` and a load error just puts the loop back, so dropping
+       the file in is the whole install and nothing breaks before it arrives. */
     MUSIC = new Audio("boss/music/walker_bossfight.mp3");
-    MUSIC.preload="auto"; MUSIC.loop=true; MUSIC.volume=0.55;
+    MUSIC.preload="auto"; MUSIC.loop=false; MUSIC.volume=0.55;
+    MUSIC2 = new Audio("boss/music/walker_bossfight2.mp3");
+    MUSIC2.preload="auto"; MUSIC2.loop=true; MUSIC2.volume=0.55;
+    MUSIC2.addEventListener("error", function(){ MUSIC2 = null; MUSIC.loop = true; });
+    MUSIC.addEventListener("ended", function(){
+      if (!live || muted()) return;
+      if (MUSIC2){ try { MUSIC2.currentTime = 0; var p2=MUSIC2.play();
+        if (p2 && p2.catch) p2.catch(function(){}); } catch(e){} }
+    });
   }
 }
 
@@ -4714,7 +4873,7 @@ function bossStop(){
   if (DEVPAUSE.el) DEVPAUSE.el.style.display = "none";
   fightStop(); playerHide(); hideSubs(); hideBang();
   shardsClear(); sparks=[]; voiceStop();
-  if (MUSIC){ MUSIC.pause(); MUSIC.currentTime=0; }
+  musicStop();
   window.bossDead=null; repaint();
   boardGone=false;
   document.body.classList.remove("boss","boardgone");
@@ -4774,6 +4933,8 @@ function devJump(row){
 window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                 jump:devJump, gates:GATE, esc:esc, tune:TUNE,
                 deaths:deathCount, restart:restartFight,
+                dmg:function(){ return dmgNums; },
+                god:function(v){ if(v!==undefined) GODMODE=!!v; return GODMODE; },
                 /* the phase palette, exported so a test can read the colour a
                    phase actually paints with rather than guess at it */
                 hue:whue, glitch:wglitch, heat:heatRGB, hx:hx,
