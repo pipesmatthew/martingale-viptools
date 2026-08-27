@@ -140,6 +140,13 @@ function restPos(){
 }
 function pC(){ return { x:P.x+P.w/2, y:P.y+P.h/2 }; }
 function walkerR(){ return (WALK/2)*W.scale; }
+/* {B} WHERE HIS SHELL ACTUALLY ENDS {B}
+   Measured off the alpha of walker_ring.png rather than guessed: the art is
+   opaque out to 0.995 of its half-width and visible to 1.007, and it is drawn
+   across exactly WALK pixels - so walkerR() IS the outer edge of the knotwork
+   and anything below it is drawing on top of him. Everything that is supposed
+   to LEAVE him starts here instead. */
+function wedgeR(){ return walkerR()*1.03; }
 
 /* ── sound, on the game's context ──────────────────────────────────────── */
 function ac(){ return (typeof audio === "function") ? audio() : null; }
@@ -210,6 +217,83 @@ function blip(ch){
    therefore behind the veil that darkens it, and it belongs to the game's own
    shooting stars and shockwave rings. This is its own layer, sitting between
    the veil and the board. */
+/* ════════════════════ EVERY SOUND IN THE FIGHT IS SYNTHESISED ════════════════════
+   There are no sample files here and there should not be. The game already
+   builds its cues out of oscillators - thud(), ping(), blip() - the context is
+   open and already gated behind S.muted, and a boss fight needs its cues TUNED
+   far more often than it needs them recorded. Every one of these is a handful
+   of numbers, so "the beam is too shrill" is a one-line change rather than a
+   re-render and a download.
+
+   Two primitives cover all of it: a pitched tone with an envelope, and a
+   band-passed noise burst. Everything routes through one master gain so the
+   whole fight can be balanced in one place.
+
+   THE RULE THAT KEEPS IT FROM BECOMING NOISE: a cue exists only where it tells
+   you something you cannot already see, or confirms something you must not
+   miss. Four hundred bullets do not each get a sound. */
+var SFX_GAIN = null, SFX_VOL = 0.5;
+function sfxBus(){
+  var a = ac(); if (!a) return null;
+  if (!SFX_GAIN || SFX_GAIN.context !== a){
+    SFX_GAIN = a.createGain();
+    SFX_GAIN.gain.value = SFX_VOL;
+    SFX_GAIN.connect(a.destination);
+  }
+  return SFX_GAIN;
+}
+function sfxTone(type, f0, f1, dur, peak, delay){
+  var a = ac(), bus = sfxBus(); if (!a || !bus || muted()) return;
+  var t = a.currentTime + (delay||0);
+  var o = a.createOscillator(), g = a.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(Math.max(20,f0), t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20,f1), t+dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002,peak), t+Math.min(0.03,dur*0.2));
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  o.connect(g); g.connect(bus); o.start(t); o.stop(t+dur+0.02);
+}
+function sfxNoise(dur, peak, f0, f1, q, delay){
+  var a = ac(), bus = sfxBus(); if (!a || !bus || muted()) return;
+  var t = a.currentTime + (delay||0);
+  var n = Math.max(1, Math.floor(a.sampleRate*Math.min(dur,3)));
+  var buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0);
+  for (var i=0;i<n;i++) ch[i] = Math.random()*2-1;
+  var src = a.createBufferSource(); src.buffer = buf;
+  var bp = a.createBiquadFilter();
+  bp.type = "bandpass"; bp.Q.value = q||1.2;
+  bp.frequency.setValueAtTime(Math.max(40,f0), t);
+  bp.frequency.exponentialRampToValueAtTime(Math.max(40,f1), t+dur);
+  var g = a.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002,peak), t+Math.min(0.02,dur*0.15));
+  g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+  src.connect(bp); bp.connect(g); g.connect(bus);
+  src.start(t); src.stop(t+dur+0.02);
+}
+
+/* Named for the EVENT, not the sound, so re-tuning one never means hunting for
+   its call site. Both wind-ups RISE, because a rising pitch is the only thing
+   an ear reads as "not yet, not yet, NOW" without being taught it. */
+var SFX = {
+  runeCharge: function(){ sfxTone("sawtooth",180,720,1.7,0.045); sfxTone("sine",90,360,1.7,0.035); },
+  runeFire:   function(){ sfxNoise(0.5,0.26,2400,400,0.8); sfxTone("sawtooth",900,120,0.45,0.14); },
+  showerWind: function(){ sfxNoise(2.5,0.085,300,3200,0.7); sfxTone("triangle",140,300,2.5,0.03); },
+  showerFire: function(){ sfxNoise(1.5,0.17,4000,1200,0.5); },
+  novaCharge: function(){ sfxTone("sine",60,240,1.7,0.08); sfxTone("sawtooth",120,480,1.7,0.03); },
+  novaFire:   function(){ sfxNoise(1.2,0.30,900,60,0.7); sfxTone("sine",160,32,1.0,0.26); },
+  hit:        function(){ sfxNoise(0.22,0.30,1800,200,1.0); sfxTone("square",320,70,0.20,0.14); },
+  bomb:       function(){ sfxNoise(0.7,0.26,200,5000,0.6); sfxTone("sine",220,40,0.6,0.24); },
+  death:      function(){ sfxTone("sawtooth",300,24,1.5,0.22); sfxNoise(1.4,0.14,800,60,0.5); },
+  tileTick:   function(f){ sfxTone("square",420+520*f,520+620*f,0.05,0.04); },
+  tileDone:   function(){ sfxTone("square",660,1320,0.16,0.10); sfxTone("square",990,1980,0.16,0.06,0.05); },
+  pulse:      function(){ sfxNoise(1.1,0.34,120,3600,0.5); sfxTone("sine",200,34,1.0,0.30);
+                          sfxTone("sawtooth",1400,180,0.7,0.12); },
+  shieldBack: function(){ sfxTone("sawtooth",700,180,0.8,0.16); sfxNoise(0.6,0.14,2200,300,0.8); },
+  bossPulse:  function(){ sfxTone("sine",78,46,0.34,0.17); sfxNoise(0.16,0.06,260,90,0.9); }
+};
+
 var stars = [], starWarp = 0.15;
 function makeStars(){
   stars = [];
@@ -1010,6 +1094,7 @@ function hurtPlayer(n, src, raw){
     playerBlast();
   }
   knock(260,70,0.18,0.20);
+  SFX.hit();
   kick(raw ? 0.25 : 0.9, raw ? 0.18 : 0.5, "255,70,50");
   if (F.hpM<=0) playerDied();
 }
@@ -1041,6 +1126,7 @@ function deathCount(){
 function playerDied(){
   if (F.over) return;
   F.over = "walker";
+  SFX.death();
   /* the input goes too - a key held through the death would otherwise still be
      held when the next run starts */
   P.vx = 0; P.vy = 0; clearKeys();
@@ -1256,8 +1342,13 @@ function stepPads(dt){
     var pd = pads[i];
     if (pd.won) continue;
     if (Math.abs(m.x-pd.x) < PAD_W*0.5 && Math.abs(m.y-pd.y) < PAD_W*0.5){
+      var was = pd.t;
       pd.t += dt*1000;
-      if (pd.t >= PAD_CHARGE_MS){ pd.t = PAD_CHARGE_MS; breakShield(pd); }
+      /* a tick every 700ms of charge, climbing in pitch - thirteen and a half
+         seconds of standing still under fire should be audibly going somewhere */
+      if (Math.floor(pd.t/700) !== Math.floor(was/700) && pd.t < PAD_CHARGE_MS)
+        SFX.tileTick(pd.t/PAD_CHARGE_MS);
+      if (pd.t >= PAD_CHARGE_MS){ pd.t = PAD_CHARGE_MS; SFX.tileDone(); breakShield(pd); }
     }
   }
 }
@@ -1310,9 +1401,8 @@ function breakShield(pd){
      on his bar. A bomb and a quarter of your health means the staircase is a
      RESOURCE decision as well as a damage one - and it is what makes taking the
      fourth tile survivable rather than merely optimal. */
-  /* RESTORED, not accumulated - it is a refill of the one you have, so taking
-     a tile with it still in hand is not wasted, it just is not doubled. */
-  F.bombs = BOMB_MAX;
+  /* filled to whatever the new tile count allows - see bombMax() */
+  F.bombs = bombMax();
   /* 30% - one and a half hits back, so a tile is worth taking even at full
      health minus one, and never quite a free extra life */
   F.hpM = Math.min(F.hpMmax, F.hpM + F.hpMmax*0.30);
@@ -1326,6 +1416,7 @@ function breakShield(pd){
      to have wiped the room, which reads as the pulse not working. */
   F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 0;
   shots = []; sparks = []; patHush();
+  SFX.pulse();
   kick(2.2, 1.15, "255,220,180"); knock(1600, 520, 0.55, 0.42);
   burst(W.x, W.y, 260, 1400);
   shocks.push({ x:W.x, y:W.y, r:Math.max(VW(),VH())*1.15, t:0, ms:PULSE_GRACE });
@@ -1359,6 +1450,7 @@ function restoreShield(){
      charge has to wait for it. The tile is still there; it is just not free. */
   F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 1; F.mvN = 0; F.brkPost = null;
   shots = []; sparks = []; patHush();
+  SFX.shieldBack();
   kick(1.6, 0.8, "150,190,255"); knock(1200, 400, 0.45, 0.34);
   voicePlay("irrelevant", true);
 }
@@ -1384,7 +1476,19 @@ var CLEAR_R = 300;
    makes the bomb and the tile the same economy rather than two separate ones -
    spending it is what sends you to the next tile, and taking the tile is what
    pays for the next spend. */
-var BOMB_START = 1, BOMB_MAX = 1, BOMB_R = 520, BOMB_IFRAME = 1000, BOMB_COOL = 600;
+/* {B} ONE BOMB PER TILE YOU HAVE TAKEN {B}
+   The cap IS the tile count: no tiles, no bomb; four tiles, four. So the panic
+   button is not a resource you are issued, it is a thing the fight pays you for
+   the most dangerous work in it - and by break 4 you are holding four of them
+   going into the phase that needs them.
+
+   REFILLED TO FULL EVERY TIME, not incremented. Taking a tile with two already
+   in hand still leaves you topped up rather than punished for saving them.
+
+   THE OPENING HAS NO BOMB AT ALL, which is the deliberate cost of this: the
+   first tile is charged with nothing to fall back on. */
+var BOMB_START = 0, BOMB_R = 520, BOMB_IFRAME = 1000, BOMB_COOL = 600;
+function bombMax(){ return F.won|0; }
 
 /* ═══════════════════════ THE REWIND ════════════════════════════════════════
    He does not die. At zero health the name on the bar becomes THETIMEWALKER,
@@ -1497,7 +1601,7 @@ function rewindDone(){
 function useBomb(now){
   if (!F.on || F.over || !P.live || rewinding) return;
   if (F.bombs <= 0 || now - F.bombAt < BOMB_COOL) return;
-  F.bombs--; F.bombAt = now;
+  F.bombs--; F.bombAt = now; SFX.bomb();
   var m = pC(), i;
   for (i=shots.length-1;i>=0;i--)
     if (Math.hypot(shots[i].x-m.x, shots[i].y-m.y) < BOMB_R) shots.splice(i,1);
@@ -2546,7 +2650,11 @@ function fireShot(){ patAimed(); }
    spray uses, which is why they need their own call rather than a bigger rate
    on the old one. */
 function aoeSparks(dt, rate){
-  var R=walkerR()*0.94, n=rate*dt;
+    /* {B} THEY LEAVE THE SHELL {B}
+     0.94 is inside the knotwork, so every spark he throws was born under his
+     own art and travelled out through his face - which at the nova's 26,000 a
+     second reads as him dissolving rather than as him firing. */
+  var R=wedgeR(), n=rate*dt;
   var count = Math.floor(n) + (Math.random()<(n%1) ? 1 : 0);
   var M0 = F.move, firing = !!(M0 && M0.id==="aoe" && M0.phase!=="tell" && M0.doorAng!==undefined);
   var sgn = firing ? (((M0.dir||-1)<0)?-1:1) : 1;
@@ -2722,6 +2830,7 @@ function fightStep(dt, now){
     if (!F.pulseAt || F.t > F.pulseAt){
       F.pulseAt = F.t + 1500;
       shocks.push({ x:W.x, y:W.y, r:walkerR()*2.7, t:0, ms:950 });
+      SFX.bossPulse();
       kick(0.30, 0.18, "255,170,70");
     }
   }
@@ -2734,6 +2843,11 @@ function fightStep(dt, now){
      downstream switches on that id and not one of them has a default. */
   if (!F.move && F.t >= F.next && moveSet().length){
     F.move = { id:pickMove(), t:0, phase:"tell" };
+    /* the wind-up cue goes here, once, where the move is BORN - in the tell
+       branch it would retrigger every frame for 1.8 to 2.6 seconds */
+    if (F.move.id==="runes") SFX.runeCharge();
+    else if (F.move.id==="aoe") SFX.showerWind();
+    else if (F.move.id==="nova") SFX.novaCharge();
     /* THE COPY, taken before a single spark exists — see gapIn().
 
        AND ONLY ONE DOOR, however much of him is missing. Every broken sector was
@@ -2880,7 +2994,7 @@ function fightStep(dt, now){
            the spin has not started. */
         aoeSparks(dt, 40 + 120*(M.t/AOE_WIND));
         if (M.t>=AOE_WIND){
-          M.phase="fire"; M.t=0; F.aoeTick=0; kick(1.3, 0.75, "255,170,70");
+          M.phase="fire"; M.t=0; F.aoeTick=0; SFX.showerFire(); kick(1.3, 0.75, "255,170,70");
           /* THE DOOR HAS TO OPEN INTO THE ROOM. He fires from the top of the
              arena, so a gap pointing UP is a safe sector the player cannot
              reach — the attack would be unavoidable through no fault of theirs.
@@ -2973,7 +3087,7 @@ function fightStep(dt, now){
            behind its own picture inside half a second and never caught up -
            which is the hitbox not matching the animation. Same speed, same
            drag, same object. */
-        if (M.front === undefined){ M.front = walkerR()*0.94; M.frontV = 1700; }
+        if (M.front === undefined){ M.front = wedgeR(); M.frontV = 1700; }
         M.front += M.frontV*dt;
         M.frontV *= Math.pow(SPARK_DRAG*AOE_DRAG, dt);
 
@@ -3060,7 +3174,7 @@ function fightStep(dt, now){
             }
           }
           if (M.t>=NOVA_TELL){
-            M.phase="fire"; M.t=0; F.novaHeat=1; F.aoeTick=0;
+            M.phase="fire"; M.t=0; F.novaHeat=1; F.aoeTick=0; SFX.novaFire();
             kick(1.6, 0.9, "255,190,110"); knock(80,26,0.7,0.36);
             shocks.push({ x:nc.x, y:nc.y, t:0, ms:900, r:sr });
           }
@@ -3070,7 +3184,7 @@ function fightStep(dt, now){
         /* NO GAP AT ALL. Every other shower he has contains a door; this one
            does not, which is exactly why the answer has to be distance rather
            than angle. */
-        var R2=walkerR()*0.94, n2=26000*dt;
+        var R2=wedgeR(), n2=26000*dt;
         var cnt=Math.floor(n2)+(Math.random()<(n2%1)?1:0);
         for (var i2=0;i2<cnt;i2++){
           var a2=Math.random()*6.28318, out2=950+Math.random()*1500;
@@ -3080,7 +3194,7 @@ function fightStep(dt, now){
         }
         /* the nova has the same wavefront, for the same reason — it just also
            has an outer limit, because reaching the rim is the whole dodge */
-        if (M.front === undefined){ M.front = walkerR()*0.94; M.frontV = 1700; }
+        if (M.front === undefined){ M.front = wedgeR(); M.frontV = 1700; }
         M.front += M.frontV*dt;
         M.frontV *= Math.pow(SPARK_DRAG*AOE_DRAG, dt);
         F.aoeTick -= dt*1000;
@@ -3133,7 +3247,7 @@ function fightStep(dt, now){
           }
         }
         if (M.t>=RUNE_CHARGE){
-          M.phase="fire"; M.t=0; F.runeHeat=1;
+          M.phase="fire"; M.t=0; F.runeHeat=1; SFX.runeFire();
           kick(1.1, 0.6, "255,170,70"); knock(150,40,0.5,0.30);
         }
       } else {
@@ -3480,7 +3594,7 @@ function fightDraw(c){
        not need colouring, it needs to be the part that was LEFT. The scrub
        either side is what says so. This is now barely a breath, just enough that
        the clean ground reads as deliberate rather than as a hole in the hatch. */
-    var gr=c.createRadialGradient(W.x,W.y,walkerR()*0.9,W.x,W.y,far);
+    var gr=c.createRadialGradient(W.x,W.y,wedgeR(),W.x,W.y,far);
     /* ════════════════════ THE SAFE GROUND IS DRAWN IN HIS COLOUR ════════════════════
        It was cyan - a colour belonging to nothing else in the fight - which
        made the one marking on the floor look like a UI overlay rather than
@@ -3505,7 +3619,7 @@ function fightDraw(c){
     for (var ke=0; ke<2; ke++){
       var kea=a0+ke*DOOR_SPAN;
       c.beginPath();
-      c.moveTo(W.x+Math.cos(kea)*walkerR()*0.9, W.y+Math.sin(kea)*walkerR()*0.9);
+      c.moveTo(W.x+Math.cos(kea)*wedgeR(), W.y+Math.sin(kea)*wedgeR());
       c.lineTo(W.x+Math.cos(kea)*far, W.y+Math.sin(kea)*far);
       c.stroke();
     }
@@ -3516,7 +3630,7 @@ function fightDraw(c){
     for (var ee=0; ee<2; ee++){
       var ea=a0+ee*DOOR_SPAN;
       c.beginPath();
-      c.moveTo(W.x+Math.cos(ea)*walkerR()*0.9, W.y+Math.sin(ea)*walkerR()*0.9);
+      c.moveTo(W.x+Math.cos(ea)*wedgeR(), W.y+Math.sin(ea)*wedgeR());
       c.lineTo(W.x+Math.cos(ea)*far, W.y+Math.sin(ea)*far);
       c.stroke();
     }
@@ -3557,8 +3671,15 @@ function fightDraw(c){
       lead.addColorStop(0, "rgba(4,3,8," + (0.30 + 0.44*prog).toFixed(3) + ")");
       lead.addColorStop(1, "rgba(4,3,8," + (0.16 + 0.34*prog).toFixed(3) + ")");
       c.save();
-      c.beginPath(); c.moveTo(W.x, W.y);
+      /* {B} THE SCRUB IS A RING SECTOR, NOT A PIE {B}
+         A pie from his centre laid the darkening straight over his art, and a
+         56-94% black wash over the boss turns him grey for the whole wind-up -
+         he looked switched off. Closing the near end at wedgeR() instead of at
+         his centre takes the floor away and leaves HIM alone, which is what it
+         was always meant to do. */
+      c.beginPath();
       c.arc(W.x, W.y, far, s0, s0 + sdir*swept, sdir < 0);
+      c.arc(W.x, W.y, wedgeR(), s0 + sdir*swept, s0, sdir >= 0);
       c.closePath();
       c.clip();
       c.fillStyle = lead;
@@ -3693,12 +3814,11 @@ function fightDraw(c){
         c.moveTo(0,-hh); c.lineTo(far2,-hh);
         c.moveTo(0, hh); c.lineTo(far2, hh);
         c.stroke();
-        /* THE MOUTH, so the beam looks emitted rather than placed */
-        var mfg=c.createRadialGradient(0,0,0,0,0,hh*4.2);
-        mfg.addColorStop(0,"rgba(255,255,255,.85)");
-        mfg.addColorStop(0.35,"rgba("+hx("255,214,150")+",.45)");
-        mfg.addColorStop(1,"rgba("+hx("255,110,20")+",0)");
-        c.fillStyle=mfg; c.beginPath(); c.arc(0,0,hh*4.2,0,6.28318); c.fill();
+        /* NO MOUTH FLARE. It read well in the mockup and badly in the fight,
+           because the mockup drew one beam from the edge of a frame and the
+           fight draws TWO from marks that sit INSIDE his art - so it came out
+           as a pair of lens flares parked on his face. The beam already looks
+           emitted; it leaves from a rune that is already lit. */
         c.restore();
       } else if (F.runeHeat>0.15){
         /* {B} A BARE STROKE ON A STARFIELD IS NOT A TELEGRAPH {B}
@@ -4347,7 +4467,7 @@ function drawHUD(c){
      so it is never a mystery symbol. */
   var segN = HITS_TO_DIE, segW = 46, segH = 16, segGap = 4;
   var hpW2 = segN*segW + (segN-1)*segGap;
-  var bombD = 34, blockW = hpW2 + 26 + bombD;
+  var bombD = 30, blockW = hpW2 + 26 + Math.max(1,(F.won|0))*(bombD+6);
   var mx = (w - blockW)/2, my = VH()-34;
   var hpLeft = F.hpM/F.hpMmax*segN;          /* in hits, not fractions */
 
@@ -4373,22 +4493,31 @@ function drawHUD(c){
     c.strokeRect(sx3+0.5, my+0.5, segW-1, segH-1);
   }
 
-  var bcx = mx + hpW2 + 26 + bombD/2, bcy = my + segH/2;
-  if (F.bombs > 0){
-    var bg2 = c.createRadialGradient(bcx,bcy,1,bcx,bcy,bombD/2);
-    bg2.addColorStop(0,"#dff4ff"); bg2.addColorStop(0.55,"#6cc4f5"); bg2.addColorStop(1,"#1d5f8c");
-    c.fillStyle = bg2;
-    c.beginPath(); c.arc(bcx,bcy,bombD/2-3,0,6.28318); c.fill();
-    c.strokeStyle="rgba(215,245,255,.95)"; c.lineWidth=2;
-    c.beginPath(); c.arc(bcx,bcy,bombD/2-1,0,6.28318); c.stroke();
-  } else {
-    c.strokeStyle="rgba(110,125,140,.5)"; c.lineWidth=2;
-    c.beginPath(); c.arc(bcx,bcy,bombD/2-3,0,6.28318); c.stroke();
+  /* {B} AS MANY SLOTS AS TILES, AND NO EMPTY PROMISES {B}
+     The row is exactly bombMax() long, so before the first tile there is
+     nothing drawn there at all rather than a hollow circle implying a bomb you
+     cannot earn yet. Held ones are lit and ringed; spent ones are hollow. */
+  var bmax = bombMax(), bcy = my + segH/2;
+  for (var bq=0; bq<bmax; bq++){
+    var bcx = mx + hpW2 + 26 + bombD/2 + bq*(bombD+6);
+    if (bq < F.bombs){
+      var bg2 = c.createRadialGradient(bcx,bcy,1,bcx,bcy,bombD/2);
+      bg2.addColorStop(0,"#dff4ff"); bg2.addColorStop(0.55,"#6cc4f5"); bg2.addColorStop(1,"#1d5f8c");
+      c.fillStyle = bg2;
+      c.beginPath(); c.arc(bcx,bcy,bombD/2-3,0,6.28318); c.fill();
+      c.strokeStyle="rgba(215,245,255,.95)"; c.lineWidth=2;
+      c.beginPath(); c.arc(bcx,bcy,bombD/2-1,0,6.28318); c.stroke();
+    } else {
+      c.strokeStyle="rgba(110,125,140,.5)"; c.lineWidth=2;
+      c.beginPath(); c.arc(bcx,bcy,bombD/2-3,0,6.28318); c.stroke();
+    }
   }
-  c.font = "700 9px ui-monospace,Consolas,monospace";
-  c.textAlign="center";
-  c.fillStyle = F.bombs > 0 ? "rgba(200,235,255,.9)" : "rgba(110,125,140,.6)";
-  c.fillText("SHIFT", bcx, my+segH+12);
+  if (bmax){
+    c.font = "700 9px ui-monospace,Consolas,monospace";
+    c.textAlign="center";
+    c.fillStyle = F.bombs > 0 ? "rgba(200,235,255,.9)" : "rgba(110,125,140,.6)";
+    c.fillText("SHIFT", mx + hpW2 + 26 + bombD/2 + (bmax-1)*(bombD+6)/2, my+segH+12);
+  }
 
   c.font = "700 11px ui-monospace,Consolas,monospace";
   c.textAlign="center";
@@ -5019,6 +5148,9 @@ function devJump(row){
 window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                 jump:devJump, gates:GATE, esc:esc, tune:TUNE,
                 deaths:deathCount, restart:restartFight,
+                /* the cue kit and its bus, so a test can fire one and measure it
+                   without having to hear it */
+                sfx:SFX, sfxBus:sfxBus,
                 dmg:function(){ return dmgNums; },
                 god:function(v){ if(v!==undefined) GODMODE=!!v; return GODMODE; },
                 /* the phase palette, exported so a test can read the colour a
