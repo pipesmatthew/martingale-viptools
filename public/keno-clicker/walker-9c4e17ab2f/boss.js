@@ -1197,6 +1197,8 @@ function stepPads(dt){
    Both transitions wipe the screen, and dropping a wind-up into the first
    frame after a wipe spends the clear on nothing. */
 var PULSE_GRACE = 1600;
+/* how long the very first main phase waits before he does anything at all */
+var OPEN_PAUSE = 2200;
 
 /* ════════════════════ A WIPE THAT REFILLS IN THE SAME FRAME IS NOT A WIPE ════════════════════
    Emptying `shots` is not enough on its own: every pattern whose interval had
@@ -1237,7 +1239,9 @@ function breakShield(pd){
      on his bar. A bomb and a quarter of your health means the staircase is a
      RESOURCE decision as well as a damage one - and it is what makes taking the
      fourth tile survivable rather than merely optimal. */
-  F.bombs += 1;
+  /* RESTORED, not accumulated - it is a refill of the one you have, so taking
+     a tile with it still in hand is not wasted, it just is not doubled. */
+  F.bombs = BOMB_MAX;
   F.hpM = Math.min(F.hpMmax, F.hpM + F.hpMmax*0.25);
   /* the hue is thrown forward and falls back over the next second or so */
   pulseHue = 150;
@@ -1300,7 +1304,14 @@ var CLEAR_R = 300;
    enough to walk out of whatever you bombed rather than being dropped straight
    back into it. They do not come back, so the question the fight asks at the
    end is "did you save one". */
-var BOMB_START = 3, BOMB_R = 520, BOMB_IFRAME = 1000, BOMB_COOL = 600;
+/* ════════════════════ ONE BOMB, AND A TILE GIVES IT BACK ════════════════════
+   Three was a stock of panic buttons you spent down over a fight. One is a
+   DECISION: the only clear-the-room you have, and the only way to get another
+   is to go and stand on a tile for thirteen and a half seconds under fire. That
+   makes the bomb and the tile the same economy rather than two separate ones -
+   spending it is what sends you to the next tile, and taking the tile is what
+   pays for the next spend. */
+var BOMB_START = 1, BOMB_MAX = 1, BOMB_R = 520, BOMB_IFRAME = 1000, BOMB_COOL = 600;
 
 /* ═══════════════════════ THE REWIND ════════════════════════════════════════
    He does not die. At zero health the name on the bar becomes THETIMEWALKER,
@@ -1821,7 +1832,7 @@ var TUNE = {
      than a rebuild. */
   aimed:350, aimEvery:700, aimWave:60, aimWaveHz:0,
   fan:110, fanW:460, fanRows:1,
-  ring:112, spiral:124, counter:105, snipe:496, volley:660, padCharge:13500,
+  ring:112, spiral:124, counter:105, snipe:496, volley:660, padCharge:13500, moveGap:0.50,
   runeTell:1800, aoeTell:2600, novaTell:1800
 };
 /* ════════════════════ IT WAS A LINE, AND A LINE IS NOT A DODGE ════════════════════
@@ -2455,10 +2466,19 @@ function aoeSpin(){ return 0.36 + 0.21*esc(); }   /* rad/s */
    sorting themselves out — they demand a flinch, and there is no room to flinch
    in yet. Everything else resumes immediately; only the fast pair waits. */
 var BIG_QUIET = 1000;
+/* ════════════════════ THE GAPS WERE WRITTEN FOR A LONGER PHASE THAN THIS ════════════════════
+   4000-4400ms of rest between moves, on top of 3.2-4.1s of wind-up and fire, is
+   a seven-and-a-half-second cycle. A main phase is the thirteen and a half
+   seconds a tile takes, so he was landing ONE ability in it and the player spent
+   the rest of the charge watching an empty room - which is the whole of "we
+   barely even see his abilities".
+
+   The rest is scaled rather than rewritten, so the relative shape stays: the
+   shower still gets the longest breath after it, the runes the shortest. */
 function endMove(gap){
   if (F.move && (F.move.id==="aoe"||F.move.id==="nova"||F.move.id==="runes"))
     F.bigEnd = F.t;
-  F.move=null; F.next=F.t+gap;
+  F.move=null; F.next=F.t+gap*TUNE.moveGap;
 }
 
 /* `F.armed` IS NOW ALWAYS TRUE and this is the one place that says so. Kept
@@ -3252,17 +3272,34 @@ function fightDraw(c){
       var s0 = aoeSweepStart(F.move);
       var prog = Math.min(1, F.aoeGlow||0);
       var swept = (6.28318 - DOOR_SPAN) * prog;
-      var rr2 = walkerR()*0.9 + Math.min(VW(),VH())*0.18;
+      /* ════════════════════ THE CLOCK BELONGS IN THE ROOM, NOT ON HIM ════════════════════
+         It was drawn around HIM, which is where the sweep actually comes from -
+         and that is exactly why nobody could read it. He stands at 0.76 of the
+         width behind a wall the player cannot cross, so an arc centred on him
+         spends most of its circumference off the board or underneath a boss who
+         is already covered in sparks.
+
+         The ANGLES are what carry the information - how far along, and which way
+         - and those are unchanged. Only the centre moves, to the middle of the
+         floor you are allowed to stand on. It is a clock face, not a diagram of
+         the attack; the wedge above is the diagram, and it still comes off him. */
+      var rc = { x: VW()*PLAY_MAX_X*0.5, y: VH()*0.5 };
+      var rr2 = Math.min(VW()*PLAY_MAX_X, VH())*0.40;
       c.strokeStyle = "rgba("+hx("255,190,110")+"," + (0.20 + 0.55*prog).toFixed(3) + ")";
       c.lineWidth = 3;
       c.beginPath();
-      c.arc(W.x, W.y, rr2, s0, s0 + sdir*swept, sdir < 0);
+      c.arc(rc.x, rc.y, rr2, s0, s0 + sdir*swept, sdir < 0);
       c.stroke();
+      /* the track it runs on, so a part-finished arc reads as part-finished
+         rather than as a stray line */
+      c.strokeStyle = "rgba("+hx("255,190,110")+",0.10)";
+      c.lineWidth = 3;
+      c.beginPath(); c.arc(rc.x, rc.y, rr2, 0, 6.28318); c.stroke();
       /* the head, so the DIRECTION cannot be misread */
       var ha = s0 + sdir*swept;
       c.fillStyle = "rgba("+hx("255,226,170")+"," + (0.35 + 0.6*prog).toFixed(3) + ")";
       c.beginPath();
-      c.arc(W.x + Math.cos(ha)*rr2, W.y + Math.sin(ha)*rr2, 7, 0, 6.28318);
+      c.arc(rc.x + Math.cos(ha)*rr2, rc.y + Math.sin(ha)*rr2, 8, 0, 6.28318);
       c.fill();
     }
   }
@@ -4071,6 +4108,7 @@ var TUNE_SPEC = [
   ["snipe",    "snipe",          150,  900,  10],
   ["volley",   "volley (fastest)",150, 900,  10],
   ["padCharge","tile charge (ms)",2000,25000, 250],
+  ["moveGap",  "rest between moves",0.15, 1.5, 0.05],
   ["runeTell", "rune wind-up",   400, 5000,  50],
   ["aoeTell",  "shower wind-up", 400, 6000,  50],
   ["novaTell", "nova charge",    400, 5000,  50]
@@ -4208,7 +4246,12 @@ function fightStart(){
   /* FIVE SECONDS BEFORE HE DOES ANYTHING. The fight used to start swinging at
      1.1s, on top of a cutscene that had just ended in an explosion. The opening
      seconds belong to the player finding themselves on the screen. */
-  F.on=true; F.over=null; F.move=null; F.t=0; F.next=5000;
+  /* THE OPENING PAUSE WAS FIVE SECONDS, and it was right when the only way in
+     was a cutscene you watched once. With Shift+Enter on the death screen this
+     is a room you re-enter every thirty seconds, and five of them staring at an
+     empty arena is most of the first tile. Long enough to find yourself on the
+     screen, and no longer. */
+  F.on=true; F.over=null; F.move=null; F.t=0; F.next=OPEN_PAUSE;
   F.hpW=F.hpWmax; F.hpM=F.hpMmax; F.iframe=0;
   F.repair=0; F.armed=false; F.station=null; F.lock=null;
   /* THE PIECE THAT HIT THE BOARD IS THE PIECE THAT BREAKS. A random segment was
@@ -4398,7 +4441,12 @@ function devJump(row){
   F.broken = [];
   if (F.brk){ for (var q=0;q<SEGS;q++) F.broken.push(q); }
   else F.broken.push(segmentAt(Math.PI/2));
-  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 0;
+  /* A MAIN PHASE REACHED BY PLAYING OPENS ON THE SHOWER - restoreShield sets
+     moveIx to 1 so the tile is not free - so a jump has to do the same, or the
+     rows it lands on are a different fight from the one they stand for. Row 1
+     is the exception: the opening is deliberately the runes. */
+  F.move = null; F.next = F.t + PULSE_GRACE;
+  moveIx = (main && row > 1) ? 1 : 0;
   shots = []; sparks = []; F.ghost = undefined;
   return "row " + row + (main ? " main" : " break " + brk)
        + " - " + F.won + " tiles, hp " + Math.round(F.hpW) + "/" + F.hpWmax
