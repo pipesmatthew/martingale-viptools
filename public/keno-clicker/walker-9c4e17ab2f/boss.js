@@ -481,9 +481,6 @@ function sparkDraw(c){
 
 /* ── the fight ─────────────────────────────────────────────────────────── */
 var SEGS = 5, SEG = 6.28318/SEGS;
-/* one shield segment. Arbitrary by itself - the damage is solved backwards from
-   it so that a round takes roundSeconds(). */
-var SEG_HP = 2370;
 /* ══════════ RADIANS PER SECOND. EVERYTHING HERE USED TO BE PER FRAME ═══════
    `W.ang += W.spin` had no dt in it, so every rotation in the fight was
    measured in radians per FRAME. On the 60Hz machine it was written on that is
@@ -546,11 +543,7 @@ var F = {
      was asked for and also what the staircase wants — the fourth tile has to
      have time left to be worth lighting. */
   hpW:2200, hpWmax:2200, hpM:1050, hpMmax:1050,
-  /* A ROUND ENDS WHEN HIS SHIELD GIVES, and nothing holds it shut - so every
-     upgrade genuinely shortens the fight instead of being absorbed by a timer.
-     The number is arbitrary on its own; padPower() is solved backwards from it
-     and from how long a round is meant to take. See roundSeconds(). */
-  broken:[], segHP:SEG_HP, segHPmax:SEG_HP,
+  broken:[], segHP:760, segHPmax:760,
   repair:0, armed:false, iframe:0, station:null, lock:null, shotAt:0, shotAt2:0, roamAt:0,
   aoeTick:0, runeHeat:0, novaHeat:0, aoeGlow:0, bombs:0, bombAt:0,
   dmgBy:{}
@@ -602,15 +595,6 @@ function shotDmg(){ return F.hpMmax * SHOT_FRAC; }
    the speed of what is thrown at them, which is what makes a screen of two
    hundred bullets a puzzle rather than a wall. 155 against 430. */
 var SHOT_EVERY=1050, SHOT_SPEED=155;
-/* ROUND 4 IS THE SAME FIGHT ARRIVING SOONER. With the shield gone there is no
-   new mechanic left to introduce, so the last round is every pattern you have
-   already learned, moving 35% faster - which changes every reaction time in the
-   game without changing a single shape.
-
-   Applied inside bullet() rather than at each call site, so it reaches the
-   volley's 660px/s rounds as well as the arms. One number, everything. */
-var LAST_ROUND_SPEED = 1.35;
-function shotSpeedMul(){ return phase() >= 5 ? LAST_ROUND_SPEED : 1; }
 /* THE AOE IS THE ONE ATTACK YOU CANNOT BE LUCKY ABOUT. With a nine-pixel
    hitbox, a player who never moves still survives most bullets by accident —
    which is fine for the aimed patterns (missing is the point of a small hitbox)
@@ -1004,43 +988,13 @@ function padRadius(){ return Math.min(VW()*0.32, VH()*0.40); }
 
 /* WHAT YOU BROUGHT WITH YOU. Read once, when the fight starts, so a laser does
    not change strength halfway through because an upgrade ticked over. */
-/* ══════════ A ROUND IS THIRTY SECONDS AT AN $8 BET, MINUS ONE A STEP ══════
-   "we will first encounter walker when we have an $8 bet... each singular
-   increment increase in bet size causes that round to take 1 second less"
-
-   $8 is level 36 of BET_LADDER exactly, and around there the ladder steps a
-   dollar at a time ($7, $8, $9), so one "increment" is one betSize upgrade.
-
-     level 36   $8      30s a round      level 50   $60     16s
-     level 40   $15     26s              level 56   $150    10s
-     level 46   $35     20s              level 60+  $250+     6s (the floor)
-
-   WORKED BACKWARDS FROM THE TIME, not forwards from the stake. The old formula
-   was a linear function of the stake in cents with a hard clamp, so it had no
-   idea how long anything took and capped out at an $0.82 bet - past which every
-   upgrade you bought did nothing to this fight. Deciding the round length first
-   and solving for the damage means the ladder always means something.
-
-   THE FLOOR IS SIX SECONDS. Without it the arithmetic runs to zero and then
-   negative, and a round that ends before his wind-up finishes is not a round.
-
-   AUTO-PLAY SPEED NO LONGER FEEDS THIS. It used to add up to 46 of the old
-   power, but the spec is about bet size and a second lever would break the
-   one-step-one-second promise. Worth revisiting when the progression decides
-   what else should matter here. */
-var BOSS_BET_LEVEL = 36;      /* $8 — where the fight is first met */
-var ROUND_AT_MEET  = 30;      /* seconds there, with every tile lit */
-var ROUND_FLOOR    = 6;       /* seconds — however rich you get */
-function roundSeconds(){
-  var lvl = BOSS_BET_LEVEL;
-  try { if (typeof S === "object" && S && S.upgrades && S.upgrades.betSize != null)
-          lvl = S.upgrades.betSize|0; } catch(e){}
-  return Math.max(ROUND_FLOOR, ROUND_AT_MEET - (lvl - BOSS_BET_LEVEL));
-}
-/* what every tile lit is worth together — k tiles, +30% each after the first */
-function padFullMult(){ var k = PAD_FORCE; return k * (1 + 0.30*(k-1)); }
 function padPower(){
-  return SEG_HP / (padFullMult() * roundSeconds());
+  var betC = 1, sps = 0;
+  try { if (typeof derived === "function"){ var D = derived(); betC = D.betCents || 1; } } catch(e){}
+  try { if (typeof autoSps === "function") sps = autoSps() || 0; } catch(e){}
+  /* a first pass, and it will want tuning against the real ladder: a cent of
+     stake is worth about as much as a tenth of a draw per second */
+  return 9 + Math.min(70, betC * 0.85) + Math.min(46, sps * 7);
 }
 
 function buildPads(){
@@ -1274,7 +1228,6 @@ function hitWalker(n){
   if (shieldLeft() > 0){
     F.segHP -= n;
     if (F.segHP <= 0){
-      F.roundAt = F.t;
       var open=[]; for (var i=0;i<SEGS;i++) if (F.broken.indexOf(i)<0) open.push(i);
       var pick = open[Math.random()*open.length|0];
       F.broken.push(pick); F.segHP = F.segHPmax;
@@ -1311,37 +1264,10 @@ function hitWalker(n){
    interesting thing a bullet hell can do, and it was the only reason the sword
    existed. The charge is gone too — it was the only reason he ever left the
    ceiling, which the nova now does with a point. */
-/* ══════════════ THE FIGHT IS FOUR TIMED ROUNDS, NOT ONE ROTATION ══════════
-   It used to run one script - runes, aoe, nova, forever - so every stage of the
-   fight was the same stage with the numbers turned up. Each break of his shield
-   now opens a round of its own, and each round adds ONE new thing to read:
-
-     round 1   (1st segment)  he thrashes. spiral arms and volley, nothing else.
-     round 2   (2nd)          the beam comes in.
-     round 3   (3rd)          the beam goes away, the wedge arrives, and the
-                              counter arms start turning the other way.
-     round 4   (shield gone)  everything at once, and faster.
-
-   ROUND 3 TAKES THE BEAM BACK OFF. That is deliberate and it is the whole
-   reason the rounds work: something LEAVES, so round 3 is not round 2 plus
-   more, it is a different problem. It returns in round 4 next to the wedge,
-   and by then you have learned both separately.
-
-   The nova is not in any of them. It is the only move that needs the whole
-   screen and it has no room left in a fight this shape - kept in the file,
-   out of the rotation. */
-var PHASE_MOVES = {
-  2: [],                       /* nothing but him, thrashing */
-  3: ["runes"],
-  4: ["aoe"],
-  5: ["runes", "aoe"]
-};
+var MOVE_SCRIPT = ["runes", "aoe", "nova", "runes", "aoe", "nova"];
 var moveIx = 0;
-function phaseMoves(){ return PHASE_MOVES[Math.min(5, Math.max(2, phase()))] || []; }
 function pickMove(){
-  var list = phaseMoves();
-  if (!list.length) return null;
-  return list[moveIx++ % list.length];
+  return MOVE_SCRIPT[moveIx++ % MOVE_SCRIPT.length];
 }
 
 /* ══════════════════════════ HE LIVES AT THE TOP ════════════════════════════
@@ -1431,7 +1357,6 @@ function varyHue(base, i){
 }
 
 function bullet(a, speed, r, hue){
-  speed *= shotSpeedMul();
   var R=walkerR();
   shots.push({ x:W.x+Math.cos(a)*R, y:W.y+Math.sin(a)*R,
                vx:Math.cos(a)*speed, vy:Math.sin(a)*speed,
@@ -1477,10 +1402,28 @@ function bulletFrom(x, y, ang, speed, r, hue){
 function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
 
 function patAimed(){ bullet(aimAtPlayer(), SHOT_SPEED, 9); }
-/* THE FAN AND THE SNIPE ARE BOTH GONE — see the note on PATTERNS. The fan
-   spread as it travelled, so the answer was always to stand between two of it;
-   the snipe fired 30 times in 20 seconds once it was tied to the tiles, which
-   is where the player lives. */
+/* ══════ THE FAN IS A WIDTH, NOT AN ANGLE ══════════════════════════════════
+   A fixed 0.15 rad step means the spread grows with range, and the range is
+   large - the player works the tiles most of a screen away from him. Seven
+   bullets 0.15 apart is 0.90 rad total, which at 750px is a 650px wall with
+   110px gaps in it. You step once into a gap and are then allowed to stop,
+   which is the opposite of what this pattern is for.
+
+   Defining it by the width it will have WHEN IT ARRIVES makes it the same
+   threat at every range: FAN_W across, wherever you stand. The gaps are then
+   narrow enough that drifting into one is not a plan - you have to keep
+   moving, and because he sits to your right the spread is vertical, so moving
+   means up and down the board.
+
+   The middle bullet is aimed exactly at you, so standing perfectly still was
+   never survivable and still is not. */
+var FAN_W = 250;                  /* px across, at whatever range you are */
+function patFan(){
+  var m=pC(), a0=Math.atan2(m.y-W.y, m.x-W.x);
+  var d=Math.max(200, Math.hypot(m.x-W.x, m.y-W.y));
+  var step=(FAN_W/6)/d;           /* seven bullets, six gaps */
+  for (var i=-3;i<=3;i++) bullet(a0 + i*step, SHOT_SPEED*0.92, 8);
+}
 function patRing(){
   /* the ring gets denser too — 24 at first sight, 40 by the end */
   /* the ring's phase walks by a fixed step, so successive rings interleave
@@ -1794,6 +1737,9 @@ function patCounter(){
    a tracer drawn a beat before it — fast enough to demand a flinch, telegraphed
    enough that the flinch is possible. The volley is three of them down the same
    line, so the first one moves you and the next two punish moving carelessly. */
+function patSnipe(){
+  bullet(aimAtPlayer(), 620, 6, "255,240,190");
+}
 function patVolley(){
   var a0=aimAtPlayer();
   for (var i=0;i<3;i++){
@@ -1809,31 +1755,16 @@ function patVolley(){
    Roughly doubled across the board, the fan widened from five to seven, the
    spiral doubled to four arms, and every one of them still tightens further per
    broken segment on top of this. */
-/* ══════════════ WHAT IS IN THE AIR, ROUND BY ROUND ════════════════════════
-   `in` is the list of rounds a pattern exists in, not the round it unlocks at -
-   because things now LEAVE as well as arrive.
-
-   THE FAN IS GONE. "i dont like the stuff that comes in fans out at us" - and
-   it was the one pattern with nothing to say: seven bullets that spread as they
-   travel, so the answer was always to stand between two of them.
-
-   THE SNIPE IS GONE TOO. Tying it to the tiles gave it a job and immediately
-   made it the loudest thing in the fight - the tiles are where you LIVE, so
-   "while you are on a tile" is very nearly "always", and it fired 30 times in
-   20 seconds. The volley covers the same ground: aimed, fast, and rare enough
-   to be an event.
-
-   The ring and the single aimed shot stay out of rounds 1 and 2 so those rounds
-   are legible - round 1 is the arms and the volley and nothing else, which is
-   what makes it something you can learn on. */
 var PATTERNS = [
-  { fn:patAimed,   every: 230, in:[4,5] },
-  { fn:patRing,    every:1900, in:[3,4,5] },
-  { fn:patSpiral,  every:  55, in:[2,3,4,5] },
-  { fn:patCounter, every:  62, in:[4,5] },
-  { fn:patVolley,  every:2300, in:[2,3,4,5] }
+  { fn:patAimed,   every: 230, from:1 },
+  { fn:patFan,     every: 800, from:1 },
+  { fn:patRing,    every:1900, from:1 },
+  { fn:patSpiral,  every:  55, from:2 },
+  { fn:patCounter, every:  62, from:3 },
+  { fn:patSnipe,   every: 900, from:1 },
+  { fn:patVolley,  every:2300, from:2 }
 ];
-var patAt = [0,0,0,0,0];
+var patAt = [0,0,0,0,0,0,0];
 
 /* ══════════ NEVER TWO FULL-SCREEN THREATS AT ONCE ═══════════════════════════
    This is the rule the fight was breaking, and it is why it played as
@@ -1858,25 +1789,30 @@ function stepPatterns(now){
   var ph = phase();
   for (var i=0;i<PATTERNS.length;i++){
     var P2 = PATTERNS[i];
-    if (P2.in.indexOf(Math.min(5, Math.max(2, ph))) < 0) continue;
+    if (ph < P2.from) continue;
     if (big === 1 && P2.fn !== patAimed) continue;
-    /* the volley is silent for a second after any big move - the screen is
-       still full and there is no room to flinch in yet */
-    if (P2.fn===patVolley &&
+    /* the fast aimed pair, silent for a second after any big move */
+    if ((P2.fn===patSnipe || P2.fn===patVolley) &&
         (big || (F.bigEnd && F.t - F.bigEnd < BIG_QUIET))) continue;
 
+    /* ══════ THE SNIPE ONLY EXISTS WHILE YOU ARE ON A TILE ═════════════════
+       It is the one round fast enough to demand a flinch, and it had nothing
+       to say about WHERE you were - it just arrived. Tying it to the tiles
+       gives it a job: standing on a tile is how you deal damage, so this is
+       the cost of dealing it, and stepping off is a real answer rather than
+       something you do for no reason.
+
+       THE TIMER RESETS WHILE YOU ARE OFF. Left running, the interval would
+       elapse in open ground and the shot would land the instant you touched a
+       tile - punishing arriving rather than lingering, which is backwards.
+       This way the clock only turns while you are standing there, so a full
+       interval on the tile is what earns it. */
+    if (P2.fn===patSnipe && !onAnyPad()){ patAt[i] = now; continue; }
     /* EVERY PATTERN TIGHTENS AS HE LOSES SEGMENTS, on top of unlocking new
        ones. Without it the last two phases fire at the same rate as the one
        that introduced them and the fight plateaus exactly where it should be
        peaking. */
-    /* P2.in[0] IS THE ROUND IT FIRST APPEARS. This read P2.from, which stopped
-       existing when the table moved to explicit round lists - so it was
-       ph - undefined, which is NaN, which made `every` NaN, which made
-       `now - patAt[i] < every` false forever. Every pattern fired EVERY FRAME.
-       Measured before the fix: 15,422 ring bullets on screen at once, and the
-       spiral arms turning at sixty a second instead of eighteen. A NaN in a
-       comparison does not throw and does not warn; it just quietly answers no. */
-    var every = P2.every / (1 + 0.18*(ph - P2.in[0]));
+    var every = P2.every / (1 + 0.18*(ph - P2.from));
     if (now - patAt[i] < every) continue;
     patAt[i] = now; P2.fn();
   }
@@ -2021,12 +1957,7 @@ function fightStep(dt, now){
   if (F.over) return;
 
   if (!F.move && F.t >= F.next){
-    /* ROUND 1 HAS NO BIG MOVES AT ALL, and a null id would sit in F.move
-       matching no branch and never ending. Check back in a second instead. */
-    var picked = pickMove();
-    if (!picked){ F.next = F.t + 1000; }
-    else {
-    F.move = { id:picked, t:0, phase:"tell" };
+    F.move = { id:pickMove(), t:0, phase:"tell" };
     /* THE COPY, taken before a single spark exists — see gapIn().
 
        AND ONLY ONE DOOR, however much of him is missing. Every broken sector was
@@ -2075,7 +2006,6 @@ function fightStep(dt, now){
          go low. */
       F.station = { x: VW()*0.76, y: VH()*(F.move.corner ? 0.82 : 0.18) };
     }
-    }
   }
   stepPatterns(now);
   /* HE PATROLS THE CEILING. Parked in one spot he is a turret, and the aimed
@@ -2083,16 +2013,7 @@ function fightStep(dt, now){
      from the same bearing and the correct answer never changes. A new post
      every couple of seconds keeps the angles moving without ever bringing him
      down into the arena. */
-  /* ══════ ROUND 1: HE THRASHES ══════════════════════════════════════════
-     "he simply moves up in down in agony". The first round has no big move in
-     it, so he is the only thing to read — and a boss standing still while the
-     arms turn has nothing to say about having just lost a piece of himself.
-     A continuous vertical pace, wider and faster than the polite hop between
-     posts he does the rest of the time. */
-  if (phase() <= 2 && !F.move){
-    F.station = { x: VW()*0.76, y: VH()*(0.5 + 0.36*Math.sin(F.t/560)) };
-    F.roamAt = F.t + 2300;
-  } else if (!F.station || (F.roamAt && F.t > F.roamAt && !F.move)){
+  if (!F.station || (F.roamAt && F.t > F.roamAt && !F.move)){
     F.station = topStation(); F.roamAt = F.t + 2300;
   }
   if (F.station){
@@ -2890,11 +2811,7 @@ function drawBullets(c){
         c.moveTo(Math.cos(a0)*r0, Math.sin(a0)*r0);
         c.lineTo(Math.cos(a1)*r1, Math.sin(a1)*r1);
         /* the taper: fat at the bulge, a hair at the tip */
-        /* THINNER AT THE ROOT TOO. 0.40 of the radius made the base of each
-           arm 6.8px wide at a 2.6px radius - wider than the space it had to
-           live in, so the inner half of the spiral filled solid and became
-           part of the bulge. */
-        c.lineWidth = rr*(0.15*Math.pow(1-t0,1.4) + 0.040);
+        c.lineWidth = rr*(0.40*Math.pow(1-t0,1.6) + 0.045);
         c.strokeStyle = "rgba("+hue+","+(1.0-0.72*t0).toFixed(2)+")";
         c.stroke();
       }
@@ -2905,21 +2822,12 @@ function drawBullets(c){
     c.restore();
     c.lineCap="butt";
 
-    /* ══════ THE CORE WAS EATING THE GALAXY ═══════════════════════════════
-       It was an opaque disc of rr*0.62 drawn ON TOP of arms that live between
-       rr*0.17 and rr*0.86 - so it covered 72% of the spiral and left a band
-       2.4 to 3.7 pixels wide, at every bullet size in the game. That is the
-       "fuzzy ball": there was no spiral left to see, only a lit dot with a
-       halo, and it was never a per-machine difference.
-
-       A quarter of the radius instead. A galaxy's bulge IS small relative to
-       its arms - that was the one part of the reference this had backwards. */
-    var cg=c.createRadialGradient(0,0,0,0,0,rr*0.26);
+    var cg=c.createRadialGradient(0,0,0,0,0,rr*0.62);
     cg.addColorStop(0,"rgba(255,255,255,1)");
-    cg.addColorStop(0.30,"rgba(255,250,238,1)");
-    cg.addColorStop(0.62,"rgba("+hue+",.85)");
+    cg.addColorStop(0.22,"rgba(255,250,238,1)");
+    cg.addColorStop(0.55,"rgba("+hue+",.85)");
     cg.addColorStop(1,"rgba("+hue+",0)");
-    c.fillStyle=cg; c.beginPath(); c.arc(0,0,rr*0.26,0,6.28318); c.fill();
+    c.fillStyle=cg; c.beginPath(); c.arc(0,0,rr*0.62,0,6.28318); c.fill();
     c.restore();
   }
 }
@@ -3418,8 +3326,8 @@ function fightStart(){
      well ahead of real time, so a second run inherits a stamp from the future
      and silently fires nothing until the wall clock catches up. That produced a
      whole balance table in which the player was disarmed and nobody said so. */
-  F.shotAt=0; F.shotAt2=0; patAt=[0,0,0,0,0]; tapeReset(); F.bigEnd=0; F.dmgBy={}; F.runeHeat=0; F.novaHeat=0; F.aoeGlow=0;
-  F.bombs=BOMB_START; F.bombAt=0; F.roundAt=0;
+  F.shotAt=0; F.shotAt2=0; patAt=[0,0,0,0,0,0,0]; tapeReset(); F.bigEnd=0; F.dmgBy={}; F.runeHeat=0; F.novaHeat=0; F.aoeGlow=0;
+  F.bombs=BOMB_START; F.bombAt=0;
   /* every sequence index goes back to the top, or the second run of the night
      is a different fight from the first */
   spiralA=0; counterA=0; ringIx=0; moveIx=0; stationIx=0; gapIx=0; doorIx=0; boltWalk=0; F.roamAt=0;
@@ -3563,16 +3471,12 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                    It drew fightDraw alone, so a test that sampled the canvas
                    for the shower's corridor found an empty screen and reported
                    zero brightness everywhere — the sparks are sparkDraw's. */
-                /* THE WHOLE FRAME, IN THE FRAME'S OWN ORDER. It drew sparks
-                   and fightDraw only, so every canvas test of the BULLETS came
-                   back with an empty screen - drawBullets was never called. */
                 paint:function(){
                   var e=$("bossFx"); if(!e) return;
                   var c=e.getContext("2d");
                   c.globalCompositeOperation="lighter";
                   sparkDraw(c); fightDraw(c);
                   c.globalCompositeOperation="source-over";
-                  drawPads(c, CLOCK); drawBullets(c); drawShocks(c); drawPlayer(c);
                 },
                 phase:function(){ return phase(); },
                 shieldLeft:shieldLeft, inGap:playerInGap };
