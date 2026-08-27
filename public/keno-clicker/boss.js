@@ -59,7 +59,7 @@ var autoWas = null;             /* the game's auto-play state, held for the exit
 var WALK = 165;                 /* recomputed by sizeWalker(); scale 1 = arrived */
 /* THE RIGHT-HAND LIMIT OF THE ARENA, as a fraction of the width. He stations at
    0.82, so this leaves clear air in front of him and no way round the back. */
-var PLAY_MAX_X = 0.74;
+var PLAY_MAX_X = 0.66;   /* a little less room than 0.74 — he sits at 0.76 */
 /* HE CLEARS THE BOARD NOW; HE USED TO BITE INTO IT. The overlap was argued for
    on the grounds that a figure clear of the board reads as a picture hung above
    it — true when he was 165px against a 201px board and they were comparable
@@ -622,21 +622,14 @@ var SHOT_EVERY=1050, SHOT_SPEED=155;
    telegraphed: held still for the whole 2.6s wind-up, aimed at a point inside
    your half, drawn as a wedge the entire time. Survivable by knowing where to
    be, and by nothing else. */
-/* ══ THE WIND-UP PAYS FOR THE RUN, because the answer is now a run ══════════
-   2600ms was sized for a door that opened into the half the player already
-   stood in — a sidestep. The door opens on one of HIS corners now, so the
-   answer is a full crossing of the arena, and the clock has to cover it.
-
-   Measured, full speed, aiming into the wedge from the four places the fight
-   actually leaves you: the worst honest run is 3.20s (lower-left pad to the
-   top-right corner) and the next worst 3.15s. At 2600 half of those arrived
-   late and ate 262-525 damage having played it perfectly, which is the fight
-   lying about what it was asking for.
-
-   3600 covers the worst case with about four tenths to spare. It is a long
-   charge, and it is not the nova's problem of standing around waiting — every
-   one of those milliseconds is a sprint you are already making. */
-var AOE_WIND=3600, AOE_FIRE=1500, AOE_FRAC=0.25, AOE_TICK_MS=260;
+/* ══ 2000ms, AND THE GEOMETRY IS WHAT MAKES THAT ENOUGH ════════════════════
+   This went to 3600 when the safe spot was a screen corner BEHIND him, which
+   made the answer a full diagonal sprint across the arena — the worst honest
+   run measured 3.20s. The wedge now opens into the middle of the far side,
+   which is most of the way to where the fight already leaves you standing, so
+   the run is a fraction of that and the long charge became exactly the dead
+   waiting the nova was told off for. */
+var AOE_WIND=2000, AOE_FIRE=1500, AOE_FRAC=0.25, AOE_TICK_MS=260;
 var AOE_SPIN_UP=420;   /* ms from standstill to full sweep — see the gate */
 function aoeDmg(){ return F.hpMmax * AOE_FRAC; }
 /* LONG AND HARD, DELIBERATELY. A quarter of your health per bullet and a fight
@@ -1297,7 +1290,7 @@ var STATION_Y = [0.30, 0.62, 0.42, 0.74, 0.34, 0.66, 0.24, 0.54];
 var stationIx = 0;
 function topStation(){
   var f = STATION_Y[stationIx++ % STATION_Y.length];
-  return { x: VW()*0.82, y: VH()*f };
+  return { x: VW()*0.76, y: VH()*f };   /* moved left a little */
 }
 function phase(){ return F.broken.length; }   /* 1 after the ram, 5 at the end */
 
@@ -1505,7 +1498,13 @@ function doorCornerAngle(which){
      exist. Aiming at a point instead means the wedge always opens INTO the
      room whatever height he is at, and the triangle is closed off by the top
      or bottom edge exactly as it is in the drawing. */
-  var tx = VW()*0.28, ty = which ? VH()*0.10 : VH()*0.90;
+  /* AIMED SHORT, NOT AT THE BACK WALL. Aiming at 0.28 of the width sent the
+     wedge clean across the room to the far edge, so the back corner sat inside
+     it and standing there was the whole answer. Aiming at 0.45 points it at the
+     middle of the far side instead: the triangle is closed off by the top or
+     bottom edge well before it reaches the corner, which is what makes it a
+     triangle you have to be IN rather than a corridor you retreat down. */
+  var tx = VW()*0.45, ty = which ? VH()*0.06 : VH()*0.94;
   return Math.atan2(ty - W.y, tx - W.x);
 }
 
@@ -1895,11 +1894,16 @@ function fightStep(dt, now){
       F.move.corner = (doorIx++) % 2;
       F.move.from = doorCornerAngle(F.move.corner);
       F.move.dir  = F.move.corner ? 1 : -1;
-      /* HE GOES TO THE SIDE THE SAFE TRIANGLE IS ON. Which corner is open is
-         the whole question of the attack, and him crossing to it is the
-         earliest and largest possible way to say so — visible before the rim
-         lights, before the wedge draws, from anywhere on the screen. */
-      F.station = { x: VW()*0.82, y: VH()*(F.move.corner ? 0.20 : 0.80) };
+      /* HE GOES TO THE OPPOSITE SIDE FROM THE SAFE TRIANGLE, and that is what
+         makes the triangle a triangle. Standing on the same side as the safe
+         wedge, the wedge left him almost level and ran the full width of the
+         room to the back wall — a corridor, with the far corner inside it.
+         From the far side it points steeply across, and the top or bottom edge
+         of the arena closes it off into a wedge with a base.
+
+         It is still the loudest possible tell, just inverted: he rises, so you
+         go low. */
+      F.station = { x: VW()*0.76, y: VH()*(F.move.corner ? 0.82 : 0.18) };
     }
   }
   stepPatterns(now);
