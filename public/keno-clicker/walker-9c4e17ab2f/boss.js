@@ -114,7 +114,13 @@ var keys = {};
 
    Capped at 2 like the rest of the file: past that the pixels cost more than
    they show, and this fight is already the heaviest thing on the page. */
-function DPR(){ return Math.min(2, window.devicePixelRatio || 1); }
+function DPR(){
+  var d = Math.min(2, window.devicePixelRatio || 1);
+  /* the one thing that gives way when frames are being dropped — half the
+     linear resolution is a quarter of the fill, and it costs sharpness rather
+     than information */
+  return QUALITY < 0.85 ? Math.min(1, d) : d;
+}
 function VW(){ return window.innerWidth; }
 function VH(){ return window.innerHeight; }
 function boardBox(){
@@ -291,17 +297,19 @@ var sparks = [], shards = [];
 var SPARK_G = 620, SPARK_DRAG = 0.86, SPARK_MAX = 10000;
 var SPARK_BINS = null;
 
-/* ══════════ THE SHOWER IS SIZED TO THE MACHINE THAT IS RUNNING IT ══════════
-   Ten thousand sparks is a budget picked on one computer. Somewhere slower it
-   is a slideshow, and the fight becomes unplayable exactly during the attack
-   that needs to be dodged. Rather than pick a lower number and make it worse
-   for everybody, measure: if the frame rate is not being held, spend fewer
-   sparks until it is.
+/* ══════ ADAPT THE RESOLUTION, NEVER THE NUMBER OF SPARKS ═══════════════════
+   I had this spend fewer SPARKS when the frame rate dropped, and that was
+   wrong. The shower's density is not decoration — it is the attack telling you
+   there is nowhere to stand. Thin it out and the screen stops looking covered,
+   which reads exactly as "I can run away from this", and a player on a slower
+   machine gets a different and easier-looking fight. That is the thing this
+   whole file has spent the day removing.
 
-   It only ever scales the SHOWER — the bullets, the beams and every hitbox in
-   the game are untouched, so two players on different hardware are playing the
-   same fight and only seeing a thinner or thicker version of the same storm.
-   That is the one kind of difference that is safe to have. */
+   Measured at full density the shower touches 100% of the screen. It has to
+   keep doing that on every machine, so the spark count is now fixed for
+   everybody and the SAME storm is drawn at a lower resolution instead when a
+   machine cannot hold the frame rate. Fewer pixels, never fewer sparks: the
+   picture stays honest and only gets softer. */
 var QUALITY = 1, qAcc = 0, qFrames = 0;
 function qualityStep(dt){
   qAcc += dt; qFrames++;
@@ -355,7 +363,7 @@ function heatRGB(h){
    screen has white, orange, violet and blue in it at once, which is what a
    nebula actually looks like. */
 function addSpark(x,y,vx,vy,ttl,heat,g,d){
-  if (sparks.length >= SPARK_MAX*QUALITY) return;
+  if (sparks.length >= SPARK_MAX) return;   /* NOT scaled — see the note on QUALITY */
   sparks.push({x:x,y:y,vx:vx,vy:vy,t:0,ttl:ttl,
                h0:(heat===undefined?1:heat), g:(g===undefined?1:g),
                d:(d===undefined?1:d),
@@ -1608,7 +1616,7 @@ function fireShot(){ patAimed(); }
    spray uses, which is why they need their own call rather than a bigger rate
    on the old one. */
 function aoeSparks(dt, rate){
-  var R=walkerR()*0.94, n=rate*QUALITY*dt;
+  var R=walkerR()*0.94, n=rate*dt;
   var count = Math.floor(n) + (Math.random()<(n%1) ? 1 : 0);
   for (var i=0;i<count;i++){
     var a, tries=0, gl=liveGaps();
@@ -1975,7 +1983,7 @@ function fightStep(dt, now){
         /* NO GAP AT ALL. Every other shower he has contains a door; this one
            does not, which is exactly why the answer has to be distance rather
            than angle. */
-        var R2=walkerR()*0.94, n2=26000*QUALITY*dt;
+        var R2=walkerR()*0.94, n2=26000*dt;
         var cnt=Math.floor(n2)+(Math.random()<(n2%1)?1:0);
         for (var i2=0;i2<cnt;i2++){
           var a2=Math.random()*6.28318, out2=950+Math.random()*1500;
@@ -2287,12 +2295,62 @@ function fightDraw(c){
   var m=pC();
   /* the gap, drawn — a positional mechanic with an invisible boundary is a
      guess, and a guess that costs 15hp reads as unfair rather than as hard */
-  /* NO WEDGE. The green cone showing where the door was is gone, and it should
-     never have been the answer — a mechanic that needs a diagram drawn over the
-     arena to be playable is a mechanic that has not been communicated by the
-     thing itself. Everything it said is now said by the object: the wheel stops
-     and the surviving segments light, the gap in the ring is a visible hole in
-     his art, and the door leads the sweep. Read HIM, not an overlay. */
+  /* ══════════ THE SAFE WEDGE IS DRAWN AGAIN ═══════════════════════════════
+     I removed this when the green ring and the half-arena divider came out,
+     and it was the wrong thing to take with them. Those two were clutter: one
+     drew a boundary nobody needed and the other drew a rule that no longer
+     existed. This one draws THE ANSWER TO THE ATTACK, and a positional
+     mechanic with an invisible boundary is a guess — a guess that costs a
+     quarter of your health reads as unfair rather than as hard.
+
+     I argued at the time that the object should say it: the wheel stops, the
+     segments light, the hole is visible in his art. That reasoning does not
+     survive the attack it describes. Once the shower is up, HE IS BEHIND A
+     WALL OF SPARKS — the ring is not readable at all, and the only cue left is
+     an absence, which is the hardest thing on a screen to locate quickly.
+
+     It is a much stricter wedge than the one that was removed, because the
+     door itself is: 50 degrees against the old 137. So it draws as the narrow
+     triangle it now is, it turns with the door, and it is exactly DOOR_SPAN
+     wide — the same number the damage test uses, so the triangle IS the
+     hitbox rather than an approximation of it. */
+  if (F.move && F.move.id==="aoe" && F.move.doorAng !== undefined){
+    var far=Math.max(VW(),VH())*1.5;
+    var a0=F.move.doorAng - DOOR_SPAN/2;
+    var lit=(F.move.phase==="tell") ? (0.30+0.42*F.aoeGlow) : 0.30;
+    var gr=c.createRadialGradient(W.x,W.y,walkerR()*0.9,W.x,W.y,far);
+    gr.addColorStop(0,"rgba(140,225,255,"+(lit*0.55).toFixed(3)+")");
+    gr.addColorStop(0.45,"rgba(140,225,255,"+(lit*0.22).toFixed(3)+")");
+    gr.addColorStop(1,"rgba(140,225,255,0)");
+    c.fillStyle=gr;
+    c.beginPath(); c.moveTo(W.x,W.y);
+    c.arc(W.x,W.y,far,a0,a0+DOOR_SPAN); c.closePath(); c.fill();
+
+    /* THE TWO EDGES, AS LINES. The gradient says roughly where; the edges say
+       exactly where, which is what you need when it is 50 degrees wide and
+       moving. */
+    c.strokeStyle="rgba(170,240,255,"+(lit*0.75).toFixed(3)+")";
+    c.lineWidth=2;
+    for (var ee=0; ee<2; ee++){
+      var ea=a0+ee*DOOR_SPAN;
+      c.beginPath();
+      c.moveTo(W.x+Math.cos(ea)*walkerR()*0.9, W.y+Math.sin(ea)*walkerR()*0.9);
+      c.lineTo(W.x+Math.cos(ea)*far, W.y+Math.sin(ea)*far);
+      c.stroke();
+    }
+
+    /* WHICH WAY IT IS ABOUT TO GO. The door turns 63 degrees across the
+       shower, so where it is now is only half the answer. */
+    if (F.move.phase === "tell" && F.move.dir){
+      var lead = F.move.dir < 0 ? a0 : a0+DOOR_SPAN;
+      var lr = walkerR() + 120 + 40*Math.sin(F.t/180);
+      c.strokeStyle="rgba(150,235,255,"+(0.25+0.45*F.aoeGlow).toFixed(3)+")";
+      c.lineWidth=4;
+      c.beginPath();
+      c.arc(W.x, W.y, lr, lead, lead + F.move.dir*0.55, F.move.dir<0);
+      c.stroke();
+    }
+  }
 
   /* THE NOVA'S REACH, DRAWN BEFORE IT ARRIVES. A blast with no door in it is
      only fair if the player can see exactly how far it goes — so the safe line
