@@ -2322,7 +2322,14 @@ function patRing(){
 
    23 gives a triangle that is a quarter of the room and still 163px across
    where the player actually stands, which is eighteen times their hitbox. */
-var DOOR_SPAN = SEG * 0.32;        /* about 23 degrees */
+/* ════════════════════ AND IT IS WIDER THAN IT WAS ════════════════════
+   23 degrees was measured against the CROSSED geometry and looked reasonable
+   there. It was still the tightest thing in the fight once the sliver above was
+   fixed, so it goes to 32 - which on the same arena is 12.2% of the floor in a
+   340 x 420 triangle, a third more ground than 23 gave. It is still a triangle
+   you have to commit to during the wind-up; it is no longer one you have to
+   thread. */
+var DOOR_SPAN = SEG * 0.4444;      /* about 32 degrees */
 /* ══ AND IT DOES NOT DRIFT AT ALL ══════════════════════════════════════════
    26 degrees of drift sounds harmless and is not, because THE CORRIDOR YOU SEE
    IS MADE OF OLD SPARKS. A spark 560px out left him about 0.4s ago and was
@@ -2993,7 +3000,39 @@ function fightStep(dt, now){
     if (F.move.id === "aoe" && F.move.gaps.length){
       /* strict alternation, bottom-right then top-right */
       F.move.corner = (doorIx++) % 2;
-      F.move.from = doorCornerAngle(F.move.corner);
+      /* ════════════════════ THE WEDGE AIMS AT THE SIDE HE IS NOT ON ════════════════════
+         The corner alternates every cast. His POSITION only alternates outside
+         a break - the station below is gated on !F.brk, because during a break
+         he has to hold his post. So in a break the two fall out of step, and
+         every other cast aimed the wedge at the edge he was already standing
+         against. Measured on a 1280x720 arena, that is the difference between:
+
+             crossed        9.1% of the floor,  270 x 390
+             not crossed    3.8% of the floor,  455 x  95   <- a sliver
+
+         95px of headroom for a 52px sprite, pinned to the top or bottom edge.
+         That is the "impossible to hide" case, and it was never the span that
+         was wrong - it was the wedge being aimed along an edge instead of
+         across the room.
+
+         So the side is decided from where he will ACTUALLY be when it fires,
+         not from the counter. Outside a break he crosses, so it is the corner
+         exactly as before and nothing changes. Inside one he stays put, so it
+         is whichever half of the room he is not in.
+
+         DECIDED ONCE, HERE. Reading W.y live every frame would flip the wedge
+         through 180 degrees the moment he drifted across the midline. */
+      /* FROM THE POST HE IS HELD AT, not from W.y. During a break the station
+         is pinned to F.brkPost every frame, so that is where he will be when
+         this fires; W.y is only where he happens to have drifted to on the
+         frame the move began. Outside a break he crosses to the corner, which
+         is known outright. */
+      F.move.side = (function(){
+        var sy = F.brk ? ((F.brkPost && F.brkPost.y !== undefined) ? F.brkPost.y : W.y)
+                       : VH()*(F.move.corner ? 0.82 : 0.18);
+        return (sy < VH()*0.5) ? 0 : 1;
+      })();
+      F.move.from = doorCornerAngle(F.move.side);
       F.move.dir  = F.move.corner ? 1 : -1;
       /* HE GOES TO THE OPPOSITE SIDE FROM THE SAFE TRIANGLE, and that is what
          makes the triangle a triangle. Standing on the same side as the safe
@@ -3092,7 +3131,7 @@ function fightStep(dt, now){
         /* RE-AIMED AT THE CORNER EVERY FRAME. This is the promise the whole
            move is built on, and re-deriving it is what keeps it true while he
            drifts around his station during the charge. */
-        M.from = doorCornerAngle(M.corner || 0);
+        M.from = doorCornerAngle(M.side || 0);
         M.doorAng = M.from;
         F.aoeGlow = Math.min(1, M.t/AOE_WIND);
         /* ══ THE WIND-UP THROWS ALMOST NOTHING ═══════════════════════════
@@ -3171,7 +3210,7 @@ function fightStep(dt, now){
         /* the door, drifting off the bearing it was held on — a nudge, not a
            chase. It carries on the way the wheel turns so the two still agree
            about direction even though they no longer agree about speed. */
-        M.doorAng = doorCornerAngle(M.corner || 0);   /* pinned to the corner */
+        M.doorAng = doorCornerAngle(M.side || 0);     /* pinned to the far side */
         F.aoeGlow = 1;
         aoeSparks(dt, 26000 * up);
         /* ITS OWN CLOCK, FOUR TIMES A SECOND, OUTSIDE THE I-FRAME WINDOW. On
@@ -5299,6 +5338,13 @@ function fightStart(){
      and a leftover spd is a silent 15% carried into a fresh run. */
   F.brk=0; F.won=0; F.spd=1; pulseHue=0; F.mvN=0; F.pulseAt=0; F.brkPost=null; F.pulseAt=0;
   F.station = topStation();
+  /* ════════════════════ AND HE IS ALREADY THERE ════════════════════
+     W is declared at x:0, y:0 and startFight only ever set his DESTINATION, so
+     every run began with him at the top-left corner of the world sliding in.
+     The patterns do not wait for him to arrive: whatever fired during those
+     frames was aimed from off screen, which is bullets appearing out of a
+     corner with nothing in it. Putting him on his station is the whole fix. */
+  W.x = F.station.x; W.y = F.station.y;
   /* THE FIRING CLOCKS RESET WITH THE FIGHT. Both are "the timestamp of the last
      shot", compared against a monotonic clock — which is safe in play and not
      safe anywhere else. Driven from a test the clock is synthetic and can run
