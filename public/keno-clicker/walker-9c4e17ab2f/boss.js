@@ -1141,7 +1141,16 @@ function breakShield(pd){
    next ten seconds of standing still. */
 function restoreShield(){
   F.brk = 0;
-  for (var i=0;i<pads.length;i++) pads[i].on = false;
+  /* ════════════════════ PARTIAL CHARGE DOES NOT SURVIVE THE PULSE ════════════════════
+     A tile you own goes dark and keeps its place; a tile you were part-way
+     through goes back to nothing. Left running, the seconds you banked in one
+     main phase carried into the next one and the tile after the first was
+     cheaper than the first - the ten seconds is meant to be paid in one
+     stretch, under fire, or not at all. */
+  for (var i=0;i<pads.length;i++){
+    pads[i].on = false;
+    if (!pads[i].won) pads[i].t = 0;
+  }
   F.broken = [segmentAt(Math.PI/2)];
   F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 0;
   shots = []; sparks = []; patHush();
@@ -1479,15 +1488,24 @@ var GATE = (function(){
    SHORTER fight rather than a shorter-feeling one: the same eight phases, run
    faster, because a player deep in the ladder has done this before.
 
-   THE FLOOR IS NOT IN THE SPEC. The bet track is 118 levels long and 30 minus
-   118 is nonsense, so it stops at MIN. Ten seconds is roughly the shortest a
-   break can be and still contain one shower - 1.5s of burn on a 4.4s gap - and
-   it is one constant to change if it wants to be eight or twelve. */
+   THIRTY SECONDS IS MEASURED AT AN $8 BET, which is betSize level 36 - the
+   point the whole fight is tuned for. The first version of this counted down
+   from level 0 and handed the tuning point a 10-second break, which is the
+   floor, i.e. exactly the bug it was written to fix. The countdown starts at
+   the tuning point instead: level 36 is 30s, 37 is 29s, and a player who
+   arrives under-levelled gets the same 30 rather than a longer one, because a
+   sixty-second break is not a kindness.
+
+   THE FLOOR IS NOT IN THE SPEC. The bet track is 118 levels, so something has
+   to stop it going negative - it bottoms out at level 66 and holds. Ten
+   seconds is roughly the shortest a break can be and still contain one shower,
+   1.5s of burn on a 4.4s gap, and it is one constant to change. */
 var BREAK_SECS = 30, BREAK_SECS_MIN = 10;
+var BET_LVL_TUNED = 36;        /* $8.00 a draw - what this fight is built for */
 function breakSeconds(){
   var lvl = 0;
   try { if (typeof S !== "undefined" && S && S.upgrades) lvl = S.upgrades.betSize|0; } catch(e){}
-  return Math.max(BREAK_SECS_MIN, BREAK_SECS - lvl);
+  return Math.max(BREAK_SECS_MIN, BREAK_SECS - Math.max(0, lvl - BET_LVL_TUNED));
 }
 /* read once, with padPower, so a purchase mid-fight cannot resize him */
 function walkerPool(){ return Math.max(1, Math.round(F.padPower * breakSeconds() * MULT_SUM)); }
@@ -1604,11 +1622,41 @@ function patAimed(){ bullet(aimAtPlayer(), SHOT_SPEED, 9); }
    The middle bullet is aimed exactly at you, so standing perfectly still was
    never survivable and still is not. */
 var FAN_W = 250;                  /* px across, at whatever range you are */
+/* ════════════════════ THREE ROWS IN THE AIR, AND NO MORE ════════════════════
+   A wave every 800ms against a six-second crossing put seven or eight rows on
+   the floor at once - fifty-odd bullets in parallel ranks, which stops reading
+   as a wall to step through and starts reading as weather. Three is the most
+   that can be on screen; the fourth simply is not fired, and the pattern tries
+   again on its next tick.
+
+   TWENTY PERCENT FASTER TO PAY FOR IT. Fewer rows would mean less pressure at
+   the same speed, so they cross quicker instead - the same question arriving
+   sooner rather than a bigger pile of it arriving eventually. It also recycles
+   the cap faster, since a row has to leave before the next one is allowed. */
+var fanIx = 0, FAN_LIVE_MAX = 3, FAN_SPEEDUP = 1.20;
+function fanWavesLive(){
+  var seen = {}, n = 0, i, w;
+  for (i=0;i<shots.length;i++){
+    w = shots[i].fanW;
+    if (w !== undefined && seen[w] === undefined){ seen[w] = 1; n++; }
+  }
+  return n;
+}
 function patFan(){
+  /* the timer has already been stamped by stepPatterns, so a blocked wave just
+     means it asks again one interval later rather than the instant a row dies */
+  if (fanWavesLive() >= FAN_LIVE_MAX) return;
   var m=pC(), a0=Math.atan2(m.y-W.y, m.x-W.x);
   var d=Math.max(200, Math.hypot(m.x-W.x, m.y-W.y));
   var step=(FAN_W/6)/d;           /* seven bullets, six gaps */
-  for (var i=-3;i<=3;i++) bullet(a0 + i*step, SHOT_SPEED*0.92, 8);
+  var wave = fanIx++;
+  for (var i=-3;i<=3;i++){
+    var n0 = shots.length;
+    bullet(a0 + i*step, SHOT_SPEED*0.92*FAN_SPEEDUP, 8);
+    /* tagged so the cap counts ROWS rather than bullets - a row part-way off
+       the screen still occupies one of the three */
+    if (shots.length > n0) shots[shots.length-1].fanW = wave;
+  }
 }
 function patRing(){
   /* the ring gets denser too — 24 at first sight, 40 by the end */
@@ -1923,8 +1971,12 @@ function patCounter(){
    a tracer drawn a beat before it — fast enough to demand a flinch, telegraphed
    enough that the flinch is possible. The volley is three of them down the same
    line, so the first one moves you and the next two punish moving carelessly. */
+/* 620 -> 496, a fifth slower. It is still by some way the fastest thing he
+   throws - the volley opens at 660 but is not aimed at where you are standing
+   on a tile - and this is the one round the fight asks you to flinch at, so
+   what it wants is to be READABLE at speed rather than merely quick. */
 function patSnipe(){
-  bullet(aimAtPlayer(), 620, 6, "255,240,190");
+  bullet(aimAtPlayer(), 620*0.80, 6, "255,240,190");
 }
 function patVolley(){
   var a0=aimAtPlayer();
@@ -2738,7 +2790,15 @@ function drawPlayer(c){
    cut from the ram to the fight is the one moment where teleporting reads as
    staging rather than as a bug. */
 function playerReveal(){
-  P.x = VW()*0.20; P.y = VH()*0.62;
+  /* ════════════════════ DEAD CENTRE OF THE BACK WALL ════════════════════
+     It used to be 20% across and 62% down, which is nowhere in particular -
+     off-centre, slightly low, and close enough to the tiles that the opening
+     read as having already started. The back wall, halfway up, is the one spot
+     on the floor that is symmetric about everything: the tile arc opens around
+     it, he is straight ahead, and neither the high nor the low safe wedge is
+     nearer than the other. */
+  P.x = Math.max(0, VW()*0.035);
+  P.y = Math.max(0, (VH() - P.h) * 0.5);
   P.vx=P.vy=0; P.aim=0; P.live=true;
 }
 function playerHide(){ P.live=false; }
@@ -3592,7 +3652,14 @@ function fightStart(){
   /* every sequence index goes back to the top, or the second run of the night
      is a different fight from the first */
   spiralA=0; counterA=0; ringIx=0; moveIx=0; stationIx=0; gapIx=0; doorIx=0; boltWalk=0; F.roamAt=0;
-  shots=[]; shocks=[]; buildPads();
+  /* ════════════════════ THE ARENA STARTS EMPTY ════════════════════
+     shots and shocks were cleared here and sparks and shards were not, so the
+     fight opened on the 90-particle burst and the debris from the board coming
+     apart - the cutscene's last beat, still playing, over a player who has
+     just been given control. Ninety objects moving at once is not a backdrop,
+     it reads as the fight having already started without you. The shatter is
+     the CUTSCENE's; the fight gets a clean floor. */
+  shots=[]; shocks=[]; sparks=[]; shardsClear(); buildPads();
   /* AFTER buildPads(), because that is what reads padPower, and his pool is
      derived from it. Both are frozen for the fight here so a purchase between
      phases cannot resize him halfway down the bar. */
