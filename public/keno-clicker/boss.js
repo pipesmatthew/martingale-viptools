@@ -1605,7 +1605,29 @@ function bulletFrom(x, y, ang, speed, r, hue){
 }
 function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
 
-function patAimed(){ bullet(aimAtPlayer(), SHOT_SPEED, 9); }
+/* ════════════════════ THE AIMED PAIR NEEDED THEIR OWN SPEED ════════════════════
+   Both of these lead you, and at this range the lead was the whole problem.
+   The tile arc sits 884px from him - 745px of travel once it leaves his rim -
+   so at 155px/s a shot arrives 4.8 SECONDS after it was fired, aimed at where
+   you stood then. Against a 430px/s player that is not a lead, it is a
+   different room. Measured on the opening: about one bullet a second came
+   within 120px of a player standing on a tile for the whole ten-second charge.
+
+   300 puts the lead at 2.5s, which is short enough that "aimed" means
+   something again and still SLOWER THAN THE PLAYER - you can always outrun it,
+   the arena stays navigable, and it is nowhere near the flinch band.
+
+   IT IS ITS OWN CONSTANT BECAUSE SHOT_SPEED IS NOT ONLY THIS. The ring, the
+   spiral and the counter-arm are all derived from SHOT_SPEED, and they are the
+   drifting texture the fight is built on - speeding those up is a different
+   change and not the one that was asked for.
+
+   Three bands now, which is the shape this always wanted:
+     105-124   the arms and the ring   drift, you route through them
+     300-331   aimed and fan           press, you cannot stand still
+     496-660   snipe and volley        flinch, you react or you are hit */
+var AIM_SPEED = 300;
+function patAimed(){ bullet(aimAtPlayer(), AIM_SPEED, 9); }
 /* ══════ THE FAN IS A WIDTH, NOT AN ANGLE ══════════════════════════════════
    A fixed 0.15 rad step means the spread grows with range, and the range is
    large - the player works the tiles most of a screen away from him. Seven
@@ -1652,7 +1674,10 @@ function patFan(){
   var wave = fanIx++;
   for (var i=-3;i<=3;i++){
     var n0 = shots.length;
-    bullet(a0 + i*step, SHOT_SPEED*0.92*FAN_SPEEDUP, 8);
+    /* the fan keeps its old ratio to the aimed shot - 0.92 - and the 20% it
+       was given when the rows were capped at three, so it still arrives a
+       little ahead of the single round rather than behind it */
+    bullet(a0 + i*step, AIM_SPEED*0.92*FAN_SPEEDUP, 8);
     /* tagged so the cap counts ROWS rather than bullets - a row part-way off
        the screen still occupies one of the three */
     if (shots.length > n0) shots[shots.length-1].fanW = wave;
