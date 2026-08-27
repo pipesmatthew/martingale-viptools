@@ -1363,6 +1363,11 @@ function padDPS(){
    the same thing the player already understands - if the tile is filling, you
    are on it. Lit tiles count too: a tile you have finished charging is still a
    tile you are standing on. */
+/* UNREFERENCED SINCE THE SNIPE WAS REMOVED. It answered exactly one question -
+   "is the player standing on a tile right now" - and the snipe gate was the
+   only caller. Kept because it is three lines of correct geometry and the next
+   thing that wants to press a charging player will want it; noted because an
+   unused helper with no explanation reads as something that lost its wiring. */
 function onAnyPad(){
   if (!P.live) return false;
   var m = pC();
@@ -2096,7 +2101,7 @@ function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
    Three bands now, which is the shape this always wanted:
      105-124   the arms and the ring   drift, you route through them
      300-331   aimed and fan           press, you cannot stand still
-     496       the snipe               flinch, you react or you are hit */
+     (nothing) the fast band is empty  - see patSnipe's note */
 /* ════════════════════ ONE PLACE FOR EVERY NUMBER WORTH ARGUING ABOUT ════════════════════
    These were scattered as literals and as multiples of SHOT_SPEED, which made
    "make the fan a bit slower" a code change and a redeploy every time. They are
@@ -2112,7 +2117,7 @@ function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
    Three bands, and they still mean different things:
      105-143   arms, ring, fan   drift, you route through them
      300       aimed             presses, you cannot stand still
-     496       snipe             flinch, you react or you are hit */
+     (none)    fast band removed */
 var TUNE = {
   /* ════════════════════ SPACING IS SPEED TIMES INTERVAL ════════════════════
      The complaint was that the aimed stream arrives as a line with no room in
@@ -2143,7 +2148,7 @@ var TUNE = {
      than a rebuild. */
   aimed:350, aimEvery:700, aimWave:60, aimWaveHz:0,
   fan:110, fanW:460, fanRows:1,
-  ring:170, spiral:170, counter:145, snipe:496, padCharge:13500, moveGap:0.75, novaOrbEvery:210, mainRush:1500, mainRest:3500,
+  ring:170, spiral:170, counter:145, padCharge:13500, moveGap:0.75, novaOrbEvery:210, mainRush:1500, mainRest:3500,
   runeTell:1800, aoeTell:2600, novaTell:1800
 };
 /* ════════════════════ IT WAS A LINE, AND A LINE IS NOT A DODGE ════════════════════
@@ -2568,16 +2573,27 @@ function patCounter(){
    drifts has no punctuation: you settle into one pace, and nothing ever forces
    a reaction rather than a plan.
 
-   ONE fast pattern, and it is aimed, because speed without aim is just noise
-   you happen to be standing in. The snipe is a single round with a tracer drawn
-   a beat before it - fast enough to demand a flinch, telegraphed enough that
-   the flinch is possible, and fired only while you are actually on a tile. */
-/* 620 -> 496, a fifth slower. With the volley gone it is outright the fastest
-   thing he throws, and it is the one round the fight asks you to flinch at, so
-   what it wants is to be READABLE at speed rather than merely quick. */
-function patSnipe(){
-  bullet(aimAtPlayer(), TUNE.snipe, 6, "255,240,190");
-}
+   THAT ARGUMENT LOST, AND THE WHOLE FAST BAND IS GONE WITH IT. See below. */
+/* ════════════════════ THE SNIPE IS GONE TOO ════════════════════
+   A single 496px/s aimed round, fired ONLY while you were standing on a tile,
+   at 900ms intervals whose clock ran only while you stood there. Every part of
+   that was deliberate: it was the tax on charging, it billed lingering rather
+   than arriving, and it went quiet during breaks when there was nothing to
+   charge.
+
+   The reasoning was that standing on a tile should cost something. The problem
+   is what it costs. Charging is not a thing you choose to do for value - it is
+   the only way to hurt him at all, it takes thirteen and a half seconds, and
+   partial progress is reset by leaving. So a round aimed at where you are
+   standing does not create a decision; the tile is not optional and neither is
+   staying on it. It reads as being shot at for playing the objective.
+
+   With this and the volley out, the fast aimed band is empty and the fight is
+   entirely the drift band - arms, ring, fan, spiral - plus the aimed stream at
+   300. That is a real loss of punctuation and it is worth knowing rather than
+   discovering: nothing in the fight now demands a flinch. If it needs one back,
+   it should be a pattern aimed at the ROOM rather than at the player, so it
+   presses someone standing on a tile without singling them out for it. */
 /* ════════════════════ THE VOLLEY IS GONE ════════════════════
    Three rounds at 660, 620 and 580 fired down ONE line at where you are
    standing. The design note said "the first one moves you and the next two
@@ -2588,9 +2604,8 @@ function patSnipe(){
    the phase whose entire job is getting you to stand on a tile for thirteen and
    a half seconds and hold still. Being aimed at where you are standing is not a
    fair trade when standing there is the objective, and three rounds down that
-   bearing is not a flinch test, it is a bill. The snipe already taxes charging,
-   deliberately and on its own terms: it fires ONLY while you are on a pad, once
-   at 496, with a tracer a beat ahead of it.
+   bearing is not a flinch test, it is a bill. The snipe was removed straight
+   after this and for the same reason - see its note above.
 
    Removed rather than slowed. A slower volley is the same shape - a line you
    have to leave the tile to dodge - and the fight already has plenty that
@@ -2611,7 +2626,7 @@ function patSnipe(){
    same thing, because the two counts line up: the fight opens one segment
    down from the intro ram, so old phase 1 IS esc 0.
 
-     esc 0  (main phase 1)   aimed, fan, ring, snipe
+     esc 0  (main phase 1)   aimed, fan, ring
      esc 1  (break 1 on)     + spiral
      esc 4  (break 4 only)   + the counter-arm
 
@@ -2625,8 +2640,7 @@ var PATTERNS = [
   { fn:patFan,     every: 800, from:1 },
   { fn:patRing,    every:1900, from:1 },
   { fn:patSpiral,  every:  55, from:2 },
-  { fn:patCounter, every:  62, from:3 },
-  { fn:patSnipe,   every: 900, from:1 }
+  { fn:patCounter, every:  62, from:3 }
 ];
 /* SIZED FROM THE TABLE, not written out. Two hand-kept literals of seven zeros
    indexed this by pattern, so removing a pattern left a stale slot - and the
@@ -2687,44 +2701,13 @@ function stepPatterns(now){
     if (P2.fn === patCounter){ if (F.brk !== PAD_FORCE) continue; }
     else if (ph < P2.from) continue;
     if (big === 1 && P2.fn !== patAimed) continue;
-    /* the fast aimed round, silent for a second after any big move. It was a
-       PAIR with the volley; with the volley gone the snipe is the whole band,
-       and the identifier had to go with it - patVolley is no longer declared,
-       so the old test would have thrown a ReferenceError on the first frame a
-       pattern was considered. */
-    if (P2.fn===patSnipe &&
-        (big || (F.bigEnd && F.t - F.bigEnd < BIG_QUIET))) continue;
+    /* THE "SILENT AFTER A BIG MOVE" GUARD IS GONE WITH THE BAND IT GUARDED.
+       It existed for the two fast aimed patterns, so that a 496-660px/s round
+       could not arrive in the beat after a rune or a shower while the player
+       was still recovering. Both are removed; nothing left is fast enough to
+       need it, and naming a deleted function here is a ReferenceError that no
+       syntax check will catch. */
 
-    /* ══════ THE SNIPE ONLY EXISTS WHILE YOU ARE ON A TILE ═════════════════
-       It is the one round fast enough to demand a flinch, and it had nothing
-       to say about WHERE you were - it just arrived. Tying it to the tiles
-       gives it a job: standing on a tile is how you deal damage, so this is
-       the cost of dealing it, and stepping off is a real answer rather than
-       something you do for no reason.
-
-       THE TIMER RESETS WHILE YOU ARE OFF. Left running, the interval would
-       elapse in open ground and the shot would land the instant you touched a
-       tile - punishing arriving rather than lingering, which is backwards.
-       This way the clock only turns while you are standing there, so a full
-       interval on the tile is what earns it. */
-    /* ════════════════════ AND NEVER DURING A BREAK ════════════════════
-       The snipe is the TAX ON CHARGING, and during a break there is nothing to
-       charge: every tile you own is already burning him whether you stand on it
-       or not, so the floor is yours to run on. It was still firing because
-       onAnyPad() is pure geometry and the tiles sit in the middle of the room -
-       walk across a lit one mid-bullet-hell and you were billed for a charge
-       you were not doing. */
-    if (P2.fn===patSnipe && (F.brk || !onAnyPad())){ patAt[i] = now; continue; }
-    /* ════════════════════ AND THE VOLLEY GOES WITH IT ════════════════════
-       This is what was actually still sniping people during the hell. The snipe
-       itself measured zero once it was gated - what kept arriving was the
-       VOLLEY: three aimed rounds down one line at 667/713/759, in a warm cream
-       three shades off the snipe's, which is why it read as the same attack.
-
-       A break is the phase where you are supposed to be reading arms and
-       routing through them; a 759px/s round arriving down your own bearing is a
-       different game being played on top of that one. The volley used to be
-       barred here too, and is now barred everywhere. */
     /* EVERY PATTERN TIGHTENS AS HE LOSES SEGMENTS, on top of unlocking new
        ones. Without it the last two phases fire at the same rate as the one
        that introduced them and the fight plateaus exactly where it should be
@@ -5170,7 +5153,6 @@ var TUNE_SPEC = [
   ["ring",     "ring",            40,  400,   5],
   ["spiral",   "spiral arms",     40,  400,   5],
   ["counter",  "counter arms",    40,  400,   5],
-  ["snipe",    "snipe",          150,  900,  10],
   ["padCharge","tile charge (ms)",2000,25000, 250],
   ["moveGap",  "rest between moves",0.15, 1.5, 0.05],
   ["novaOrbEvery","nova orbs (ms apart)",60, 700,  10],
