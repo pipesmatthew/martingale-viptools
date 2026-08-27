@@ -3589,10 +3589,51 @@ function playerReveal(){
 }
 function playerHide(){ P.live=false; }
 
+/* ════════════════════ HE GETS ANGRIER, AND THE ART SAYS SO ════════════════════
+   The hue walk already takes him down the rainbow and the glitch filter bends
+   him further out of shape every phase, but both are FILTERS - the same drawing
+   pushed through different maths. His actual expression never changes, and the
+   thing the player is looking at most is his face.
+
+   So the head swaps for an angrier drawing each time a tile lands. F.won is
+   exactly the right counter: it goes up the instant the pulse takes his shield
+   off, so he changes at the moment the bullet hell starts, and it never goes
+   back down - the anger is cumulative, which is the point.
+
+   LAZY, AND OUTSIDE THE LOAD GATE. loadAssets() blocks the fight until artLeft
+   hits zero; putting four maybe-missing files in ART would gate the fight on
+   art that may never exist. These load on their own and are simply not used
+   until they arrive, so the fight runs today with none of them present, runs
+   with two of the four, and lights each one up the moment it is dropped in
+   boss/ - no code change, no version bump.
+
+   The file each one has to be: 1024x1024, the SHEEP ONLY, transparent outside
+   about 0.75 of the half-width. The knotwork ring is a separate layer that
+   rotates underneath, and a rage head with a ring baked into it would draw a
+   second, stationary ring on top of the turning one. */
+var RAGE_IMG = {};
+function rageHead(n){
+  if (RAGE_IMG[n] === undefined){
+    var im = new Image();
+    im.src = "boss/walker_head_rage" + n + ".png";
+    RAGE_IMG[n] = im;
+  }
+  return RAGE_IMG[n];
+}
+function headImg(){
+  if (!W.demon) return IMG.idleHead;
+  var n = Math.max(0, Math.min(PAD_FORCE, F.won|0));
+  if (n > 0){
+    var im = rageHead(n);
+    if (im && im.naturalWidth) return im;   /* not here yet? he keeps this face */
+  }
+  return IMG.demonHead;
+}
+
 /* ── drawing ───────────────────────────────────────────────────────────── */
 function paintWalker(){
   var pairs = [[$("wRing"), IMG[W.demon?"demonRing":"idleRing"], W.ang],
-               [$("wHead"), IMG[W.demon?"demonHead":"idleHead"], 0]];
+               [$("wHead"), headImg(), 0]];
   for (var i=0;i<2;i++){
     var cv=pairs[i][0]; if (!cv) continue;
     var c=cv.getContext("2d"), img=pairs[i][1];
@@ -4420,12 +4461,71 @@ function drawPads(c, now){
 
   if (!k) return;
 
+  /* ════════════════════ THE FEED CARRIES SOMETHING; IT IS NOT A WIRE ════════════════════
+     Two straight strokes from live[b].x,live[b].y to the focus - and that is the
+     tile's CENTRE, which is where the NUMBER is. So the beam came out of the
+     glyph, exactly the way the sparks used to come out of Walker's face instead
+     of his shell. Worse, nothing about it moved: four tiles "feeding" a diamond
+     looked like four tiles WIRED to a diamond, with no evidence anything was
+     being delivered.
+
+     The start point is free. Every tile is already rotated to face the focus,
+     so the direction to the focus IS the tile's local +X and its leading edge
+     sits exactly PAD_W*0.5 along that line - no trigonometry, no intersection
+     test. The conduit leaves the middle of the edge that points at the thing it
+     feeds.
+
+     Then charge actually travels it: packets running tile -> diamond, evenly
+     spaced in phase and offset per tile so the four conduits never pulse in
+     lockstep. Each accelerates as it goes and brightens with it, because being
+     pulled in reads as delivery where a constant-speed dot reads as a marquee.
+     The focus flares when one lands. */
   c.globalCompositeOperation="lighter";
+  var flow = now*0.00058, arrive = 0, PK = 3;
   for (var b=0;b<live.length;b++){
-    c.strokeStyle="rgba(190,150,255,.55)"; c.lineWidth=3;
-    c.beginPath(); c.moveTo(live[b].x,live[b].y); c.lineTo(fp.x,fp.y); c.stroke();
-    c.strokeStyle="rgba(255,255,255,.6)"; c.lineWidth=1.2;
-    c.beginPath(); c.moveTo(live[b].x,live[b].y); c.lineTo(fp.x,fp.y); c.stroke();
+    var pdb = live[b];
+    var fdx = fp.x-pdb.x, fdy = fp.y-pdb.y, fdl = Math.hypot(fdx,fdy)||1;
+    var fux = fdx/fdl, fuy = fdy/fdl;
+    var sx4 = pdb.x + fux*(PAD_W*0.5), sy4 = pdb.y + fuy*(PAD_W*0.5);
+    var runL = Math.max(1, fdl - PAD_W*0.5);
+
+    /* the conduit itself, dim at the tile and bright at the diamond - the
+       gradient alone says which way it flows even between packets */
+    var cg = c.createLinearGradient(sx4,sy4,fp.x,fp.y);
+    cg.addColorStop(0,"rgba(150,110,255,.22)");
+    cg.addColorStop(1,"rgba(205,170,255,.62)");
+    c.strokeStyle = cg; c.lineWidth = 2.6 + k*0.45;
+    c.beginPath(); c.moveTo(sx4,sy4); c.lineTo(fp.x,fp.y); c.stroke();
+    c.strokeStyle = "rgba(255,255,255,.28)"; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(sx4,sy4); c.lineTo(fp.x,fp.y); c.stroke();
+
+    for (var q=0;q<PK;q++){
+      var ph = (flow + b*0.37 + q/PK) % 1;
+      var tt = Math.pow(ph, 1.45);            /* accelerating into the focus */
+      var px4 = sx4 + fux*runL*tt, py4 = sy4 + fuy*runL*tt;
+      var pa = 0.30 + 0.70*tt, pr = 2.8 + 3.2*tt;
+      var trail = pr*3.4;
+      c.strokeStyle = "rgba(235,215,255," + (pa*0.42).toFixed(3) + ")";
+      c.lineWidth = pr*0.8;
+      c.beginPath();
+      c.moveTo(px4 - fux*trail, py4 - fuy*trail); c.lineTo(px4, py4); c.stroke();
+      var pgr = c.createRadialGradient(px4,py4,0,px4,py4,pr*2.6);
+      pgr.addColorStop(0,"rgba(255,255,255," + (pa*0.95).toFixed(3) + ")");
+      pgr.addColorStop(0.42,"rgba(214,180,255," + (pa*0.45).toFixed(3) + ")");
+      pgr.addColorStop(1,"rgba(150,110,255,0)");
+      c.fillStyle = pgr;
+      c.beginPath(); c.arc(px4,py4,pr*2.6,0,6.28318); c.fill();
+      if (ph > 0.86) arrive = Math.max(arrive, (ph-0.86)/0.14);
+    }
+  }
+  if (arrive > 0){
+    var flr = (13 + k*4) * arrive;
+    var fgr = c.createRadialGradient(fp.x,fp.y,0,fp.x,fp.y,flr);
+    fgr.addColorStop(0,"rgba(255,255,255," + (0.50*arrive).toFixed(3) + ")");
+    fgr.addColorStop(0.45,"rgba(205,170,255," + (0.28*arrive).toFixed(3) + ")");
+    fgr.addColorStop(1,"rgba(150,110,255,0)");
+    c.fillStyle = fgr;
+    c.beginPath(); c.arc(fp.x,fp.y,flr,0,6.28318); c.fill();
   }
   /* {B} IT LANDS ON THE SHELL, NOT IN HIS FACE {B}
      The ray ran to W.x,W.y - his CENTRE - so it crossed the knotwork and the
@@ -4695,8 +4795,16 @@ function drawHUD(c){
      than crammed inside it. */
   var segN = HITS_TO_DIE, segW = 52, segH = 16, segGap = 4;
   var hpW2 = segN*segW + (segN-1)*segGap;
-  var bmax = bombMax(), bd = 18;
-  var blockW = hpW2 + (bmax ? 30 + bd : 0);
+  /* ════════════════════ THE MINES LIE IN A ROW ════════════════════
+     They were stacked vertically so the plate stayed one width whether you held
+     one or four - a readout you glance at mid-bullet-hell should not move. It
+     was the wrong trade: four diamonds in a column are taller than the plate,
+     so the top one collided with its own SHIFT label, and a column of pips does
+     not read as a COUNT the way a row does. A row it is, and the plate is
+     allowed to grow with it. */
+  var bmax = bombMax(), bd = 18, bgap = 6;
+  var brow = bmax ? bmax*bd + (bmax-1)*bgap : 0;
+  var blockW = hpW2 + (bmax ? 30 + brow : 0);
   var mx = (w - blockW)/2, my = VH()-40;
   var hpLeft = F.hpM/F.hpMmax*segN;
 
@@ -4734,9 +4842,9 @@ function drawHUD(c){
   c.fillText("H E A L T H", mx, my-20);
 
   if (bmax){
-    var bxc = mx + hpW2 + 30 + bd/2;
+    var bx0 = mx + hpW2 + 30 + bd/2;
     for (var bq=0; bq<bmax; bq++){
-      var byc = my + segH/2 + (bq - (bmax-1)/2)*(bd+4);
+      var bxc = bx0 + bq*(bd+bgap), byc = my + segH/2;
       c.save(); c.translate(bxc, byc); c.rotate(0.7854);
       var bs2 = bd*0.66;
       if (bq < F.bombs){
@@ -4753,7 +4861,7 @@ function drawHUD(c){
     }
     c.textAlign = "center";
     c.fillStyle = F.bombs > 0 ? "rgba(200,235,255,.9)" : "rgba(110,125,140,.6)";
-    c.fillText("SHIFT", bxc, my-20);
+    c.fillText("SHIFT", bx0 + (brow-bd)/2, my-20);
   }
 
   c.font = "700 11px ui-monospace,Consolas,monospace";
@@ -5227,6 +5335,9 @@ function loadAssets(){
   Object.keys(ART).forEach(function(k){
     var i=new Image(); i.onload=i.onerror=function(){ artLeft--; }; i.src=ART[k]; IMG[k]=i;
   });
+  /* the rage heads start downloading with everything else but gate nothing */
+  for (var rq=1; rq<=PAD_FORCE; rq++) rageHead(rq);
+
   var a = ac();
   if (a) VOICE.forEach(function(n){
     fetch("boss/voice/walker_"+n+".mp3")
