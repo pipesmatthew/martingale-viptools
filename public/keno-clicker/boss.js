@@ -1088,6 +1088,45 @@ var PAD_FORCE = 4;
    said and now has a picture. */
 function focusPos(){ return { x: VW()*0.52, y: VH()*0.50 }; }
 
+/* ════════════════════ THE FOCUS IS THE 1000x GEM ════════════════════
+   It was a hand-drawn rhombus with two facet lines - a diagram of a gem rather
+   than the gem. The game already HAS this object: the rainbow stone that lands
+   on the board at the top multiplier tier, and it is the most valuable-looking
+   thing in the whole product. The tiles feed it, so it should be that.
+
+   `artGem` and the 1000 tier's colours are lifted verbatim from index.html so
+   the two cannot drift; rasterised once into an <img> off a data URI, because
+   sixteen facet paths a frame on a canvas that is already drawing four hundred
+   bullets is not a trade worth making. NO LABEL - the "1000x" is a separate DOM
+   element on the board and does not come with it. */
+var GEM = { deep:"#1a1030", rim:"#ffffff", line:"#120a24", table:"#fff6fb", rainbow:1 };
+function artGem(g){
+  var GX=22, GY=22, GR=19.4, GT=7.6, i;
+  function pt(r,deg){ var a=deg*Math.PI/180; return [GX+r*Math.cos(a), GY+r*Math.sin(a)]; }
+  function dd(p){ return p.map(function(x,ix){ return (ix?"L":"M")+x[0].toFixed(2)+" "+x[1].toFixed(2); }).join("")+"Z"; }
+  var table=[], girdle=[];
+  for (i=0;i<8;i++)  table.push(pt(GT, i*45+22.5));
+  for (i=0;i<16;i++) girdle.push(pt(GR, i*22.5+11.25));
+  var v='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44">'+
+        '<circle cx="22" cy="22" r="'+GR+'" fill="'+g.deep+'"/>';
+  for (i=0;i<16;i++){
+    var f = g.rainbow ? "hsl("+(i*22.5)+" 92% "+(i%2?72:58)+"%)" : g.facets[i%8];
+    v += '<path d="'+dd([girdle[i], girdle[(i+1)%16], table[Math.round(i/2)%8]])+
+         '" fill="'+f+'" stroke="'+g.line+'" stroke-width=".45" stroke-opacity=".5"/>';
+  }
+  v += '<path d="'+dd(table)+'" fill="'+g.table+'" stroke="'+g.line+'" stroke-width=".6" stroke-opacity=".6"/>';
+  v += '<circle cx="22" cy="22" r="'+GR+'" fill="none" stroke="'+g.rim+'" stroke-width="1.3"/>';
+  v += '<path d="M13 11.5 L18 11.5 L14.6 16 Z" fill="#fff" opacity=".8"/></svg>';
+  return v;
+}
+var GEM_IMG = (function(){
+  try {
+    var im = new Image();
+    im.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(artGem(GEM));
+    return im;
+  } catch(e){ return null; }
+})();
+
 /* EACH TILE KEEPS ITS OWN COLOUR while it is cold, and its number is drawn in
    the same one. That is straight off the reference sheet, and it does real work
    beyond looking good: eight identical grey squares are eight of the same
@@ -1602,6 +1641,9 @@ function runeStation(){
   return { x: VW()*0.76, y: VH()*RUNE_BANDS[i] };
 }
 
+/* the fight's own context, stashed so a helper drawn outside the main loop can
+   reach it without threading it through every call */
+var FX = null;
 var stationIx = 0;
 function topStation(){
   var f = STATION_Y[stationIx++ % STATION_Y.length];
@@ -1832,7 +1874,7 @@ var TUNE = {
      than a rebuild. */
   aimed:350, aimEvery:700, aimWave:60, aimWaveHz:0,
   fan:110, fanW:460, fanRows:1,
-  ring:112, spiral:124, counter:105, snipe:496, volley:660, padCharge:13500, moveGap:0.50,
+  ring:112, spiral:124, counter:105, snipe:496, volley:660, padCharge:13500, moveGap:0.75,
   runeTell:1800, aoeTell:2600, novaTell:1800
 };
 /* ════════════════════ IT WAS A LINE, AND A LINE IS NOT A DODGE ════════════════════
@@ -2081,7 +2123,16 @@ function doorCornerAngle(which){
      middle of the far side instead: the triangle is closed off by the top or
      bottom edge well before it reaches the corner, which is what makes it a
      triangle you have to be IN rather than a corridor you retreat down. */
-  var tx = VW()*0.45, ty = which ? VH()*0.06 : VH()*0.94;
+  /* ════════════════════ PUSHED OUT TO THE EDGE OF WHERE YOU ARE ALLOWED TO BE ════════════════════
+     0.45 of the width put the wedge's usable ground straight over the tile arc,
+     which sits between 0.31 and 0.39 - so the safe spot was wherever you already
+     were and the shower cost nothing. Aiming at 0.57 steepens it: the corridor
+     runs up the side of the room near the play wall at 0.66, hard against the
+     top or bottom edge, which is as far from the tiles as the arena goes.
+
+     0.03 rather than 0.06 for the same reason - it pins the wedge to the very
+     edge of the floor instead of leaving a lane of safe ground outside it. */
+  var tx = VW()*0.57, ty = which ? VH()*0.03 : VH()*0.97;
   return Math.atan2(ty - W.y, tx - W.x);
 }
 
@@ -3272,35 +3323,51 @@ function fightDraw(c){
       var s0 = aoeSweepStart(F.move);
       var prog = Math.min(1, F.aoeGlow||0);
       var swept = (6.28318 - DOOR_SPAN) * prog;
-      /* ════════════════════ THE CLOCK BELONGS IN THE ROOM, NOT ON HIM ════════════════════
-         It was drawn around HIM, which is where the sweep actually comes from -
-         and that is exactly why nobody could read it. He stands at 0.76 of the
-         width behind a wall the player cannot cross, so an arc centred on him
-         spends most of its circumference off the board or underneath a boss who
-         is already covered in sparks.
+      /* ════════════════════ THE FLOOR IS THE TELEGRAPH ════════════════════
+         A ring with a dot on it is an instrument, and an instrument is one more
+         thing to learn while four hundred rounds are in the air. What the player
+         actually needs is not "how far round has it got" but WHERE WILL I BE
+         ABLE TO STAND - and that is a place on the floor, so it is drawn on the
+         floor.
 
-         The ANGLES are what carry the information - how far along, and which way
-         - and those are unchanged. Only the centre moves, to the middle of the
-         floor you are allowed to stand on. It is a clock face, not a diagram of
-         the attack; the wedge above is the diagram, and it still comes off him. */
-      var rc = { x: VW()*PLAY_MAX_X*0.5, y: VH()*0.5 };
-      var rr2 = Math.min(VW()*PLAY_MAX_X, VH())*0.40;
-      c.strokeStyle = "rgba("+hx("255,190,110")+"," + (0.20 + 0.55*prog).toFixed(3) + ")";
-      c.lineWidth = 3;
+         The ground the sweep is about to take is scrubbed out: darkened and
+         hatched, growing round from the wedge's near edge exactly as the flurry
+         will travel. What is left un-hatched IS the safe spot - not a symbol
+         for it, the actual ground, in its actual shape, at its actual size. By
+         the time the sparks leave, everything except the wedge is crossed out.
+
+         Drawn from HIM because that is where the sweep genuinely pivots; unlike
+         the ring, this does not need to be read close to him - it is read at
+         the far end, where the player is standing. */
+      var lead = c.createRadialGradient(W.x, W.y, walkerR()*0.85, W.x, W.y, far);
+      lead.addColorStop(0, "rgba(4,3,8," + (0.30 + 0.44*prog).toFixed(3) + ")");
+      lead.addColorStop(1, "rgba(4,3,8," + (0.16 + 0.34*prog).toFixed(3) + ")");
+      c.save();
+      c.beginPath(); c.moveTo(W.x, W.y);
+      c.arc(W.x, W.y, far, s0, s0 + sdir*swept, sdir < 0);
+      c.closePath();
+      c.clip();
+      c.fillStyle = lead;
+      c.fillRect(0, 0, VW(), VH());
+      /* the hatch, so "crossed out" is unmistakable even where the darkening
+         lands on ground that was already black */
+      c.strokeStyle = "rgba("+hx("255,150,60")+"," + (0.05 + 0.10*prog).toFixed(3) + ")";
+      c.lineWidth = 1;
       c.beginPath();
-      c.arc(rc.x, rc.y, rr2, s0, s0 + sdir*swept, sdir < 0);
+      var step = 46, span = VW() + VH();
+      for (var hxx = -VH(); hxx < span; hxx += step){
+        c.moveTo(hxx, 0); c.lineTo(hxx + VH(), VH());
+      }
       c.stroke();
-      /* the track it runs on, so a part-finished arc reads as part-finished
-         rather than as a stray line */
-      c.strokeStyle = "rgba("+hx("255,190,110")+",0.10)";
-      c.lineWidth = 3;
-      c.beginPath(); c.arc(rc.x, rc.y, rr2, 0, 6.28318); c.stroke();
-      /* the head, so the DIRECTION cannot be misread */
+      c.restore();
+      /* the leading edge of the scrub, which is the only moving part left */
       var ha = s0 + sdir*swept;
-      c.fillStyle = "rgba("+hx("255,226,170")+"," + (0.35 + 0.6*prog).toFixed(3) + ")";
+      c.strokeStyle = "rgba("+hx("255,196,120")+"," + (0.30 + 0.5*prog).toFixed(3) + ")";
+      c.lineWidth = 2;
       c.beginPath();
-      c.arc(rc.x + Math.cos(ha)*rr2, rc.y + Math.sin(ha)*rr2, 8, 0, 6.28318);
-      c.fill();
+      c.moveTo(W.x + Math.cos(ha)*walkerR()*0.85, W.y + Math.sin(ha)*walkerR()*0.85);
+      c.lineTo(W.x + Math.cos(ha)*far, W.y + Math.sin(ha)*far);
+      c.stroke();
     }
   }
 
@@ -3541,7 +3608,32 @@ function padEdge(pd,h,f){
   if (side===2) return [pd.x+h-PAD_W*u, pd.y+h];
   return [pd.x-h, pd.y+h-PAD_W*u];
 }
+/* the label is its own pass because it needs the tile's POSITION without the
+   tile's ORIENTATION - see the note at the call site */
+function padLabel(pd, h){
+  var c = FX; if (!c) return;
+  var fp = focusPos();
+  var th = Math.atan2(fp.y-pd.y, fp.x-pd.x);        /* the tile's own facing */
+  /* the middle of the back edge, in world space */
+  var bx = pd.x + Math.cos(th)*(-h-14), by = pd.y + Math.sin(th)*(-h-14);
+  /* along that edge, and never past vertical */
+  var ta = th - 1.5708;
+  var n = Math.atan2(Math.sin(ta), Math.cos(ta));
+  if (n > 1.5708 || n < -1.5708) ta += 3.14159;
+  c.save();
+  c.translate(bx, by); c.rotate(ta);
+  c.textAlign = "center"; c.textBaseline = "middle";
+  c.font = '700 15px ui-monospace,Consolas,monospace';
+  c.strokeStyle = "rgba(3,10,6,.92)"; c.lineWidth = 4;
+  c.strokeText("RESTORING", 0, 0);
+  c.fillStyle = "#5cff9a";
+  c.fillText("RESTORING", 0, 0);
+  c.restore();
+  c.textBaseline = "alphabetic";
+}
+
 function drawPads(c, now){
+  FX = c;
   if (!F.on) return;
   /* ════════════════════ THEY ARE NOT NEEDED WHILE THE SHIELD IS DOWN, AND THEY ARE IN THE WAY ════════════════════
      A lit tile is a filled rainbow square with a radial glow under it, four of
@@ -3599,36 +3691,37 @@ function drawPads(c, now){
       c.strokeStyle = hot ? "hsla("+pd.hue+",95%,72%,1)" : "hsla("+pd.hue+",70%,55%,.8)";
       c.lineWidth = hot ? 3 : 2;
       c.strokeRect(pd.x-h+1, pd.y-h+1, PAD_W-2, PAD_W-2);
-      /* ════════════════════ SAY WHAT STANDING HERE IS BUYING ════════════════════
-         A tile pays a bomb and a quarter of your health, and nothing on the
-         screen said so - the bar moved after the fact and you had to infer it.
-         Drawn INSIDE the tile's own rotation, along the back edge, so it lies
-         parallel to the square and reads as part of it rather than as a label
-         floating over the arena. The back edge is local -x because the rotation
-         points +x at the focus he is being shot with. */
-      if (hot){
-        c.save();
-        c.translate(pd.x - h - 13, pd.y);
-        c.rotate(-1.5708);
-        c.textAlign = "center"; c.textBaseline = "middle";
-        c.font = '700 15px ui-monospace,Consolas,monospace';
-        c.strokeStyle = "rgba(3,10,6,.92)"; c.lineWidth = 4;
-        c.strokeText("RESTORING", 0, 0);
-        c.fillStyle = "#5cff9a";
-        c.fillText("RESTORING", 0, 0);
-        c.restore();
-        c.textBaseline = "alphabetic";
-      }
+      /* ════════════════════ PARALLEL TO THE TILE, BUT NEVER UPSIDE DOWN ════════════════════
+         A tile pays a bomb and a quarter of your health and nothing on screen
+         said so. This was drawn inside the tile's own rotation, which put it
+         along the back edge correctly and MIRRORED it - the tiles at the bottom
+         of the arc are turned about -60 degrees, and -60 minus another 90 puts
+         the text past vertical and reading right-to-left, which is what the
+         screenshot showed.
+
+         So it is positioned from the rotation and then oriented on its own: the
+         edge's own bearing, flipped by pi whenever that bearing would land in
+         the half of the circle where text reads backwards. Still parallel to
+         the square; always readable. */
+      if (hot) padLabel(pd, h);
     }
 
     /* THE NUMBER FACES HIM. A keno tile lying in the arena is a tile that has
        been TURNED to look at the thing it is shooting — so the digits' "up"
        points at Walker, and the row of them fans as he moves along his wall.
        It is also the cheapest possible reminder of which way the fight is. */
-    c.save();
-    c.translate(pd.x, pd.y);
     c.restore();   /* end of the tile's own rotation — the number is upright */
 
+    /* ════════════════════ THE NUMBERS WERE BEING DRAWN OFF THE SCREEN ════════════════════
+       This was `c.save(); c.translate(pd.x,pd.y); c.restore();` - a save and a
+       restore with nothing between them, which is exactly nothing - and then
+       fillText at (0,0). So the digit was placed at local origin while the
+       TILE'S OWN ROTATION was still on the context, which maps (0,0) to
+       c - R*c rather than to the tile. Measured on a 1920x1080 board, the four
+       numbers landed at (-413,968), (-180,215), (153,-160) and (458,-521):
+       three of them off the canvas entirely and not one of them on its tile.
+
+       The restore has to close the rotation BEFORE the text, not after it. */
     /* UPRIGHT. No rotation at all — not a facing, not a lean. A keno tile is
        read by its number and nothing else, and every degree of rotation costs
        legibility for a piece of information the player already has from the
@@ -3636,8 +3729,7 @@ function drawPads(c, now){
     c.font = "700 " + Math.round(PAD_W*0.38) + "px ui-monospace,Consolas,monospace";
     c.textAlign="center"; c.textBaseline="middle";
     c.fillStyle = pd.on ? "rgba(12,8,20,.92)" : "hsla("+pd.hue+",85%,66%,.95)";
-    c.fillText(String(pd.n), 0, 0);
-    c.restore();
+    c.fillText(String(pd.n), pd.x, pd.y);
     c.textBaseline="alphabetic";
   }
   /* THE DIAMOND IS ALWAYS THERE, lit or not — a piece of equipment standing in
@@ -3652,19 +3744,24 @@ function drawPads(c, now){
     fg.addColorStop(1,"rgba(160,120,255,0)");
     c.fillStyle=fg; c.beginPath(); c.arc(0,0,sz*3.2,0,6.28318); c.fill();
   }
-  c.beginPath();
-  c.moveTo(0,-sz); c.lineTo(sz*0.72,0); c.lineTo(0,sz); c.lineTo(-sz*0.72,0);
-  c.closePath();
-  c.fillStyle = k ? "rgba(60,36,110,.92)" : "rgba(18,14,30,.85)";
-  c.fill();
-  c.lineWidth = 2.5;
-  c.strokeStyle = k ? "rgba(235,220,255,.95)" : "rgba(120,100,170,.55)";
-  c.stroke();
-  if (k){
-    /* facets, so it reads as cut glass rather than a rhombus */
-    c.strokeStyle="rgba(255,255,255,"+(0.25+0.12*k).toFixed(2)+")"; c.lineWidth=1.2;
-    c.beginPath(); c.moveTo(0,-sz); c.lineTo(0,sz); c.stroke();
-    c.beginPath(); c.moveTo(-sz*0.72,0); c.lineTo(sz*0.72,0); c.stroke();
+  if (GEM_IMG && GEM_IMG.naturalWidth){
+    /* DARKENED WHILE NOTHING FEEDS IT. The stone is the same stone either way;
+       what changes is whether it is lit, which is the state the player is
+       actually being told about. */
+    c.globalAlpha = k ? 1 : 0.42;
+    c.drawImage(GEM_IMG, -sz, -sz, sz*2, sz*2);
+    c.globalAlpha = 1;
+  } else {
+    /* the old rhombus, kept as the fallback for the frames before the data URI
+       has decoded - without it the focus vanishes for the first frame or two */
+    c.beginPath();
+    c.moveTo(0,-sz); c.lineTo(sz*0.72,0); c.lineTo(0,sz); c.lineTo(-sz*0.72,0);
+    c.closePath();
+    c.fillStyle = k ? "rgba(60,36,110,.92)" : "rgba(18,14,30,.85)";
+    c.fill();
+    c.lineWidth = 2.5;
+    c.strokeStyle = k ? "rgba(235,220,255,.95)" : "rgba(120,100,170,.55)";
+    c.stroke();
   }
   c.restore();
 
