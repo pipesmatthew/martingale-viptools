@@ -619,7 +619,21 @@ var SHOT_EVERY=1050, SHOT_SPEED=155;
    telegraphed: held still for the whole 2.6s wind-up, aimed at a point inside
    your half, drawn as a wedge the entire time. Survivable by knowing where to
    be, and by nothing else. */
-var AOE_WIND=2600, AOE_FIRE=1500, AOE_FRAC=0.25, AOE_TICK_MS=260;
+/* ══ THE WIND-UP PAYS FOR THE RUN, because the answer is now a run ══════════
+   2600ms was sized for a door that opened into the half the player already
+   stood in — a sidestep. The door opens on one of HIS corners now, so the
+   answer is a full crossing of the arena, and the clock has to cover it.
+
+   Measured, full speed, aiming into the wedge from the four places the fight
+   actually leaves you: the worst honest run is 3.20s (lower-left pad to the
+   top-right corner) and the next worst 3.15s. At 2600 half of those arrived
+   late and ate 262-525 damage having played it perfectly, which is the fight
+   lying about what it was asking for.
+
+   3600 covers the worst case with about four tenths to spare. It is a long
+   charge, and it is not the nova's problem of standing around waiting — every
+   one of those milliseconds is a sprint you are already making. */
+var AOE_WIND=3600, AOE_FIRE=1500, AOE_FRAC=0.25, AOE_TICK_MS=260;
 var AOE_SPIN_UP=420;   /* ms from standstill to full sweep — see the gate */
 function aoeDmg(){ return F.hpMmax * AOE_FRAC; }
 /* LONG AND HARD, DELIBERATELY. A quarter of your health per bullet and a fight
@@ -1431,10 +1445,38 @@ var DOOR_SPAN = SEG * 0.70;        /* about 50 degrees */
    50 degrees, you have to FIND it during the wind-up, and it alternates ends
    of the arena. Finding it is the move; surviving it was never meant to be a
    chase you cannot win anyway at 430px/s. */
-var DOOR_SWEEP = 1.10;             /* radians the door turns across the shower */
+/* ══ THE DOOR DOES NOT DRIFT, BECAUSE THE CORNER DOES NOT MOVE ═════════════
+   A sweeping door and a corner that is "always safe" are the same dial pulled
+   in opposite directions: any drift at all walks the wedge off the corner it is
+   supposed to be guarding. So the door is pinned.
+
+   The WHEEL still spins — it always did, at AOE_RING_SPIN, and it has been
+   decoupled from the door since the two stopped being the same object. What
+   moves is the storm going out; what stays is the one triangle. */
+var DOOR_SWEEP = 0;
 var AOE_RING_SPIN = 2.10;          /* rad/s, the WHEEL - nothing to do with the door */
 var AOE_DRAG  = 1.16;              /* see the note on per-spark drag */
-var DOOR_TOP = 3.93, DOOR_BOT = 2.36;   /* up-left and down-left, screen angles */
+/* ══════════ THE DOOR IS A CORNER, AND IT ALTERNATES ═══════════════════════
+   It used to aim into the left half, which is where the player already stands,
+   so the answer to the attack was "stay roughly where you are". Now it opens on
+   one of HIS corners and alternates strictly between them:
+
+       AOE 1   bottom-right      AOE 3   bottom-right
+       AOE 2   top-right         AOE 4   top-right      ...
+
+   You cross the arena to reach it, which is the point — the shower sweeps out
+   everything else, and the only thing left standing is a small triangle in a
+   corner you have to commit to during the wind-up.
+
+   COMPUTED FROM WHERE HE ACTUALLY IS, not stored as a constant. He does not
+   stand in the same place on every screen and he drifts while he charges, so a
+   fixed bearing would slide off the corner on a different aspect ratio. This
+   re-aims at the corner every frame, which is what makes "always safe" true
+   rather than nearly true. */
+function doorCornerAngle(which){          /* 0 = bottom-right, 1 = top-right */
+  var tx = VW()*0.985, ty = which ? VH()*0.055 : VH()*0.945;
+  return Math.atan2(ty - W.y, tx - W.x);
+}
 /* the direction alternates on a fixed list, like everything else here */
 var DOOR_DIR = [-1, 1, -1, 1, 1, -1];
 var doorIx = 0;
@@ -1763,8 +1805,10 @@ function fightStep(dt, now){
     /* WHICH WAY IT WILL TURN, AND THEREFORE WHERE IT ENDS, decided here and
        announced by the wheel for the whole wind-up. */
     if (F.move.id === "aoe" && F.move.gaps.length){
-      F.move.dir = DOOR_DIR[doorIx++ % DOOR_DIR.length];
-      F.move.from = F.move.dir < 0 ? DOOR_TOP : DOOR_BOT;
+      /* strict alternation, bottom-right then top-right */
+      F.move.corner = (doorIx++) % 2;
+      F.move.from = doorCornerAngle(F.move.corner);
+      F.move.dir  = F.move.corner ? 1 : -1;   /* which way the WHEEL turns only */
     }
   }
   stepPatterns(now);
@@ -1827,7 +1871,10 @@ function fightStep(dt, now){
         var Tw = AOE_WIND/1000, tw = Math.min(Tw, M.t/1000);
         var S0 = IDLE_SPIN;
         W.spin = (M.dir || -1) * (S0 + (AOE_RING_SPIN-S0)*(tw/Tw));
-        /* HELD. This is the promise the whole move is built on. */
+        /* RE-AIMED AT THE CORNER EVERY FRAME. This is the promise the whole
+           move is built on, and re-deriving it is what keeps it true while he
+           drifts around his station during the charge. */
+        M.from = doorCornerAngle(M.corner || 0);
         M.doorAng = M.from;
         F.aoeGlow = Math.min(1, M.t/AOE_WIND);
         /* ══ THE WIND-UP THROWS ALMOST NOTHING ═══════════════════════════
@@ -1906,8 +1953,7 @@ function fightStep(dt, now){
         /* the door, drifting off the bearing it was held on — a nudge, not a
            chase. It carries on the way the wheel turns so the two still agree
            about direction even though they no longer agree about speed. */
-        if (M.doorAng === undefined) M.doorAng = M.from;
-        M.doorAng += (M.dir || -1) * (DOOR_SWEEP/(AOE_FIRE/1000)) * dt;
+        M.doorAng = doorCornerAngle(M.corner || 0);   /* pinned to the corner */
         F.aoeGlow = 1;
         aoeSparks(dt, 26000 * up);
         /* ITS OWN CLOCK, FOUR TIMES A SECOND, OUTSIDE THE I-FRAME WINDOW. On
@@ -2339,17 +2385,9 @@ function fightDraw(c){
       c.stroke();
     }
 
-    /* WHICH WAY IT IS ABOUT TO GO. The door turns 63 degrees across the
-       shower, so where it is now is only half the answer. */
-    if (F.move.phase === "tell" && F.move.dir){
-      var lead = F.move.dir < 0 ? a0 : a0+DOOR_SPAN;
-      var lr = walkerR() + 120 + 40*Math.sin(F.t/180);
-      c.strokeStyle="rgba(150,235,255,"+(0.25+0.45*F.aoeGlow).toFixed(3)+")";
-      c.lineWidth=4;
-      c.beginPath();
-      c.arc(W.x, W.y, lr, lead, lead + F.move.dir*0.55, F.move.dir<0);
-      c.stroke();
-    }
+    /* NO ARROW ANY MORE. It announced which way the door was about to sweep,
+       and the door does not sweep — pointing at a corner that is not moving
+       would be telling the player something untrue. */
   }
 
   /* THE NOVA'S REACH, DRAWN BEFORE IT ARRIVES. A blast with no door in it is
