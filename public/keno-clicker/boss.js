@@ -3192,11 +3192,24 @@ function fightStep(dt, now){
         else {
           F.novaHeat = Math.min(1, M.t/NOVA_TELL);
           F.aoeGlow = F.novaHeat;             /* he lights up for this one too */
-          /* THE ONE TELL THAT IS A SPIN-UP RATHER THAN A STOP. Both other
-             charges freeze the wheel; this one winds it to four times his
-             resting speed, so the three are told apart by the wheel alone
-             before any of the other art has resolved. */
-          W.spin = IDLE_SPIN + 3.6*F.novaHeat;
+          /* {B} A FLYWHEEL, NOT A DIMMER {B}
+             Both other charges freeze the wheel; this one winds it, so the
+             three are told apart by the wheel alone before any of the rest of
+             the art has resolved. But it was IDLE + 3.6*heat with heat rising
+             LINEARLY - a constant acceleration, which the eye reads as "it is
+             going round" rather than as "it is winding up". Nothing about a
+             straight line feels like spooling.
+
+             Squared and much higher: barely moving for the first half of the
+             charge, then tearing by the end. 1.2 rad/s at rest to 15.2 at the
+             top, and because the ramp is quadratic most of that arrives in the
+             last third - which is exactly where the player needs to be told
+             that the clock is nearly out.
+
+             It feeds the sparks for free: aoeSparks() takes its tangential
+             component from W.spin, so they whip round with him into a vortex
+             instead of drifting straight out. */
+          W.spin = IDLE_SPIN + 14.0*Math.pow(F.novaHeat, 2.2);
           for (var nq=0;nq<3;nq++){
             if (Math.random() < 90*dt*F.novaHeat){
               var na=Math.random()*6.28318, nd=340+Math.random()*520;
@@ -3211,7 +3224,9 @@ function fightStep(dt, now){
           }
         }
       } else {
-        W.spin = 3.0;
+        /* it does not decelerate the instant it fires - the wheel carries its
+           speed through the blast and only lets go when the move ends */
+        W.spin = 11.0;
         /* NO GAP AT ALL. Every other shower he has contains a door; this one
            does not, which is exactly why the answer has to be distance rather
            than angle. */
@@ -4414,7 +4429,7 @@ function drawHUD(c){
   c.fillStyle = "#0b0708"; c.fillRect(bx, by, bw, bh);
 
   /* the ghost is bone, not pink — it is what is left of him, not a highlight */
-  c.fillStyle = "rgba(150,136,128,.30)";
+  c.fillStyle = "rgba("+hx("150,136,128")+",.30)";
   c.fillRect(bx, by, bw*F.ghost, bh);
 
   /* the live bar, in two colours — dull where he is still shielded, hot where
@@ -4423,16 +4438,31 @@ function drawHUD(c){
   c.save();
   c.beginPath(); c.rect(bx, by, bw*frac, bh); c.clip();
   /* shielded: rust over dried blood. exposed: raw, but still not bright. */
+  /* {B} FLAT, AND IT TRIPS WITH HIM {B}
+     Two problems in one fill. It was a three-stop vertical gradient with a
+     shadow banded across the bottom - the shadow was put there to REPLACE a
+     gloss highlight, but a light-to-dark-to-light ramp down the height of a bar
+     is itself the thing that reads as a moulded plastic tube, so removing the
+     shine and leaving the ramp did not remove the plastic.
+
+     And it was the last thing on screen still painted in fixed hex while his
+     art, his sparks, his telegraphs and the safe wedge all descend the rainbow
+     together - so at break 4 the arena was violet and his bar was still rust.
+     Both halves run through hx() now: dull where the shield is up, hot where it
+     is down, and both of them his colour at that moment. */
   var deep = c.createLinearGradient(0, by, 0, by+bh);
-  deep.addColorStop(0,"#4a1512"); deep.addColorStop(0.55,"#330d0c"); deep.addColorStop(1,"#3f1210");
+  deep.addColorStop(0,"rgba("+hx("64,20,17")+",1)");
+  deep.addColorStop(1,"rgba("+hx("44,13,11")+",1)");
   c.fillStyle = deep; c.fillRect(bx + bw*vuln, by, bw*(1-vuln), bh);
   var hot = c.createLinearGradient(0, by, 0, by+bh);
-  hot.addColorStop(0,"#9c1e18"); hot.addColorStop(0.55,"#6e0f0c"); hot.addColorStop(1,"#8a1a14");
+  hot.addColorStop(0,"rgba("+hx("150,28,22")+",1)");
+  hot.addColorStop(1,"rgba("+hx("112,16,13")+",1)");
   c.fillStyle = hot; c.fillRect(bx, by, bw*vuln, bh);
-  /* NO GLOSS. A shine along the top is the single thing that made it read as
-     plastic. What replaces it is a shadow along the BOTTOM — the same trick
-     upside down, and it reads as depth rather than as polish. */
-  c.fillStyle = "rgba(0,0,0,.34)"; c.fillRect(bx, by+bh*0.62, bw*frac, bh*0.38);
+  /* AND NO SHADOW EITHER. The bottom band was the gloss trick upside down and
+     it did the same job - it gave the bar a rounded cross-section. A boss bar
+     wants to look like a quantity, not like an object. One faint line along the
+     top edge instead, which reads as an inset rather than as a shape. */
+  c.fillStyle = "rgba(0,0,0,.28)"; c.fillRect(bx, by, bw*frac, 1.5);
   c.restore();
 
   /* ════════════════════ THE NOTCHES ARE THE GATES, AND THEY ARE NOT EVENLY SPACED ════════════════════
@@ -4496,14 +4526,31 @@ function drawHUD(c){
      decision rather than a dot in a row. Lit and ringed while you hold it,
      hollow and grey the moment it is spent, and the word underneath either way
      so it is never a mystery symbol. */
-  var segN = HITS_TO_DIE, segW = 46, segH = 16, segGap = 4;
-  var hpW2 = segN*segW + (segN-1)*segGap;
-  var bombD = 30, blockW = hpW2 + 26 + Math.max(1,(F.won|0))*(bombD+6);
-  var mx = (w - blockW)/2, my = VH()-34;
-  var hpLeft = F.hpM/F.hpMmax*segN;          /* in hits, not fractions */
+  /* ════════════════════ READOUT 2 ════════════════════
+     Health and bombs are different KINDS of thing and were drawn identically -
+     five boxes and a row of matching discs, same weight, same shape, sitting in
+     one undifferentiated strip. Hits move constantly; bombs only move when you
+     take a tile. So they are separated by a rule and given different geometry.
 
-  c.fillStyle = "rgba(3,3,6,.72)";
-  c.fillRect(mx-10, my-9, blockW+20, segH+18);
+     THE BOMBS ARE DIAMONDS because the tiles that pay for them are diamonds.
+     The link between "I stood on that square for thirteen seconds" and "I have
+     a bomb" is drawn rather than explained.
+
+     The health boxes carry two faint internal dividers each - not decoration:
+     they stop five identical rectangles reading as one continuous bar at a
+     glance, which is the whole reason for counting boxes instead of filling a
+     rail. */
+  var segN = HITS_TO_DIE, segW = 48, segH = 18, segGap = 5;
+  var hpW2 = segN*segW + (segN-1)*segGap;
+  var bmax = bombMax(), bombD = 26;
+  var blockW = hpW2 + (bmax ? 17 + 17 + bmax*(bombD+8) : 0);
+  var mx = (w - blockW)/2, my = VH()-38;
+  var hpLeft = F.hpM/F.hpMmax*segN;
+
+  c.fillStyle = "rgba(3,3,6,.78)";
+  c.fillRect(mx-12, my-11, blockW+24, segH+24);
+  c.strokeStyle = "rgba(90,100,96,.30)"; c.lineWidth = 1;
+  c.strokeRect(mx-12.5, my-11.5, blockW+25, segH+25);
 
   for (var sgi=0; sgi<segN; sgi++){
     var sx3 = mx + sgi*(segW+segGap), fill = Math.max(0, Math.min(1, hpLeft - sgi));
@@ -4511,43 +4558,48 @@ function drawHUD(c){
     c.fillRect(sx3, my, segW, segH);
     if (fill > 0){
       /* the last box you have left runs hot, so "one hit from dead" is a colour
-         rather than a count you have to do */
+         rather than a count you have to do while dodging */
       var last = (Math.ceil(hpLeft) === sgi+1) && hpLeft <= 1.001;
       var g3 = c.createLinearGradient(0, my, 0, my+segH);
       if (last){ g3.addColorStop(0,"#ff8f6b"); g3.addColorStop(1,"#c8341c"); }
       else     { g3.addColorStop(0,"#7dffb0"); g3.addColorStop(1,"#2ba465"); }
       c.fillStyle = g3;
       c.fillRect(sx3, my, segW*fill, segH);
+      c.fillStyle = "rgba(0,0,0,.22)";
+      for (var nn=1; nn<3; nn++) c.fillRect(sx3 + segW*nn/3 - 0.5, my, 1, segH);
     }
     c.strokeStyle = fill > 0 ? "rgba(190,255,220,.55)" : "rgba(110,125,120,.35)";
     c.lineWidth = 1;
     c.strokeRect(sx3+0.5, my+0.5, segW-1, segH-1);
   }
 
-  /* {B} AS MANY SLOTS AS TILES, AND NO EMPTY PROMISES {B}
-     The row is exactly bombMax() long, so before the first tile there is
-     nothing drawn there at all rather than a hollow circle implying a bomb you
-     cannot earn yet. Held ones are lit and ringed; spent ones are hollow. */
-  var bmax = bombMax(), bcy = my + segH/2;
-  for (var bq=0; bq<bmax; bq++){
-    var bcx = mx + hpW2 + 26 + bombD/2 + bq*(bombD+6);
-    if (bq < F.bombs){
-      var bg2 = c.createRadialGradient(bcx,bcy,1,bcx,bcy,bombD/2);
-      bg2.addColorStop(0,"#dff4ff"); bg2.addColorStop(0.55,"#6cc4f5"); bg2.addColorStop(1,"#1d5f8c");
-      c.fillStyle = bg2;
-      c.beginPath(); c.arc(bcx,bcy,bombD/2-3,0,6.28318); c.fill();
-      c.strokeStyle="rgba(215,245,255,.95)"; c.lineWidth=2;
-      c.beginPath(); c.arc(bcx,bcy,bombD/2-1,0,6.28318); c.stroke();
-    } else {
-      c.strokeStyle="rgba(110,125,140,.5)"; c.lineWidth=2;
-      c.beginPath(); c.arc(bcx,bcy,bombD/2-3,0,6.28318); c.stroke();
-    }
-  }
+  c.font = "700 9px ui-monospace,Consolas,monospace";
+  c.textAlign = "left"; c.textBaseline = "alphabetic";
+  c.fillStyle = "rgba(150,160,158,.7)";
+  c.fillText("HITS", mx, my-16);
+
   if (bmax){
-    c.font = "700 9px ui-monospace,Consolas,monospace";
-    c.textAlign="center";
-    c.fillStyle = F.bombs > 0 ? "rgba(200,235,255,.9)" : "rgba(110,125,140,.6)";
-    c.fillText("SHIFT", mx + hpW2 + 26 + bombD/2 + (bmax-1)*(bombD+6)/2, my+segH+12);
+    var dvx = mx + hpW2 + 17;
+    c.strokeStyle = "rgba(100,112,108,.45)"; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(dvx, my-3); c.lineTo(dvx, my+segH+3); c.stroke();
+    for (var bq=0; bq<bmax; bq++){
+      var bcx = dvx + 17 + bombD/2 + bq*(bombD+8), bcy = my + segH/2;
+      c.save(); c.translate(bcx, bcy); c.rotate(0.7854);
+      var bs2 = bombD*0.62;
+      if (bq < F.bombs){
+        var bg2 = c.createLinearGradient(-bs2/2,-bs2/2,bs2/2,bs2/2);
+        bg2.addColorStop(0,"#dff4ff"); bg2.addColorStop(0.55,"#6cc4f5"); bg2.addColorStop(1,"#1d5f8c");
+        c.fillStyle = bg2; c.fillRect(-bs2/2,-bs2/2,bs2,bs2);
+        c.strokeStyle = "rgba(215,245,255,.95)"; c.lineWidth = 2;
+        c.strokeRect(-bs2/2,-bs2/2,bs2,bs2);
+      } else {
+        c.strokeStyle = "rgba(110,125,140,.5)"; c.lineWidth = 2;
+        c.strokeRect(-bs2/2,-bs2/2,bs2,bs2);
+      }
+      c.restore();
+    }
+    c.fillStyle = F.bombs > 0 ? "rgba(200,235,255,.85)" : "rgba(110,125,140,.6)";
+    c.fillText("BOMB · SHIFT", dvx + 17, my-16);
   }
 
   c.font = "700 11px ui-monospace,Consolas,monospace";
