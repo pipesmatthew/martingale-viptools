@@ -325,6 +325,28 @@ a.railbtn.clicker::before{content:"";position:absolute;inset:-1px;padding:1px;
   animation:clickerflow 3.4s linear infinite}
 @keyframes clickerflow{ to{ background-position:300% 0; } }
 @media (prefers-reduced-motion:reduce){ a.railbtn.clicker::before{animation:none} }
+/* ── TheOnlyWalker ──────────────────────────────────────────────────────
+   A picture, not a label. Everything else in this rail is a word in a box, so
+   the one thing here that is a FIGHT rather than a calculator gets to look
+   like one - his last-phase face, the one with the jaw open, staring out of
+   the sidebar.
+
+   Sized by the image itself: line-height 0 kills the inline-baseline gap that
+   otherwise leaves a few pixels of background under any <img> in a block, and
+   the intrinsic width/height on the tag reserves the square before it loads so
+   the rail does not jump.
+
+   The href is relative for the same reason the Clicker's is - it resolves the
+   same on localhost as on martingale.viptools.gg, with nothing to repoint at
+   deploy time. */
+a.railbtn.walker{display:block;padding:0;overflow:hidden;line-height:0;
+  background:#0a0708;border-color:#3a2320}
+a.railbtn.walker img{display:block;width:100%;height:auto;
+  filter:saturate(.82) brightness(.84);
+  transition:filter .2s ease, transform .2s ease}
+a.railbtn.walker:hover{border-color:#8a3326;background:#0a0708}
+a.railbtn.walker:hover img{filter:saturate(1.18) brightness(1.08);transform:scale(1.04)}
+@media (prefers-reduced-motion:reduce){ a.railbtn.walker:hover img{transform:none} }
 .railsep{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
   font-weight:700;padding:8px 2px 3px}
 @media (max-width:860px){
@@ -332,6 +354,8 @@ a.railbtn.clicker::before{content:"";position:absolute;inset:-1px;padding:1px;
   .railcol{flex-direction:row;flex-wrap:wrap;align-items:center}
   .railcol .railsep{padding:0 4px 0 0}
   .railcol .railbtn{flex:1 1 auto}
+  /* the portrait keeps its square instead of being stretched by the row */
+  .railcol a.railbtn.walker{flex:0 0 auto;width:96px}
 }
 
 /* one row per setting: a label on the left, whatever it takes on the right */
@@ -682,6 +706,12 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="railsep">Game</div>
         <a class="railbtn clicker" href="keno-clicker/"
            target="_blank" rel="noopener">Keno Clicker &rarr;</a>
+        <!-- the picture IS the link: see the CSS -->
+        <a class="railbtn walker" href="keno-clicker/walker-9c4e17ab2f/?dev"
+           target="_blank" rel="noopener" aria-label="Fight TheOnlyWalker">
+          <img src="keno-clicker/boss/walker_head_rage4.png" alt="TheOnlyWalker"
+               width="1024" height="1024" loading="lazy" decoding="async">
+        </a>
       </div>
 
       <div class="split">

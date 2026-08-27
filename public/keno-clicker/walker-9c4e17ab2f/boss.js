@@ -264,9 +264,21 @@ var FIN_HIDE_AT = [0.8, 7.5];
    through is 2 x spacing and closes as the spacing does: 200, 172, 144. */
 var RAY_FIRE    = 200;    /* the rainbow pulse */
 var RAY_H       = 1.6;    /* half-width of the part that hurts */
-var RAY_ARM     = [2500, 2200, 1800];  /* the white hairline, shortening */
-var RAY_STAGGER = [110, 88, 64];       /* top-to-bottom cascade, quickening */
-var RAY_SPACING = [100, 86, 72];       /* the comb, closing */
+/* ════════════════════ FOUR SETS. THE LAST FIVE SECONDS WERE EMPTY ════════════════════
+   Three sets put the final comb at 22.6-25.8 and the curtain at 27.6, which
+   left the closing stretch with nothing in it but the sweep finishing its
+   travel - the quietest moment in the phase sitting exactly where it should be
+   loudest.
+
+   The fourth fires into that gap, after the curtain, and it is the fastest and
+   tightest of them: 1400ms of warning against the first set's 2500, a 48ms
+   cascade, and a 60px comb. It DOES have a way through, unlike the third - by
+   then the mine is spent on the curtain and a solid wall would not be a demand,
+   it would be a subtraction. Its route sits at the pocket, which is where the
+   player already is. */
+var RAY_ARM     = [2500, 2200, 1800, 1400];  /* the white hairline, shortening */
+var RAY_STAGGER = [110, 88, 64, 48];         /* top-to-bottom cascade, quickening */
+var RAY_SPACING = [100, 86, 72, 60];         /* the comb, closing */
 /* ════════════════════ SET TWO OPENS WHERE SET ONE LEFT YOU ════════════════════
    Measured at set two's moment: the reachable band is [-426, 614] and its route
    was at +86, while a player who had just solved set one was standing at -300,
@@ -278,13 +290,135 @@ var RAY_SPACING = [100, 86, 72];       /* the comb, closing */
    MOVE: cross for the first, stand still through the second while the comb
    tightens around you, then make the last trip to the corner for the third -
    which is where the sweep has been pushing you the whole time. */
-var RAY_GAP_AT  = [-250, -300, 0];     /* where the route is, per set */
-var RAY_AT      = [4.0, 8.0, 13.5];    /* seconds after the hide ends */
-var RAY_SETS    = 3;
+/* ════════════════════ THE LAST SET HAS NO ROUTE AT ALL ════════════════════
+   null instead of an offset: the comb goes up solid, every line, no hole. That
+   is only fair because it is not asking you to dodge - it is asking you to
+   SPEND the mine. useBomb grants BOMB_IFRAME of invulnerability on top of
+   clearing the shots, so the bomb is what carries you through a wall that
+   position cannot answer.
+
+   Which is why the timings below matter more than usual: the ball has to arrive
+   inside the same second as the gapless cascade, or one mine cannot cover both
+   and the phase becomes unsurvivable rather than demanding. */
+var RAY_GAP_AT  = [-250, -300, null, 0];  /* null = solid, spend the mine */
+var RAY_AT      = [4.0, 8.0, 11.0, 15.3];  /* seconds after the hide ends */
+var RAY_SETS    = 4;
 /* Two player lengths was the brief and left a pocket you could stroll around
    in. 74 was better and still roomy; 54 is a shade over one player length, so
    the last corner is somewhere you hold rather than somewhere you wait. */
 var FIN_MARGIN = 54;
+/* ════════════════════ THE LAST THING HE THROWS ════════════════════
+   One mine goes into this phase and it exists for exactly one moment: a mass of
+   galaxies converging on the pocket in the closing seconds, dense enough that
+   position cannot answer it. The mine clears everything within BOMB_R of the
+   player, so the ball has to ARRIVE inside that radius - it is not a wall to
+   route around, it is the thing the mine was given to you for.
+
+   Timed off breakSeconds() rather than a fixed progress fraction, so it is four
+   real seconds at every bet size: 30s at $8 and 24s at level 42 would otherwise
+   put it at very different points in the run. */
+/* ════════════════════ BIG ENOUGH THAT THERE IS NOWHERE TO BE ════════════════════
+   54 galaxies in a 120px disc was a clump you could sidestep, which made the
+   mine optional and therefore pointless. 130 across 300px, aimed at the pocket
+   itself rather than at wherever the player happened to be standing, blankets
+   the only ground the sweep has left them. There is no spot; there is a button.
+
+   FASTER AND SOONER so it lands inside the last cascade rather than after it -
+   4.6 seconds before the end at 300px/s over 640px, which puts arrival about
+   two seconds later, in the same window as the solid comb. One mine, both
+   problems, and it has to be spent on the right beat. */
+/* ════════════════════ IT CROSSES THE WHOLE BOARD ════════════════════
+   Released 700px out it simply appeared near the pocket, which gave the last
+   event of the fight no approach - the drama of a closing wall is watching it
+   come. It starts 1500px away now, off the far side, and crosses everything.
+
+   Fast enough that the crossing is still a threat rather than a parade: 820px/s
+   covers it in about 1.8 seconds. Spawned earlier to match, so it still lands
+   at roughly the same moment. */
+var FIN_BALL_N = 230, FIN_BALL_R = 920, FIN_BALL_D = 1500, FIN_BALL_SPD = 820;
+/* ════════════════════ THE GAP IS MADE BY MOVING THE COMB, NOT THE CURTAIN ════════════════════
+   Pushing the curtain 2.5s later was tried and measured: it spawned at 27.91,
+   peaked at 29.94 and he died at 29.99 - five hundredths of a second later. The
+   EMP clears every shot, so the sheet was wiped on arrival and the moment it
+   exists for never happened. There is no room at that end; the finale is thirty
+   seconds and the curtain already landed near the close of it.
+
+   So the separation comes from the other side: the last comb fires two and a
+   half seconds earlier instead. Same distance between the two events, both
+   still inside the fight.
+
+   It also splits the answers, which is better than one mine covering both. The
+   comb costs you a hit - one, survivable out of five - and the mine is spent on
+   the curtain, which is the thing no amount of health survives. */
+var FIN_BALL_AT = 4.4;   /* seconds before the end */
+/* full-saturation hue -> "r,g,b", so a shard can carry a spectrum position in
+   the same field every other projectile uses for its colour */
+function hueRGB(h){
+  var x = h/60, c1 = 1 - Math.abs((x % 2) - 1), r, g, b;
+  if      (x < 1){ r=1;  g=c1; b=0;  }
+  else if (x < 2){ r=c1; g=1;  b=0;  }
+  else if (x < 3){ r=0;  g=1;  b=c1; }
+  else if (x < 4){ r=0;  g=c1; b=1;  }
+  else if (x < 5){ r=c1; g=0;  b=1;  }
+  else           { r=1;  g=0;  b=c1; }
+  /* lifted off pure so it still reads on black without blowing out */
+  return Math.round(60+195*r)+","+Math.round(60+195*g)+","+Math.round(60+195*b);
+}
+function finBall(){
+  /* AIMED AT THE POCKET, NOT AT THE PLAYER. Converging on wherever they stood
+     at the moment it spawned left them able to walk out of it; converging on
+     the corner the sweep has already cornered them into means the ball and the
+     wall agree about where they are. */
+  var f0 = F.fin;
+  var m = f0 ? { x:f0.cx, y:f0.cy } : pC();
+  var a = Math.atan2(W.y - m.y, W.x - m.x);
+  var ox = m.x + Math.cos(a)*FIN_BALL_D, oy = m.y + Math.sin(a)*FIN_BALL_D;
+  /* {B} A CURTAIN ACROSS THE BOARD, NOT A BALL AT A POINT {B}
+     A clump converging on the pocket was a thing with edges - and anything with
+     edges is a thing you try to walk round, which is the wrong instinct for the
+     last event in the fight. This spans the whole board and moves as ONE SHEET:
+     every one of them travels on the same bearing rather than aiming at the
+     player, so it does not funnel, it arrives. There is no round-the-side.
+
+     Parallel also means they all cover the same distance, so the sheet stays a
+     sheet the whole way in and lands together - which is what makes one mine
+     the right answer rather than a partial one. A filled disc had them trailing
+     over three and a half seconds and the stragglers arriving with nothing left
+     to answer them. */
+  var perp = a + 1.5708;
+  var vx0 = Math.cos(a + Math.PI), vy0 = Math.sin(a + Math.PI);  /* one bearing */
+  for (var i=0;i<FIN_BALL_N;i++){
+    var lat = ((i + Math.random()*0.9) / FIN_BALL_N * 2 - 1) * FIN_BALL_R;
+    var jit = (Math.random()*2 - 1)*40;
+    var sx = ox + Math.cos(perp)*lat + Math.cos(a)*jit;
+    var sy = oy + Math.sin(perp)*lat + Math.sin(a)*jit;
+    var sp = FIN_BALL_SPD * (0.96 + Math.random()*0.08);
+    var da = Math.atan2(vy0, vx0);
+    /* pushed straight rather than through bullet(), which always spawns on his
+       rim - this one needs a position of its own. Same galaxy fields, so it
+       draws and dies exactly like every other one. */
+    shots.push({ x:sx, y:sy, vx:Math.cos(da)*sp, vy:Math.sin(da)*sp,
+                 /* tagged so a probe can tell the ball from the forty pattern
+                    bullets pushed on the same frame - measuring it by taking
+                    the last N off `shots` quietly mixed the two */
+                 fin:1,
+                 /* ════════════════════ A RAINBOW ACROSS THE SHEET ════════════════════
+                    One magenta for 230 objects made a flat band that read as a
+                    single texture. The hue comes off the shard's position
+                    ACROSS the curtain instead, red at one end through violet at
+                    the other, so the wall arrives as one continuous object with
+                    a direction rather than as a swarm - and it answers the
+                    barrier and the cross-line pulses, which are the only other
+                    saturated things left by then. */
+                 r:9, hue:hueRGB((i/FIN_BALL_N)*300),
+                 rot:(galIx*0.83)%6.28318,
+                 rotV:(galIx%2?1:-1)*(1.1+((galIx*0.37)%0.9)),
+                 sq:0.30+((galIx*0.6180339887)%1)*0.58,
+                 sz:1.7 });
+    galIx++;
+  }
+  kick(1.3, 0.7, "255,150,240");
+}
 
 /* ════════════════════ THE DRAIN CANNOT BE DONE ON THE CANVAS ════════════════════
    The first two attempts filled the dead half with `globalCompositeOperation =
@@ -416,6 +550,9 @@ function finStep(dt){
   f.p = p;
   f.thr = f.smax + (FIN_MARGIN - f.smax) * p;
 
+  /* the ball, once, with four real seconds left */
+  if (!f.ball && p >= 1 - FIN_BALL_AT/Math.max(1, breakSeconds())){ f.ball = 1; finBall(); }
+
   /* ════════════════════ AND HE LIMPS DOWN WHILE IT HAPPENS ════════════════════
      He used to plant at 0.06 of the height, which put his head off the top of
      the screen - he was not "at the top of the room", he was through the
@@ -441,11 +578,14 @@ function finStep(dt){
     ys.sort(function(u,v){ return u - v; });   /* top of the screen first */
     /* ONE LINE OUT, NOT A BAND. The route is the hole left by dropping the
        single line nearest the stated offset, so it is exactly 2 x spacing wide
-       and shrinks with the comb - deterministic, and the same on every run. */
-    var best = 0;
-    for (var bi=1; bi<ys.length; bi++)
-      if (Math.abs(ys[bi]-gap) < Math.abs(ys[best]-gap)) best = bi;
-    ys.splice(best, 1);
+       and shrinks with the comb - deterministic, and the same on every run.
+       A null offset drops nothing: that set is solid. */
+    if (gap !== null){
+      var best = 0;
+      for (var bi=1; bi<ys.length; bi++)
+        if (Math.abs(ys[bi]-gap) < Math.abs(ys[best]-gap)) best = bi;
+      ys.splice(best, 1);
+    }
     for (var yi=0; yi<ys.length; yi++){
       f.rays.push({ y:ys[yi], t0: f.t*1000 + yi*RAY_STAGGER[si],
                     arm: RAY_ARM[si],
@@ -653,7 +793,19 @@ function shaper(a0){
    and only one is shaped: a clean copy at the original rate under a slowed one
    drifts apart within a word and the line turns to mush. */
 var DEMON_RATE = 0.80;
+/* ════════════════════ THE VOICE IS OFF ════════════════════
+   Six clips - greeting, whatdidyousay, fuckyou, goatblast, irrelevant, maxwin -
+   and only two of them were ever reachable in play anyway; goatblast, fuckyou
+   and maxwin were preloaded and never called at all.
+
+   Switched off in ONE place rather than by deleting the call sites, because the
+   call sites are where the decision "he speaks HERE" lives and that is worth
+   keeping. Flipping VOICE_OFF back to false restores every line exactly as it
+   was, including the intro beats. The decode is skipped too, so nothing is
+   fetched for a thing that cannot be heard. */
+var VOICE_OFF = true;
 function voicePlay(name, demonic){
+  if (VOICE_OFF) return;
   var a = ac(); if (!a || muted() || !BUF[name]) return;
   if (a.state === "suspended") a.resume();
   var when = a.currentTime + 0.02, buf = BUF[name];
@@ -783,6 +935,20 @@ function sfxNoise(dur, peak, f0, f1, q, delay){
 var SFX = {
   hit:   function(){ sfxNoise(0.16,0.28,1800,220,1.0);
                      sfxTone("square",320,80,0.14,0.14); },
+  /* ════════════════════ THE BEAM SEARS; IT DOES NOT THUD ════════════════════
+     hurtPlayer plays one cue for every source, so a rune beam burning across
+     you sounded exactly like a bullet landing. They are not the same event and
+     they do not want the same answer: a bullet is over and you move on, a beam
+     is a place you are still standing in. Sounding identical taught the wrong
+     reaction to whichever one you met second.
+
+     So this one is held rather than struck - a narrow band of bright noise
+     sustained twice as long as the impact, with a tone bending down through it.
+     Same loudness, entirely different shape, which is what makes it readable
+     without being louder. */
+  burn:  function(){ sfxNoise(0.34,0.17,5200,900,4.0);
+                     sfxTone("sawtooth",1250,380,0.30,0.070);
+                     sfxTone("triangle",620,210,0.26,0.050,0.03); },
   /* ════════════════════ WHIMPERING, NOT MOANING ════════════════════
      A moan is one long low note. A whimper is several SHORT ones, higher, each
      bending down as it dies, each quieter than the last, with uneven gaps so it
@@ -1609,7 +1775,8 @@ function hurtPlayer(n, src, raw){
     playerBlast();
   }
   knock(260,70,0.18,0.20);
-  SFX.hit();
+  /* the beam gets its own - see SFX.burn */
+  if (src === "runes") SFX.burn(); else SFX.hit();
   kick(raw ? 0.25 : 0.9, raw ? 0.18 : 0.5, "255,70,50");
   if (F.hpM<=0) playerDied();
 }
@@ -3468,7 +3635,20 @@ function stepShots(dt){
     if (Math.hypot(p.x-m.x,p.y-m.y) < P.r + p.r){
       shots.splice(i,1); hurtPlayer(shotDmg(),"bullets"); return;
     }
-    if (p.x<-70||p.x>VW()+70||p.y<-70||p.y>VH()+70) shots.splice(i,1);
+    /* ════════════════════ THE CURTAIN IS ALLOWED TO BE OFF THE MAP ════════════════════
+       Everything is culled 70px outside the viewport, which is right for a
+       bullet fired from inside the room and fatal for one that starts outside
+       it. The closing sheet is released 1500px away so it can cross the whole
+       board - and 218 of its 230 shards were deleted on their first step,
+       leaving a dozen survivors from a narrow slice of the spread. They all
+       came out the same colour too, because hue runs with position across the
+       sheet and only a sliver of it lived.
+
+       So the cull margin is the travel distance for those, and the ordinary
+       70px for everything else. They still die once they have crossed and
+       left. */
+    var mg = p.fin ? (FIN_BALL_D + FIN_BALL_R + 200) : 70;
+    if (p.x<-mg||p.x>VW()+mg||p.y<-mg||p.y>VH()+mg) shots.splice(i,1);
   }
 }
 /* SHAKE AND FLASH. Neither is decoration: they are the only two things on the
@@ -4315,8 +4495,27 @@ function deadHead(){
   }
   return DEAD_IMG;
 }
+/* the face he wears while he winds the nova up, loaded like the rest and
+   falling back to whatever he would otherwise be wearing */
+var YELL_IMG = null;
+function yellHead(){
+  if (YELL_IMG === null){
+    YELL_IMG = new Image();
+    YELL_IMG.src = "../boss/walker_head_yell.png";
+  }
+  return YELL_IMG;
+}
 function headImg(){
   if (!W.demon) return IMG.idleHead;
+  /* ════════════════════ HE IS VISIBLY SCREAMING WHILE HE RADIATES ════════════════════
+     The nova is the one move where he stops, sits in the middle of the room and
+     puts everything into it - and until now the only sign of that was the ring
+     growing. The boss himself did not change. A head with its mouth open says
+     it is HIM doing this, at the moment the room has nothing else to look at. */
+  if (F.move && F.move.id === "nova"){
+    var yl = yellHead();
+    if (yl && yl.naturalWidth) return yl;
+  }
   if (F.fin && F.fin.dead){
     var d = deadHead();
     if (d && d.naturalWidth) return d;     /* not here yet? he keeps his rage */
@@ -4604,15 +4803,12 @@ function fightDraw(c){
     c.setLineDash(live?[]:[14,10]);
     c.beginPath(); c.arc(nc2.x,nc2.y,sr2,0,6.28318); c.stroke();
     c.setLineDash([]);
-    if (!live && h>0.2){
-      var cor=[[0,0],[VW(),0],[0,VH()],[VW(),VH()]];
-      c.strokeStyle="rgba("+hx("120,255,180")+","+(0.18+0.4*h).toFixed(3)+")"; c.lineWidth=3;
-      for (var ci=0;ci<4;ci++){
-        var cx=cor[ci][0], cy=cor[ci][1], sx=cx?-1:1, sy=cy?-1:1;
-        c.beginPath();
-        c.moveTo(cx+sx*80, cy); c.lineTo(cx, cy); c.lineTo(cx, cy+sy*80); c.stroke();
-      }
-    }
+    /* NO CORNER BRACKETS. Four green Ls in the corners of the screen, drawn to
+       say "the corners are safe" - but the expanding ring already says exactly
+       that, and says it continuously rather than as four static hints bolted to
+       the edges of the display. They were the only UI-coloured thing in an
+       arena that otherwise never draws in green, so they read as chrome rather
+       than as part of the world. */
   }
 
   /* the beams, and the hairline that says WHERE well before it says HOW MUCH */
@@ -4851,6 +5047,53 @@ function drawBullets(c){
      THE BULGE IS THE HITBOX, same contract as the player's own dot. */
   for (i=0;i<shots.length;i++){
     var p=shots[i], rr=(p.r||9)*1.7*(p.sz||1), hue=p.hue||"150,110,255";
+
+    /* ════════════════════ THE LAST SHEET IS NOT MORE SCENERY ════════════════════
+       Drawn as galaxies it looked like the arena had simply got busier, which
+       is the one thing the closing event must not look like - by then every
+       other galaxy on screen has been drained to monochrome anyway, so more of
+       them read as background rather than as the end of the board.
+
+       These are hard: a bright head with a motion streak behind it along its
+       own bearing, in the one saturated colour left. A sheet of them reads as a
+       front moving across the board rather than as forty separate objects. */
+    /* ════════════════════ SHRAPNEL. HARD EDGES, NO GLOW, NO TAIL ════════════════════
+       Two soft treatments have been tried and neither read: galaxies made it
+       look like the arena had got busier, and glowing heads with motion streaks
+       were still the same family of thing - a bright blob with light coming off
+       it, which is what every projectile in this fight already is.
+
+       This is a different KIND of object. A hard-edged shard with a flat fill
+       and a black outline, turned to its own bearing, with no bloom at all.
+       Nothing else in the arena is drawn with an outline; against a screen of
+       soft additive light a field of flat opaque chips reads instantly as
+       debris - the board itself coming apart - which is what the moment is. */
+    if (p.fin){
+      var sl = Math.hypot(p.vx, p.vy) || 1;
+      var ux = p.vx/sl, uy = p.vy/sl, nx = -uy, ny = ux;
+      var L = rr*1.9, Wd = rr*0.78;
+      c.beginPath();
+      c.moveTo(p.x + ux*L,            p.y + uy*L);
+      c.lineTo(p.x + nx*Wd,           p.y + ny*Wd);
+      c.lineTo(p.x - ux*L*0.55,       p.y - uy*L*0.55);
+      c.lineTo(p.x - nx*Wd,           p.y - ny*Wd);
+      c.closePath();
+      c.fillStyle = "rgba("+hue+",1)";
+      c.fill();
+      c.strokeStyle = "rgba(0,0,0,.85)"; c.lineWidth = 2;
+      c.stroke();
+      /* one flat highlight facet, so it is a solid with a lit side rather than
+         a silhouette */
+      c.beginPath();
+      c.moveTo(p.x + ux*L,      p.y + uy*L);
+      c.lineTo(p.x + nx*Wd,     p.y + ny*Wd);
+      c.lineTo(p.x,             p.y);
+      c.closePath();
+      c.fillStyle = "rgba(255,255,255,.80)";
+      c.fill();
+      continue;
+    }
+
     c.save();
     c.translate(p.x,p.y); c.rotate(p.rot||0);
 
@@ -6127,9 +6370,9 @@ function loadAssets(){
   });
   /* the rage heads start downloading with everything else but gate nothing */
   for (var rq=1; rq<=PAD_FORCE; rq++) rageHead(rq);
-  deadHead();
+  deadHead(); yellHead();
 
-  var a = ac();
+  var a = VOICE_OFF ? null : ac();
   if (a) VOICE.forEach(function(n){
     fetch("../boss/voice/walker_"+n+".mp3")
       .then(function(r){ return r.arrayBuffer(); })
