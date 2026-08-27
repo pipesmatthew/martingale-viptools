@@ -1060,7 +1060,15 @@ function playerDied(){
    converge into a single trunk and the total scales superlinearly, so the third
    pad is worth more than the first. That is what makes charging a fourth one
    worth the risk instead of a rounding error. */
-var PAD_W = 116, PAD_CHARGE_MS = 10000, PAD_MAX = 8;
+/* ════════════════════ THIRTEEN AND A HALF SECONDS ON A TILE ════════════════════
+   Ten was set when standing still was merely dangerous. It now also buys a bomb
+   and a quarter of your health, the main phase opens on a shower rather than on
+   the runes, and the hell no longer pauses for his own moves - so the price of
+   a tile went up to match what it pays for. It is the whole length of a main
+   phase; the break it buys is thirty seconds at the tuned bet.
+
+   On the panel, because this is the number most likely to move again. */
+var PAD_W = 116, PAD_CHARGE_MS = 13500, PAD_MAX = 8;
 
 /* FOUR, FOR NOW, EXPLICITLY. It should be "however many you have unlocked" and
    it will be again the moment the progression sets where this fight sits in the
@@ -1813,7 +1821,7 @@ var TUNE = {
      than a rebuild. */
   aimed:350, aimEvery:700, aimWave:60, aimWaveHz:0,
   fan:110, fanW:460, fanRows:1,
-  ring:112, spiral:124, counter:105, snipe:496, volley:660,
+  ring:112, spiral:124, counter:105, snipe:496, volley:660, padCharge:13500,
   runeTell:1800, aoeTell:2600, novaTell:1800
 };
 /* ════════════════════ IT WAS A LINE, AND A LINE IS NOT A DODGE ════════════════════
@@ -4062,6 +4070,7 @@ var TUNE_SPEC = [
   ["counter",  "counter arms",    40,  400,   5],
   ["snipe",    "snipe",          150,  900,  10],
   ["volley",   "volley (fastest)",150, 900,  10],
+  ["padCharge","tile charge (ms)",2000,25000, 250],
   ["runeTell", "rune wind-up",   400, 5000,  50],
   ["aoeTell",  "shower wind-up", 400, 6000,  50],
   ["novaTell", "nova charge",    400, 5000,  50]
@@ -4070,6 +4079,7 @@ var TUNE_SPEC = [
 /* the three wind-ups are read from their own vars all over the step, so the
    panel writes both and they can never disagree */
 function tuneApply(){
+  PAD_CHARGE_MS = TUNE.padCharge;
   RUNE_CHARGE = TUNE.runeTell;
   AOE_WIND    = TUNE.aoeTell;
   NOVA_TELL   = TUNE.novaTell;
