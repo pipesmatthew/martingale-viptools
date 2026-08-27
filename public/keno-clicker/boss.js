@@ -645,7 +645,11 @@ var SHOT_EVERY=1050, SHOT_SPEED=155;
    which is most of the way to where the fight already leaves you standing, so
    the run is a fraction of that and the long charge became exactly the dead
    waiting the nova was told off for. */
-var AOE_WIND=1800, AOE_FIRE=1500, AOE_FRAC=0.25, AOE_TICK_MS=260;
+/* ════════════════════ EIGHT HUNDRED MORE MILLISECONDS TO BE SOMEWHERE ════════════════════
+   The shower asks you to be inside a 23-degree wedge and the nova asks you to
+   be out of the middle, and both were asking from across the arena. Both
+   wind-ups gained 0.8s. They live in TUNE as well, so the panel moves them. */
+var AOE_WIND=2600, AOE_FIRE=1500, AOE_FRAC=0.25, AOE_TICK_MS=260;
 var AOE_SPIN_UP=420;   /* ms from standstill to full sweep — see the gate */
 function aoeDmg(){ return F.hpMmax * AOE_FRAC; }
 /* LONG AND HARD, DELIBERATELY. A quarter of your health per bullet and a fight
@@ -697,7 +701,7 @@ var REPAIR_MS=2400, IFRAME_MS=850;
    the pathological case and it is meant to be tight. From where the fight
    actually puts you — a pad, 309px out — the run is 0.75s against the 1.00s
    charge alone, without needing the walk at all. */
-var NOVA_TELL=1000, NOVA_FIRE=1400;
+var NOVA_TELL=1800, NOVA_FIRE=1400;
 var NOVA_SAFE=0.86;                /* of the half-diagonal */
 /* ══════ HE STANDS IN THE MIDDLE OF THE SCREEN ════════════════════════
    Not the middle of the play area. I moved it there when the wall went in and
@@ -913,7 +917,29 @@ function hurtPlayer(n, src, raw){
   }
   knock(260,70,0.18,0.20);
   kick(raw ? 0.25 : 0.9, raw ? 0.18 : 0.5, "255,70,50");
-  if (F.hpM<=0) F.over = "walker";
+  if (F.hpM<=0) playerDied();
+}
+
+/* ════════════════════ DYING IS AN EVENT, NOT A FLAG ════════════════════
+   It used to be one assignment to F.over, which left the shard coasting under
+   its own momentum across the arena while YOU DIED sat on the screen, the boss
+   music still going, and nothing anywhere counting. */
+var DEATH_KEY = "kenoidle.walker.deaths";
+function deathCount(){
+  try { return (+localStorage.getItem(DEATH_KEY)) || 0; } catch(e){ return F.deaths|0; }
+}
+function playerDied(){
+  if (F.over) return;
+  F.over = "walker";
+  /* the input goes too - a key held through the death would otherwise still be
+     held when the next run starts */
+  P.vx = 0; P.vy = 0; clearKeys();
+  var n = deathCount() + 1;
+  try { localStorage.setItem(DEATH_KEY, String(n)); } catch(e){}
+  F.deaths = n;
+  if (typeof MUSIC !== "undefined" && MUSIC){
+    try { MUSIC.pause(); MUSIC.currentTime = 0; } catch(e){}
+  }
 }
 
 /* ══════════════════ THE HIT CLEARS THE ROOM ════════════════════════════════
@@ -1442,22 +1468,43 @@ var STATION_Y = [0.30, 0.62, 0.42, 0.74, 0.34, 0.66, 0.24, 0.54];
    WHAT STAYS RANDOM IS ONLY WHAT YOU CANNOT PLAY AGAINST: the exact angle of an
    individual spark, the tumble on a shard leaving the board. Nothing that
    changes where you should be standing. */
+/* ════════════════════ THE BEAM DID NOT LIVE IN THE BOTTOM THIRD BY DESIGN ════════════════════
+   It shared stationIx with his patrol, and the patrol eats entries between
+   moves - so an eight-entry table aliased against the move cadence and settled
+   into a four-value cycle in break 2 (.62 .74 .66 .54) and a two-value one in
+   break 4 (.74 .54). Every one of those is the lower half of the screen, which
+   is why it read as the same place every time.
+
+   Three bands, chosen at random, never the same one twice running. This is a
+   deliberate exception to the no-randomness rule at the top of this file: the
+   rule protects things you PLAY AGAINST, and where the beam will be is not one
+   of them - you are shown the line for a full 1.8s before it burns, so the
+   answer is read off the screen rather than remembered. What the fixed table
+   was actually buying was a third of the arena never being used. */
+var RUNE_BANDS = [0.18, 0.50, 0.82], runeBand = -1;
+function runeStation(){
+  var i;
+  do { i = Math.random()*RUNE_BANDS.length | 0; } while (i === runeBand);
+  runeBand = i;
+  return { x: VW()*0.76, y: VH()*RUNE_BANDS[i] };
+}
+
 var stationIx = 0;
 function topStation(){
   var f = STATION_Y[stationIx++ % STATION_Y.length];
   return { x: VW()*0.76, y: VH()*f };   /* moved left a little */
 }
 /* ═══════════ EQUAL-LENGTH BREAKS, NOT EQUAL-SIZED BITES ═══════════════════
-   padDPS() is superlinear - x1, x2.6, x4.5, x7.6 at one to four tiles - so
+   padDPS() is superlinear - x1, x2.6, x4.8, x7.6 at one to four tiles - so
    four flat 25% gates would run the first break 7.6 times longer than the
    last, and the finale would be over before the arms had finished filling the
    screen. Each break's bite is proportional to the rate that eats it, so all
-   four take the same time: mult/15.7 of the pool.
+   four take the same time: mult/16 of the pool.
 
-     break 1   x1.0    6.4%   ends at 93.6%
-     break 2   x2.6   16.6%   ends at 77.1%
-     break 3   x4.5   28.7%   ends at 48.4%
-     break 4   x7.6   48.4%   ends at 0
+     break 1   x1.0    6.3%   ends at 93.8%
+     break 2   x2.6   16.3%   ends at 77.5%
+     break 3   x4.8   30.0%   ends at 47.5%
+     break 4   x7.6   47.5%   ends at 0
 
    DERIVED, NOT TYPED, so the two can never drift apart: change the damage
    curve and the gates follow it on their own. */
@@ -1626,8 +1673,28 @@ function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
      105-124   the arms and the ring   drift, you route through them
      300-331   aimed and fan           press, you cannot stand still
      496-660   snipe and volley        flinch, you react or you are hit */
-var AIM_SPEED = 300;
-function patAimed(){ bullet(aimAtPlayer(), AIM_SPEED, 9); }
+/* ════════════════════ ONE PLACE FOR EVERY NUMBER WORTH ARGUING ABOUT ════════════════════
+   These were scattered as literals and as multiples of SHOT_SPEED, which made
+   "make the fan a bit slower" a code change and a redeploy every time. They are
+   absolute px/s now, in one object, and the dev panel writes straight into it -
+   press ` in the arena, drag, watch. Whatever you settle on, read the numbers
+   off the panel and they get baked in here.
+
+   THE FAN IS BACK AT 143. The 20% it was given when the rows were capped, on
+   top of the aimed pair moving to 300, took it to 331 and that was much too
+   much - so it is at the value it had for the whole life of the fight before
+   today, and the slider is there to find the real answer.
+
+   Three bands, and they still mean different things:
+     105-143   arms, ring, fan   drift, you route through them
+     300       aimed             presses, you cannot stand still
+     496-660   snipe, volley     flinch, you react or you are hit */
+var TUNE = {
+  aimed:300, fan:110, fanW:460, fanRows:1,
+  ring:112, spiral:124, counter:105, snipe:496, volley:660,
+  runeTell:1800, aoeTell:2600, novaTell:1800
+};
+function patAimed(){ bullet(aimAtPlayer(), TUNE.aimed, 9); }
 /* ══════ THE FAN IS A WIDTH, NOT AN ANGLE ══════════════════════════════════
    A fixed 0.15 rad step means the spread grows with range, and the range is
    large - the player works the tiles most of a screen away from him. Seven
@@ -1643,7 +1710,13 @@ function patAimed(){ bullet(aimAtPlayer(), AIM_SPEED, 9); }
 
    The middle bullet is aimed exactly at you, so standing perfectly still was
    never survivable and still is not. */
-var FAN_W = 250;                  /* px across, at whatever range you are */
+/* ════════════════════ ONE WALL AT A TIME, WIDE AND SLOW ════════════════════
+   It went seven-bullets-every-800ms with eight rows stacked up, then three rows,
+   and now one: a single wall in the air at any moment, 460px across instead of
+   250 and slower than it has ever been. Seven bullets over 460px is 77px
+   between centres against a 4.5px hitbox, so the gaps are genuinely walkable -
+   which is what makes it a wall you READ rather than a rank you happen to be
+   standing between. Width and row count are both on the panel. */
 /* ════════════════════ THREE ROWS IN THE AIR, AND NO MORE ════════════════════
    A wave every 800ms against a six-second crossing put seven or eight rows on
    the floor at once - fifty-odd bullets in parallel ranks, which stops reading
@@ -1655,7 +1728,7 @@ var FAN_W = 250;                  /* px across, at whatever range you are */
    the same speed, so they cross quicker instead - the same question arriving
    sooner rather than a bigger pile of it arriving eventually. It also recycles
    the cap faster, since a row has to leave before the next one is allowed. */
-var fanIx = 0, FAN_LIVE_MAX = 3, FAN_SPEEDUP = 1.20;
+var fanIx = 0;
 function fanWavesLive(){
   var seen = {}, n = 0, i, w;
   for (i=0;i<shots.length;i++){
@@ -1667,19 +1740,16 @@ function fanWavesLive(){
 function patFan(){
   /* the timer has already been stamped by stepPatterns, so a blocked wave just
      means it asks again one interval later rather than the instant a row dies */
-  if (fanWavesLive() >= FAN_LIVE_MAX) return;
+  if (fanWavesLive() >= TUNE.fanRows) return;
   var m=pC(), a0=Math.atan2(m.y-W.y, m.x-W.x);
   var d=Math.max(200, Math.hypot(m.x-W.x, m.y-W.y));
-  var step=(FAN_W/6)/d;           /* seven bullets, six gaps */
+  var step=(TUNE.fanW/6)/d;       /* seven bullets, six gaps */
   var wave = fanIx++;
   for (var i=-3;i<=3;i++){
     var n0 = shots.length;
-    /* the fan keeps its old ratio to the aimed shot - 0.92 - and the 20% it
-       was given when the rows were capped at three, so it still arrives a
-       little ahead of the single round rather than behind it */
-    bullet(a0 + i*step, AIM_SPEED*0.92*FAN_SPEEDUP, 8);
+    bullet(a0 + i*step, TUNE.fan, 8);
     /* tagged so the cap counts ROWS rather than bullets - a row part-way off
-       the screen still occupies one of the three */
+       the screen still occupies its slot */
     if (shots.length > n0) shots[shots.length-1].fanW = wave;
   }
 }
@@ -1689,7 +1759,7 @@ function patRing(){
      instead of landing on top of each other — and it is the same walk on every
      run */
   var n = 24 + 4*Math.max(0, esc()-1), off = (ringIx++) * 0.41;
-  for (var i=0;i<n;i++) bullet(off + i*6.28318/n, SHOT_SPEED*0.72, 8, "226,72,178");
+  for (var i=0;i<n;i++) bullet(off + i*6.28318/n, TUNE.ring, 8, "226,72,178");
 }
 /* WHERE THE DOOR OPENS, as fractions of the arena. All well inside the player's
    half (which ends at 0.60) and spread top-to-bottom so consecutive AOEs do not
@@ -1958,7 +2028,7 @@ var ARM_K = 4, ARM_RATIO = 13.618;
 var ARM_STEP = (6.28318/ARM_K)/ARM_RATIO;      /* 0.1153 rad per tick */
 function patSpiral(){
   for (var k=0;k<ARM_K;k++){
-    bullet(spiralA + k*(6.28318/ARM_K), SHOT_SPEED*0.80, 7, "86,198,255");
+    bullet(spiralA + k*(6.28318/ARM_K), TUNE.spiral, 7, "86,198,255");
   }
   spiralA += ARM_STEP;
 }
@@ -1982,7 +2052,7 @@ var CARM_K = 3, CARM_RATIO = 21.618;
 var CARM_STEP = (6.28318/CARM_K)/CARM_RATIO;   /* 0.0969 rad per tick */
 function patCounter(){
   for (var k=0;k<CARM_K;k++)
-    bullet(counterA + k*(6.28318/CARM_K), SHOT_SPEED*0.68, 7, "240,182,74");
+    bullet(counterA + k*(6.28318/CARM_K), TUNE.counter, 7, "240,182,74");
   counterA -= CARM_STEP;
 }
 /* ══════════════════ THE FIGHT HAD NO FAST THINGS IN IT ═════════════════════
@@ -2001,12 +2071,12 @@ function patCounter(){
    on a tile - and this is the one round the fight asks you to flinch at, so
    what it wants is to be READABLE at speed rather than merely quick. */
 function patSnipe(){
-  bullet(aimAtPlayer(), 620*0.80, 6, "255,240,190");
+  bullet(aimAtPlayer(), TUNE.snipe, 6, "255,240,190");
 }
 function patVolley(){
   var a0=aimAtPlayer();
   for (var i=0;i<3;i++){
-    bullet(a0, 660 - i*40, 6, "255,210,150");
+    bullet(a0, TUNE.volley - i*40, 6, "255,210,150");
   }
 }
 
@@ -2100,7 +2170,14 @@ function stepPatterns(now){
        tile - punishing arriving rather than lingering, which is backwards.
        This way the clock only turns while you are standing there, so a full
        interval on the tile is what earns it. */
-    if (P2.fn===patSnipe && !onAnyPad()){ patAt[i] = now; continue; }
+    /* ════════════════════ AND NEVER DURING A BREAK ════════════════════
+       The snipe is the TAX ON CHARGING, and during a break there is nothing to
+       charge: every tile you own is already burning him whether you stand on it
+       or not, so the floor is yours to run on. It was still firing because
+       onAnyPad() is pure geometry and the tiles sit in the middle of the room -
+       walk across a lit one mid-bullet-hell and you were billed for a charge
+       you were not doing. */
+    if (P2.fn===patSnipe && (F.brk || !onAnyPad())){ patAt[i] = now; continue; }
     /* EVERY PATTERN TIGHTENS AS HE LOSES SEGMENTS, on top of unlocking new
        ones. Without it the last two phases fire at the same rate as the one
        that introduced them and the fight plateaus exactly where it should be
@@ -2588,7 +2665,12 @@ function fightStep(dt, now){
       }
 
     } else if (M.id==="runes"){
-      if (!F.station) F.station = topStation();
+      /* FORCED ONCE PER CAST, not `if (!F.station)`. He patrols the ceiling
+         between moves and the patrol sets a station, so by the time the beam
+         comes up F.station is already non-null and the conditional never fired
+         - which is exactly how the beam ended up walking the patrol's table
+         instead of its own, and never leaving the lower half. */
+      if (!M.stationSet){ M.stationSet = 1; F.station = runeStation(); }
       if (M.phase==="tell"){
         F.runeHeat = Math.min(1, M.t/RUNE_CHARGE);
         W.spin = 0;                            /* stopped: see "the wheel is the tell" */
@@ -2716,6 +2798,11 @@ function fightStep(dt, now){
 /* ── Mih ───────────────────────────────────────────────────────────────── */
 function playerStep(dt){
   if (!P.live) return;
+  /* ════════════════════ DEAD IS DEAD - THE SHARD STOPS WHERE IT FELL ════════════════════
+     P.live still gates the DRAWING, so he stays on the screen where he died;
+     what stops is the input and the integration. Coasting on under his own
+     momentum after YOU DIED reads as the game not having noticed. */
+  if (F.over){ P.vx = 0; P.vy = 0; return; }
   /* CONTROLS ARE FROZEN WHILE TIME RUNS BACKWARDS. The tape is driving him. */
   if (rewinding) return;
   var ax=0, ay=0;
@@ -2936,9 +3023,35 @@ function fightDraw(c){
       c.stroke();
     }
 
-    /* NO ARROW ANY MORE. It announced which way the door was about to sweep,
-       and the door does not sweep — pointing at a corner that is not moving
-       would be telling the player something untrue. */
+    /* ════════════════════ THE SWEEP, ANNOUNCED BEFORE IT STARTS ════════════════════
+       The wedge says where to stand. It does not say that the whole room is
+       about to be swept, nor which side it arrives from - and the flurry does
+       not come from everywhere at once, it leaves one edge of the triangle and
+       travels all the way round to the other. That is the single most useful
+       thing to know and it was not drawn anywhere.
+
+       So an arc walks the exact path the sparks will take, and completes at the
+       instant they leave. It is a countdown that is also a map: how long you
+       have, and which way it is coming. The old arrow was removed for pointing
+       at a door that does not move - this points along a sweep that does. */
+    if (F.move.phase==="tell"){
+      var sdir = ((F.move.dir||-1) < 0) ? -1 : 1;
+      var s0 = aoeSweepStart(F.move);
+      var prog = Math.min(1, F.aoeGlow||0);
+      var swept = (6.28318 - DOOR_SPAN) * prog;
+      var rr2 = walkerR()*0.9 + Math.min(VW(),VH())*0.18;
+      c.strokeStyle = "rgba(255,190,110," + (0.20 + 0.55*prog).toFixed(3) + ")";
+      c.lineWidth = 3;
+      c.beginPath();
+      c.arc(W.x, W.y, rr2, s0, s0 + sdir*swept, sdir < 0);
+      c.stroke();
+      /* the head, so the DIRECTION cannot be misread */
+      var ha = s0 + sdir*swept;
+      c.fillStyle = "rgba(255,226,170," + (0.35 + 0.6*prog).toFixed(3) + ")";
+      c.beginPath();
+      c.arc(W.x + Math.cos(ha)*rr2, W.y + Math.sin(ha)*rr2, 7, 0, 6.28318);
+      c.fill();
+    }
   }
 
   /* THE NOVA'S REACH, DRAWN BEFORE IT ARRIVES. A blast with no door in it is
@@ -3295,7 +3408,46 @@ function drawPads(c, now){
   c.globalCompositeOperation="source-over";
 }
 
+/* ════════════════════ WHICH OF THE EIGHT AM I LOOKING AT ════════════════════
+   Eight phases that differ by which moves he has and how fast the rounds are
+   all look broadly alike from the outside, and testing one of them means
+   knowing which one you are in. Dev only - it is a caption on a test rig, not
+   part of the fight. */
+function drawPhaseTag(c){
+  if (typeof DEV === "undefined" || !DEV || !F.on) return;
+  var row = F.brk ? 2*F.brk : 2*F.won + 1;
+  var name = F.brk ? ("BREAK " + F.brk) : "MAIN";
+  var pad = 12, x = 14, y = 14, w = 268, h = 74;
+  c.save();
+  c.fillStyle = "rgba(6,6,10,.80)";
+  c.fillRect(x, y, w, h);
+  c.strokeStyle = F.brk ? "rgba(226,120,96,.65)" : "rgba(120,140,190,.55)";
+  c.lineWidth = 1;
+  c.strokeRect(x+0.5, y+0.5, w-1, h-1);
+  c.textAlign = "left"; c.textBaseline = "top";
+  c.font = '700 15px ui-monospace,Consolas,monospace';
+  c.fillStyle = F.brk ? "#ffb08a" : "#a8c0ff";
+  c.fillText("PHASE " + row + "/8   " + name, x+pad, y+pad);
+  c.font = '600 12px ui-monospace,Consolas,monospace';
+  c.fillStyle = "rgba(206,198,192,.88)";
+  c.fillText(F.won + "/" + PAD_FORCE + " tiles     speed x" + F.spd.toFixed(2) +
+             "     " + breakSeconds() + "s breaks", x+pad, y+pad+22);
+  var gate = Math.round(100*GATE[F.brk||0]);
+  c.fillText("hp " + (100*F.hpW/F.hpWmax).toFixed(1) + "%" +
+             (F.brk ? ("  ->  gate " + gate + "%") : "   shield UP"), x+pad, y+pad+40);
+  if (DEVPAUSE.on){
+    c.fillStyle = "#ffd36b";
+    c.fillText("PAUSED  \u2014  ` to resume", x+pad, y+pad+58 - 4);
+  } else {
+    c.fillStyle = "rgba(150,144,140,.65)";
+    c.fillText("` for the tuning panel", x+pad, y+pad+58 - 4);
+  }
+  c.textBaseline = "alphabetic";
+  c.restore();
+}
+
 function drawHUD(c){
+  drawPhaseTag(c);
   if (!F.on) return;
   var w = VW(), total = poolTotal(), left = poolLeft();
   var frac = left/total;
@@ -3440,6 +3592,11 @@ function drawHUD(c){
     c.fillText(F.over==="player" ? "WALKER DOWN" : "YOU DIED", w/2, VH()*0.42);
     c.font = "700 12px ui-monospace,Consolas,monospace";
     c.fillStyle = "#8b8b93"; c.fillText("press ESC to leave the arena", w/2, VH()*0.42+30);
+    /* the tally, so a testing session has a number on it */
+    if (F.over !== "player"){
+      c.fillStyle = "#6f6f78";
+      c.fillText("DEATHS  " + (F.deaths || deathCount()), w/2, VH()*0.42+50);
+    }
   }
 }
 function nextSeg(){ for (var i=0;i<SEGS;i++) if (F.broken.indexOf(i)<0) return i; return -1; }
@@ -3550,8 +3707,12 @@ function frame(now){
   qualityStep(DT);
   drawStars();
   introStep(now);
-  fightStep(DT, now);
-  sparkStep(DT); shardStep(DT); playerStep(DT);
+  /* FROZEN MEANS THE SIMULATION, NOT THE SCREEN. Everything below still paints,
+     so the panel is dragged against a still frame of the thing being tuned. */
+  if (!DEVPAUSE.on){
+    fightStep(DT, now);
+    sparkStep(DT); shardStep(DT); playerStep(DT);
+  }
 
   var el=$("walker");
   if (el){
@@ -3613,6 +3774,130 @@ function frame(now){
    snapshot taken at export time — so anything driving the fight from outside
    was writing into an object nothing reads any more. It cost a whole balance
    run, which reported a player who never fired a shot. */
+/* ════════════════════ A TUNING PANEL, BECAUSE THESE ARE ARGUMENTS NOT FACTS ════════════════════
+   Every number in TUNE has been changed at least once by someone watching the
+   fight and saying "that is too fast", and every one of those cost a code
+   change, a redeploy and a cache bust to try. Backtick freezes the arena and
+   opens sliders straight into TUNE. Drag, unfreeze, watch, repeat - and when a
+   number is right, read it off the panel and it gets baked into TUNE.
+
+   IT PAUSES BY SKIPPING THE STEPS, NOT BY ZEROING dt. The patterns fire off a
+   monotonic clock rather than off dt, so a frozen dt would have left them
+   firing into a still arena; and the same clock means every stamp has to be
+   pushed forward on resume or the whole table comes due at once and the room
+   fills in a frame. */
+var DEVPAUSE = { on:false, at:0, el:null };
+
+var TUNE_SPEC = [
+  ["aimed",    "aimed",           60,  600,   5],
+  ["fan",      "fan",             60,  600,   5],
+  ["fanW",     "fan width (px)",  120,  900,  10],
+  ["fanRows",  "fan rows in air",   1,    6,   1],
+  ["ring",     "ring",            40,  400,   5],
+  ["spiral",   "spiral arms",     40,  400,   5],
+  ["counter",  "counter arms",    40,  400,   5],
+  ["snipe",    "snipe",          150,  900,  10],
+  ["volley",   "volley (fastest)",150, 900,  10],
+  ["runeTell", "rune wind-up",   400, 5000,  50],
+  ["aoeTell",  "shower wind-up", 400, 6000,  50],
+  ["novaTell", "nova charge",    400, 5000,  50]
+];
+
+/* the three wind-ups are read from their own vars all over the step, so the
+   panel writes both and they can never disagree */
+function tuneApply(){
+  RUNE_CHARGE = TUNE.runeTell;
+  AOE_WIND    = TUNE.aoeTell;
+  NOVA_TELL   = TUNE.novaTell;
+}
+
+function tunePanel(){
+  if (DEVPAUSE.el) return DEVPAUSE.el;
+  var d = document.createElement("div");
+  d.style.cssText = "position:fixed;top:14px;right:14px;z-index:99999;width:280px;" +
+    "background:rgba(6,6,10,.94);border:1px solid rgba(150,140,135,.45);" +
+    "padding:12px 14px;font:600 12px ui-monospace,Consolas,monospace;color:#cec6c0;" +
+    "max-height:88vh;overflow:auto";
+  var html = '<div style="color:#ffd36b;font-size:13px;margin-bottom:8px">' +
+             'TUNING &nbsp;<span style="color:#8a827c">` to resume</span></div>';
+  for (var i=0;i<TUNE_SPEC.length;i++){
+    var t = TUNE_SPEC[i];
+    html += '<div style="margin:7px 0">' +
+      '<label style="display:flex;justify-content:space-between">' +
+      '<span>'+t[1]+'</span><b id="tv_'+t[0]+'" style="color:#ffb08a">'+TUNE[t[0]]+'</b></label>' +
+      '<input id="ts_'+t[0]+'" type="range" min="'+t[2]+'" max="'+t[3]+'" step="'+t[4]+
+      '" value="'+TUNE[t[0]]+'" style="width:100%">' +
+      '</div>';
+  }
+  html += '<div id="tuneDump" style="margin-top:10px;color:#8a827c;' +
+          'word-break:break-all;line-height:1.45"></div>';
+  d.innerHTML = html;
+  document.body.appendChild(d);
+  function dump(){
+    var parts = [];
+    for (var j=0;j<TUNE_SPEC.length;j++){ var k=TUNE_SPEC[j][0]; parts.push(k+":"+TUNE[k]); }
+    var el = d.querySelector("#tuneDump");
+    if (el) el.textContent = parts.join(", ");
+  }
+  for (var i2=0;i2<TUNE_SPEC.length;i2++){
+    (function(key){
+      var sl = d.querySelector("#ts_"+key), lab = d.querySelector("#tv_"+key);
+      sl.addEventListener("input", function(){
+        TUNE[key] = +sl.value; lab.textContent = sl.value; tuneApply(); dump();
+      });
+      /* the arena eats WASD and space; a slider that has focus would too */
+      sl.addEventListener("keydown", function(ev){ ev.stopPropagation(); });
+    })(TUNE_SPEC[i2][0]);
+  }
+  dump();
+  DEVPAUSE.el = d;
+  return d;
+}
+
+function devPauseToggle(now){
+  if (typeof DEV === "undefined" || !DEV) return;
+  if (!DEVPAUSE.on){
+    DEVPAUSE.on = true; DEVPAUSE.at = now;
+    tunePanel().style.display = "block";
+    clearKeys();
+    if (typeof MUSIC !== "undefined" && MUSIC){ try { MUSIC.pause(); } catch(e){} }
+  } else {
+    /* EVERY MONOTONIC STAMP MOVES FORWARD BY THE TIME WE STOOD STILL, or the
+       whole pattern table is overdue on the first frame back. */
+    var d = now - DEVPAUSE.at;
+    for (var i=0;i<patAt.length;i++) patAt[i] += d;
+    if (F.clock) F.clock += d;
+    if (F.shotAt)  F.shotAt  += d;
+    if (F.shotAt2) F.shotAt2 += d;
+    if (F.bombAt)  F.bombAt  += d;
+    DEVPAUSE.on = false;
+    if (DEVPAUSE.el) DEVPAUSE.el.style.display = "none";
+    if (typeof MUSIC !== "undefined" && MUSIC && !muted()){
+      try { var mp = MUSIC.play(); if (mp && mp.catch) mp.catch(function(){}); } catch(e){}
+    }
+  }
+}
+
+/* ════════════════════ SHIFT+ENTER PUTS IT BACK TO PHASE ONE ════════════════════
+   Testing a boss means running the same thirty seconds over and over, and the
+   way back was ESC, find the dev panel, click Fight, click a phase. This is the
+   same two calls the skip-intro path makes - reveal the player, start the
+   fight - so it lands in exactly the state a fresh run starts in, including
+   the empty arena and all three phase numbers at zero.
+
+   It works from the death screen and from a freeze; a freeze is lifted first,
+   or the restart would land in a paused arena and look like nothing happened. */
+function restartFight(){
+  if (!live) return;
+  if (DEVPAUSE.on) devPauseToggle(performance.now());
+  clearKeys();
+  playerReveal(); fightStart();
+  if (typeof MUSIC !== "undefined" && MUSIC && !muted()){
+    try { MUSIC.currentTime = 0; var mp = MUSIC.play(); if (mp && mp.catch) mp.catch(function(){}); }
+    catch(e){}
+  }
+}
+
 function clearKeys(){ for (var k in keys) delete keys[k]; }
 
 var KEYMAP = { KeyW:"w", KeyA:"a", KeyS:"s", KeyD:"d",
@@ -3621,6 +3906,12 @@ var KEYMAP = { KeyW:"w", KeyA:"a", KeyS:"s", KeyD:"d",
 window.addEventListener("keydown", function(e){
   if (!live) return;
   if (e.code==="Escape"){ bossStop(); return; }
+  if (e.code==="Backquote"){ devPauseToggle(performance.now()); e.preventDefault(); return; }
+  /* before the freeze guard, so it works while frozen and from the death screen */
+  if (e.code==="Enter" && e.shiftKey && typeof DEV !== "undefined" && DEV){
+    restartFight(); e.preventDefault(); return;
+  }
+  if (DEVPAUSE.on) return;              /* the arena is frozen; it gets no input */
   var k=KEYMAP[e.code]; if (!k) return;
   /* fired on the PRESS, not held — a bomb is one decision, not a state */
   if (k==="bomb" && !keys.bomb) useBomb(performance.now());
@@ -3784,6 +4075,8 @@ function bossStart(skipIntro){
 }
 function bossStop(){
   live=false; playing=false;
+  if (DEVPAUSE.on) DEVPAUSE.on = false;
+  if (DEVPAUSE.el) DEVPAUSE.el.style.display = "none";
   fightStop(); playerHide(); hideSubs(); hideBang();
   shardsClear(); sparks=[]; voiceStop();
   if (MUSIC){ MUSIC.pause(); MUSIC.currentTime=0; }
@@ -3839,7 +4132,12 @@ function devJump(row){
 }
 
 window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
-                jump:devJump, gates:GATE, esc:esc,
+                jump:devJump, gates:GATE, esc:esc, tune:TUNE,
+                deaths:deathCount, restart:restartFight,
+                resetDeaths:function(){ try{ localStorage.setItem(DEATH_KEY,"0"); }catch(e){}
+                                        F.deaths=0; return 0; },
+                pause:function(){ devPauseToggle(performance.now()); },
+                paused:function(){ return DEVPAUSE.on; },
                 breakSeconds:breakSeconds, pool:walkerPool,
                 brk:function(){ return F.brk; },
                 won:function(){ return F.won; },
