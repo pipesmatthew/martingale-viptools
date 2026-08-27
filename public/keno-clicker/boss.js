@@ -3437,6 +3437,22 @@ function fightDraw(c){
      wide — the same number the damage test uses, so the triangle IS the
      hitbox rather than an approximation of it. */
   if (F.move && F.move.id==="aoe" && F.move.doorAng !== undefined){
+    /* {B} THIS WHOLE BLOCK IS SOURCE-OVER, AND THAT WAS THE BUG {B}
+       fightDraw runs under globalCompositeOperation = "lighter" - correct for
+       everything it was originally drawing, all of which is light being ADDED
+       to a dark room. The floor telegraph is the opposite: it SUBTRACTS, it
+       takes ground away.
+
+       Under `lighter` a dark fill is a no-op - you cannot add negative light -
+       so the scrub that is supposed to black out the swept floor did nothing at
+       all, while the hatch and the wedge fill over it brightened a huge area
+       into the haze that reads as a blue cloud. And every colour in here came
+       out pale, because additive over a starfield washes toward white: that is
+       why the edges never looked like his red no matter what they were set to.
+
+       Switched to source-over for the duration and put back afterwards. */
+    c.save();
+    c.globalCompositeOperation = "source-over";
     var far=Math.max(VW(),VH())*1.5;
     var a0=F.move.doorAng - DOOR_SPAN/2;
     /* {B} A CUT IN THE FLOOR, NOT A SEARCHLIGHT {B}
@@ -3450,6 +3466,12 @@ function fightDraw(c){
        as deliberately clean rather than as a gap in the hatching - and the two
        edges get the weight instead. Those are the slice. */
     var lit=(F.move.phase==="tell") ? (0.30+0.42*F.aoeGlow) : 0.30;
+    /* {B} NO WASH INSIDE THE WEDGE {B}
+       Even at source-over, a tint across a wedge that reaches the far corner is
+       an enormous coloured object laid over the floor - and the safe ground does
+       not need colouring, it needs to be the part that was LEFT. The scrub
+       either side is what says so. This is now barely a breath, just enough that
+       the clean ground reads as deliberate rather than as a hole in the hatch. */
     var gr=c.createRadialGradient(W.x,W.y,walkerR()*0.9,W.x,W.y,far);
     /* ════════════════════ THE SAFE GROUND IS DRAWN IN HIS COLOUR ════════════════════
        It was cyan - a colour belonging to nothing else in the fight - which
@@ -3458,8 +3480,8 @@ function fightDraw(c){
        the same phase palette his art and his sparks use, so the wedge is amber
        when he is amber and violet when he is violet, and the floor marking and
        the thing marking it are visibly the same event. */
-    gr.addColorStop(0,"rgba("+hx(WALK_COL)+","+(lit*0.15).toFixed(3)+")");
-    gr.addColorStop(0.45,"rgba("+hx(WALK_COL)+","+(lit*0.07).toFixed(3)+")");
+    gr.addColorStop(0,"rgba("+hx(WALK_COL)+","+(lit*0.05).toFixed(3)+")");
+    gr.addColorStop(0.5,"rgba("+hx(WALK_COL)+","+(lit*0.02).toFixed(3)+")");
     gr.addColorStop(1,"rgba("+hx(WALK_COL)+",0)");
     c.fillStyle=gr;
     c.beginPath(); c.moveTo(W.x,W.y);
@@ -3479,8 +3501,10 @@ function fightDraw(c){
       c.lineTo(W.x+Math.cos(kea)*far, W.y+Math.sin(kea)*far);
       c.stroke();
     }
-    c.strokeStyle="rgba("+hx(WALK_COL)+","+Math.min(1,(lit*1.35)).toFixed(3)+")";
-    c.lineWidth=2.5;
+    /* HIS COLOUR, AND NOW IT ACTUALLY ARRIVES AS HIS COLOUR - source-over, so
+       255,96,70 is 255,96,70 rather than whatever additive makes of it. */
+    c.strokeStyle="rgba("+hx(WALK_COL)+","+Math.min(1,(lit*1.5)).toFixed(3)+")";
+    c.lineWidth=3;
     for (var ee=0; ee<2; ee++){
       var ea=a0+ee*DOOR_SPAN;
       c.beginPath();
@@ -3551,6 +3575,7 @@ function fightDraw(c){
       c.lineTo(W.x + Math.cos(ha)*far, W.y + Math.sin(ha)*far);
       c.stroke();
     }
+    c.restore();          /* back to `lighter` for everything after this */
   }
 
   /* THE NOVA'S REACH, DRAWN BEFORE IT ARRIVES. A blast with no door in it is
@@ -3892,9 +3917,14 @@ function padLabel(pd, h){
   c.textAlign = "center"; c.textBaseline = "middle";
   c.font = '700 15px ui-monospace,Consolas,monospace';
   c.lineJoin = "round"; c.miterLimit = 2;
-  c.strokeStyle = "rgba(3,10,6,.92)"; c.lineWidth = 4.5;
+  /* THE TILE'S OWN COLOUR, not a stock green. Each tile keeps a hue for the
+     whole fight and its number is already drawn in it - "the green one is the
+     awkward one" is a thing you learn without being told - so a label belonging
+     to a tile has no business arriving in a colour that belongs to none of
+     them. Same hue as its digit, one step brighter so it reads off the floor. */
+  c.strokeStyle = "rgba(3,6,10,.92)"; c.lineWidth = 4.5;
   c.strokeText("RESTORING", pd.x, pd.y + h + 17);
-  c.fillStyle = "#5cff9a";
+  c.fillStyle = "hsla("+pd.hue+",95%,72%,1)";
   c.fillText("RESTORING", pd.x, pd.y + h + 17);
   c.restore();
   c.textBaseline = "alphabetic";
@@ -3981,13 +4011,20 @@ function drawPads(c, now){
            glance - 40% and 55% look the same. One bright line at the surface of
            the fill is the most readable progress cue there is, and thirteen and
            a half seconds of standing still under fire has earned one. */
-        var top=pd.y+h-PAD_W*frac;
-        var flg=c.createLinearGradient(0,pd.y+h,0,top);
+        /* {B} IT FILLS TOWARD HIM, NOT UPWARD {B}
+           A bottom-up fill is a battery gauge - it has nothing to do with what
+           the tile is for. This whole block is drawn inside the tile's own
+           rotation, and that rotation points local +x at the gem the tile
+           feeds, which is his side of the room. So the charge starts at the far
+           edge and advances toward him, and the bright leading edge travels the
+           same direction the ray will. The tile is visibly loading. */
+        var edge = pd.x - h + PAD_W*frac;
+        var flg=c.createLinearGradient(pd.x-h,0,edge,0);
         flg.addColorStop(0,"hsla("+pd.hue+",92%,55%,.42)");
         flg.addColorStop(1,"hsla("+pd.hue+",92%,66%,.16)");
-        c.fillStyle=flg; c.fillRect(pd.x-h, top, PAD_W, PAD_W*frac);
-        c.fillStyle="hsla("+pd.hue+",100%,80%,.28)"; c.fillRect(pd.x-h, top-7, PAD_W, 6);
-        c.fillStyle="hsla("+pd.hue+",100%,86%,.95)"; c.fillRect(pd.x-h, top-1.5, PAD_W, 2.5);
+        c.fillStyle=flg; c.fillRect(pd.x-h, pd.y-h, PAD_W*frac, PAD_W);
+        c.fillStyle="hsla("+pd.hue+",100%,80%,.28)"; c.fillRect(edge-7, pd.y-h, 6, PAD_W);
+        c.fillStyle="hsla("+pd.hue+",100%,86%,.95)"; c.fillRect(edge-1.25, pd.y-h, 2.5, PAD_W);
       }
       c.strokeStyle="hsla("+pd.hue+",55%,40%,.55)"; c.lineWidth=1;
       c.strokeRect(pd.x-h+0.5, pd.y-h+0.5, PAD_W-1, PAD_W-1);
@@ -3995,11 +4032,12 @@ function drawPads(c, now){
       c.lineWidth = hot ? 2.5 : 1.5;
       c.strokeRect(pd.x-h+5.5, pd.y-h+5.5, PAD_W-11, PAD_W-11);
       /* quarters on the frame, so the number is readable without a number */
+      /* the quarters turn with the fill - they mark the same axis it travels */
       c.strokeStyle="hsla("+pd.hue+",90%,70%,.45)"; c.lineWidth=1;
       for (var qq=0; qq<3; qq++){
-        var qy=pd.y+h-PAD_W*(0.25+0.25*qq);
-        c.beginPath(); c.moveTo(pd.x-h,qy); c.lineTo(pd.x-h+7,qy);
-        c.moveTo(pd.x+h,qy); c.lineTo(pd.x+h-7,qy); c.stroke();
+        var qx=pd.x-h+PAD_W*(0.25+0.25*qq);
+        c.beginPath(); c.moveTo(qx,pd.y-h); c.lineTo(qx,pd.y-h+7);
+        c.moveTo(qx,pd.y+h); c.lineTo(qx,pd.y+h-7); c.stroke();
       }
       padCorners(c, pd, h, "hsla("+pd.hue+",90%,70%,.95)");
       /* ════════════════════ PARALLEL TO THE TILE, BUT NEVER UPSIDE DOWN ════════════════════
