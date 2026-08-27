@@ -542,11 +542,10 @@ var F = {
      about two and a half minutes; 6000 puts it at four and a bit, which is what
      was asked for and also what the staircase wants — the fourth tile has to
      have time left to be worth lighting. */
-  /* ONE POOL, AND IT IS THE OLD TOTAL. The shield's 5x760 and the exposed
-     2200 were two halves of a 6000-point boss, tuned against the tile
-     staircase for four and a bit minutes. The shield stopped being health, so
-     the whole 6000 sits in hpW rather than the fight quietly becoming a third
-     as long as the number it was balanced at. */
+  /* ONE POOL, AND IT IS SIZED AT THE START rather than written down. See
+     walkerPool(): the breaks are a duration and his health is whatever makes
+     them last that long at the damage you brought. These two numbers are only
+     the value before a fight has begun. */
   hpW:6000, hpWmax:6000, hpM:1050, hpMmax:1050,
   /* ══════════ THE SHIELD IS A GATE NOW, NOT A POOL ═══════════════════════
      It used to be five segments of 760 that you chipped through, and segHP was
@@ -1454,12 +1453,44 @@ function topStation(){
    DERIVED, NOT TYPED, so the two can never drift apart: change the damage
    curve and the gates follow it on their own. */
 function tileMult(k){ return k ? k * (1 + 0.30*(k-1)) : 0; }
+var MULT_SUM = (function(){ var s=0; for (var i=1;i<=PAD_FORCE;i++) s+=tileMult(i); return s; })();
 var GATE = (function(){
-  var g = [1], sum = 0, left = 1, i;
-  for (i=1;i<=PAD_FORCE;i++) sum += tileMult(i);
-  for (i=1;i<=PAD_FORCE;i++){ left -= tileMult(i)/sum; g[i] = Math.max(0, left); }
+  var g = [1], left = 1, i;
+  for (i=1;i<=PAD_FORCE;i++){ left -= tileMult(i)/MULT_SUM; g[i] = Math.max(0, left); }
   return g;                    /* GATE[k] = the health fraction break k ends at */
 })();
+
+/* ════════════════════ A BREAK IS A LENGTH OF TIME, NOT A LUMP OF HEALTH ════════════════════
+   His pool was a constant 6000 while padPower runs from 9.8 at the opening bet
+   to 125 at the cap - so the same lump evaporated at wildly different speeds
+   and the fight was 38 seconds a break for one player and 3 for another. A
+   boss whose length is set by your shop is not a boss.
+
+   So the duration is the number that is chosen, and the POOL is derived from
+   it. Each break wants T seconds, its rate is padPower x tileMult(k), so:
+
+       pool = padPower x T x MULT_SUM
+
+   and every break then takes pool / (MULT_SUM x padPower) = T EXACTLY,
+   whatever padPower happens to be. The bet cancels out of the arithmetic
+   completely, which is the point - it stops being able to trivialise this.
+
+   THIRTY SECONDS, LESS ONE PER BET UPGRADE. What a bigger bet buys here is a
+   SHORTER fight rather than a shorter-feeling one: the same eight phases, run
+   faster, because a player deep in the ladder has done this before.
+
+   THE FLOOR IS NOT IN THE SPEC. The bet track is 118 levels long and 30 minus
+   118 is nonsense, so it stops at MIN. Ten seconds is roughly the shortest a
+   break can be and still contain one shower - 1.5s of burn on a 4.4s gap - and
+   it is one constant to change if it wants to be eight or twelve. */
+var BREAK_SECS = 30, BREAK_SECS_MIN = 10;
+function breakSeconds(){
+  var lvl = 0;
+  try { if (typeof S !== "undefined" && S && S.upgrades) lvl = S.upgrades.betSize|0; } catch(e){}
+  return Math.max(BREAK_SECS_MIN, BREAK_SECS - lvl);
+}
+/* read once, with padPower, so a purchase mid-fight cannot resize him */
+function walkerPool(){ return Math.max(1, Math.round(F.padPower * breakSeconds() * MULT_SUM)); }
 
 /* ═════════════ WHAT "PHASE" MEANS NOW, AND WHAT IT DOES NOT ═══════════════
    It used to be F.broken.length - how many shield segments were gone - and
@@ -3562,6 +3593,10 @@ function fightStart(){
      is a different fight from the first */
   spiralA=0; counterA=0; ringIx=0; moveIx=0; stationIx=0; gapIx=0; doorIx=0; boltWalk=0; F.roamAt=0;
   shots=[]; shocks=[]; buildPads();
+  /* AFTER buildPads(), because that is what reads padPower, and his pool is
+     derived from it. Both are frozen for the fight here so a purchase between
+     phases cannot resize him halfway down the bar. */
+  F.hpWmax = walkerPool(); F.hpW = F.hpWmax;
   W.demon=1;      /* dropped when the bolt arrays came out — he arrived white */
 }
 function fightStop(){
@@ -3713,6 +3748,7 @@ function devJump(row){
 
 window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                 jump:devJump, gates:GATE, esc:esc,
+                breakSeconds:breakSeconds, pool:walkerPool,
                 brk:function(){ return F.brk; },
                 won:function(){ return F.won; },
                 spd:function(){ return F.spd; },
