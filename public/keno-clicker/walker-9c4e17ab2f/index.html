@@ -1475,7 +1475,7 @@ body.bw .corner:hover{opacity:1}
      exactly what happened once already in testing. -->
 <script src="streamers.js?v=11"></script>
 <script src="music.js?v=10"></script>
-<script src="boss.js?v=71"></script>
+<script src="boss.js?v=73"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
@@ -5797,7 +5797,14 @@ musicArm();
     for (i=0;i<rows.length;i++){
       var lab = rows[i].querySelector(".devlab");
       var t = lab ? lab.textContent.trim().toLowerCase() : "";
-      if (t.indexOf("walker") === 0){ kept++; continue; }
+      /* THE PHASE JUMP IS OFF. It set the three numbers a phase is - tiles,
+         shield, health - and measured correct every time, but it never behaved
+         in play: a jumped phase inherits whatever the fight was already doing
+         and the timers, the move index and the pattern clocks all carry across.
+         Rather than leave a control that lies, the row is gone. Start the fight
+         and play to the phase, or use shift+enter to retry it.
+         devJump() itself is still in boss.js and still exported. */
+      if (t === "walker"){ kept++; continue; }
       rows[i].style.display = "none";
     }
     var note = card.querySelector(".cardhead .note");

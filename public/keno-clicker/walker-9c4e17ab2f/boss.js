@@ -1441,7 +1441,7 @@ function restoreShield(){
     pads[i].on = false;
     if (!pads[i].won) pads[i].t = 0;
   }
-  F.broken = [segmentAt(Math.PI/2)];
+  F.broken = [];                    /* whole again - see fightStart */
   /* ════════════════════ THE SHIELD COMES BACK AND THE TRIANGLE IS ALREADY COMING ════════════════════
      Coming out of a break used to hand you a clean floor and a rotation that
      opened on the runes, which is the most forgiving thing he does - so the
@@ -1632,10 +1632,12 @@ function stepShocks(dt){
 function drawShocks(c){
   for (var i=0;i<shocks.length;i++){
     var k=shocks[i], p=k.t/k.ms, e=1-Math.pow(1-p,3);
-    c.strokeStyle="rgba(255,235,205,"+(0.85*(1-p)).toFixed(3)+")";
+    /* a shock can carry its own colour now - his pulse is the phase palette,
+       everything else keeps the old warm white */
+    c.strokeStyle="rgba("+(k.hue||"255,235,205")+","+(0.85*(1-p)).toFixed(3)+")";
     c.lineWidth=7*(1-p*0.7);
     c.beginPath(); c.arc(k.x,k.y,k.r*e,0,6.28318); c.stroke();
-    c.strokeStyle="rgba(255,120,60,"+(0.4*(1-p)).toFixed(3)+")";
+    c.strokeStyle="rgba("+(k.hue2||"255,120,60")+","+(0.4*(1-p)).toFixed(3)+")";
     c.lineWidth=18*(1-p*0.8);
     c.beginPath(); c.arc(k.x,k.y,k.r*e,0,6.28318); c.stroke();
   }
@@ -2829,9 +2831,38 @@ function fightStep(dt, now){
   if (F.brk && !F.over && !rewinding){
     if (!F.pulseAt || F.t > F.pulseAt){
       F.pulseAt = F.t + 1500;
-      shocks.push({ x:W.x, y:W.y, r:walkerR()*2.7, t:0, ms:950 });
+      /* {B} THE PULSE DOES SOMETHING NOW {B}
+         It was a ring in a fixed cream that expanded and changed nothing - so
+         it read as decoration bolted on where the pacing used to be, which is
+         exactly what it was. Two fixes.
+
+         IT IS HIS COLOUR. The ring takes WALK_COL through the phase palette, so
+         it is amber when he is amber and violet when he is violet, and it is
+         visibly the same event as everything else he does.
+
+         AND IT SHOVES. Every round inside its radius has its speed scaled,
+         hardest right at his rim and falling off to nothing at the edge - so
+         the arms VISIBLY surge outward on the beat instead of drifting past it.
+         Scaled rather than redirected, because the spirals are already
+         travelling radially outward and turning them would break the shape the
+         whole pattern is built on. The weaving aimed round carries its base
+         speed separately, so that is scaled too or it snaps back next frame. */
+      var pr = walkerR()*2.7, kicked = 0;
+      for (var pb=0; pb<shots.length; pb++){
+        var sh2 = shots[pb], pdx = sh2.x-W.x, pdy = sh2.y-W.y;
+        var pd2 = Math.hypot(pdx, pdy);
+        if (pd2 < pr && pd2 > 1){
+          var bst = 1 + 0.60*(1 - pd2/pr);
+          sh2.vx *= bst; sh2.vy *= bst;
+          if (sh2.bs) sh2.bs *= bst;
+          kicked++;
+        }
+      }
+      F.lastKick = kicked;   /* readable from a test - see the pulse note */
+      shocks.push({ x:W.x, y:W.y, r:pr, t:0, ms:950,
+                    hue:hx(WALK_COL), hue2:hx("255,120,60") });
       SFX.bossPulse();
-      kick(0.30, 0.18, "255,170,70");
+      kick(0.30, 0.18, hx("255,170,70"));
     }
   }
   if (F.iframe>0) F.iframe -= dt*1000;
@@ -4937,7 +4968,14 @@ function fightStart(){
      bottom of the arena, where you already are. */
   /* THE PIECE THAT BROKE IS THE ONE THAT FACED THE BOARD — still straight down,
      because the ram happens before either of them has taken a side. */
-  F.broken=[segmentAt(Math.PI/2)]; F.ghost=undefined;
+  /* {B} HE ARRIVES WITH HIS SHIELD WHOLE {B}
+     This was `[segmentAt(Math.PI/2)]` - the piece that faced the board, taken
+     by the intro ram - and it was right when the shield was five segments you
+     chipped through one at a time. It is a switch now: whole, or gone. Starting
+     a segment down meant he walked in visibly damaged by a mechanic that no
+     longer exists, and the ring only ever opens when a tile takes the whole
+     thing off. */
+  F.broken=[]; F.ghost=undefined;
   /* THE WHOLE PHASE MODEL GOES BACK TO ZERO, and it has to be all three: a
      leftover brk starts the fight already hittable with the ring intact, a
      leftover won puts the escalation at the top with no tiles on the floor,
@@ -5132,7 +5170,7 @@ function devJump(row){
   F.brk = main ? 0 : brk;
   F.broken = [];
   if (F.brk){ for (var q=0;q<SEGS;q++) F.broken.push(q); }
-  else F.broken.push(segmentAt(Math.PI/2));
+  /* main rows show the ring whole, exactly as playing there would */
   /* A MAIN PHASE REACHED BY PLAYING OPENS ON THE SHOWER - restoreShield sets
      moveIx to 1 so the tile is not free - so a jump has to do the same, or the
      rows it lands on are a different fight from the one they stand for. Row 1
