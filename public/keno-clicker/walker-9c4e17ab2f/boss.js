@@ -2096,7 +2096,7 @@ function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
    Three bands now, which is the shape this always wanted:
      105-124   the arms and the ring   drift, you route through them
      300-331   aimed and fan           press, you cannot stand still
-     496-660   snipe and volley        flinch, you react or you are hit */
+     496       the snipe               flinch, you react or you are hit */
 /* ════════════════════ ONE PLACE FOR EVERY NUMBER WORTH ARGUING ABOUT ════════════════════
    These were scattered as literals and as multiples of SHOT_SPEED, which made
    "make the fan a bit slower" a code change and a redeploy every time. They are
@@ -2112,7 +2112,7 @@ function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
    Three bands, and they still mean different things:
      105-143   arms, ring, fan   drift, you route through them
      300       aimed             presses, you cannot stand still
-     496-660   snipe, volley     flinch, you react or you are hit */
+     496       snipe             flinch, you react or you are hit */
 var TUNE = {
   /* ════════════════════ SPACING IS SPEED TIMES INTERVAL ════════════════════
      The complaint was that the aimed stream arrives as a line with no room in
@@ -2143,7 +2143,7 @@ var TUNE = {
      than a rebuild. */
   aimed:350, aimEvery:700, aimWave:60, aimWaveHz:0,
   fan:110, fanW:460, fanRows:1,
-  ring:170, spiral:170, counter:145, snipe:496, volley:660, padCharge:13500, moveGap:0.75, novaOrbEvery:210, mainRush:1500, mainRest:3500,
+  ring:170, spiral:170, counter:145, snipe:496, padCharge:13500, moveGap:0.75, novaOrbEvery:210, mainRush:1500, mainRest:3500,
   runeTell:1800, aoeTell:2600, novaTell:1800
 };
 /* ════════════════════ IT WAS A LINE, AND A LINE IS NOT A DODGE ════════════════════
@@ -2568,24 +2568,33 @@ function patCounter(){
    drifts has no punctuation: you settle into one pace, and nothing ever forces
    a reaction rather than a plan.
 
-   Two fast patterns, and both are aimed, because speed without aim is just
-   noise you happen to be standing in. The snipe is a single 620px/s round with
-   a tracer drawn a beat before it — fast enough to demand a flinch, telegraphed
-   enough that the flinch is possible. The volley is three of them down the same
-   line, so the first one moves you and the next two punish moving carelessly. */
-/* 620 -> 496, a fifth slower. It is still by some way the fastest thing he
-   throws - the volley opens at 660 but is not aimed at where you are standing
-   on a tile - and this is the one round the fight asks you to flinch at, so
+   ONE fast pattern, and it is aimed, because speed without aim is just noise
+   you happen to be standing in. The snipe is a single round with a tracer drawn
+   a beat before it - fast enough to demand a flinch, telegraphed enough that
+   the flinch is possible, and fired only while you are actually on a tile. */
+/* 620 -> 496, a fifth slower. With the volley gone it is outright the fastest
+   thing he throws, and it is the one round the fight asks you to flinch at, so
    what it wants is to be READABLE at speed rather than merely quick. */
 function patSnipe(){
   bullet(aimAtPlayer(), TUNE.snipe, 6, "255,240,190");
 }
-function patVolley(){
-  var a0=aimAtPlayer();
-  for (var i=0;i<3;i++){
-    bullet(a0, TUNE.volley - i*40, 6, "255,210,150");
-  }
-}
+/* ════════════════════ THE VOLLEY IS GONE ════════════════════
+   Three rounds at 660, 620 and 580 fired down ONE line at where you are
+   standing. The design note said "the first one moves you and the next two
+   punish moving carelessly", and that reasoning holds for a player who is free
+   to move. It does not describe this fight.
+
+   It was already barred from breaks. What is left is the main phase - which is
+   the phase whose entire job is getting you to stand on a tile for thirteen and
+   a half seconds and hold still. Being aimed at where you are standing is not a
+   fair trade when standing there is the objective, and three rounds down that
+   bearing is not a flinch test, it is a bill. The snipe already taxes charging,
+   deliberately and on its own terms: it fires ONLY while you are on a pad, once
+   at 496, with a tracer a beat ahead of it.
+
+   Removed rather than slowed. A slower volley is the same shape - a line you
+   have to leave the tile to dodge - and the fight already has plenty that
+   presses without taking the objective away from you. */
 
 /* CONSIDERABLY MORE OF EVERYTHING. These intervals were set when the player was
    firing back and standing still to do it; with the pads doing the damage the
@@ -2603,7 +2612,7 @@ function patVolley(){
    down from the intro ram, so old phase 1 IS esc 0.
 
      esc 0  (main phase 1)   aimed, fan, ring, snipe
-     esc 1  (break 1 on)     + spiral, volley
+     esc 1  (break 1 on)     + spiral
      esc 4  (break 4 only)   + the counter-arm
 
    Dropping it made the OPENING four times busier - the spiral alone is 4
@@ -2617,10 +2626,12 @@ var PATTERNS = [
   { fn:patRing,    every:1900, from:1 },
   { fn:patSpiral,  every:  55, from:2 },
   { fn:patCounter, every:  62, from:3 },
-  { fn:patSnipe,   every: 900, from:1 },
-  { fn:patVolley,  every:2300, from:2 }
+  { fn:patSnipe,   every: 900, from:1 }
 ];
-var patAt = [0,0,0,0,0,0,0];
+/* SIZED FROM THE TABLE, not written out. Two hand-kept literals of seven zeros
+   indexed this by pattern, so removing a pattern left a stale slot - and the
+   next one added would have read an index that was never reset. */
+var patAt = PATTERNS.map(function(){ return 0; });
 
 /* ══════════ NEVER TWO FULL-SCREEN THREATS AT ONCE ═══════════════════════════
    This is the rule the fight was breaking, and it is why it played as
@@ -2664,8 +2675,8 @@ function stepPatterns(now){
      the opening because the intro ram takes the segment facing the board. The
      escalation counts tiles and starts at 0. Adding the one lines the two up
      exactly, so every pattern arrives and tightens on the same schedule it
-     always did - the opening is the four it always was, and the spiral and
-     volley come in with the first break. */
+     always did - the opening is the four it always was, and the spiral comes
+     in with the first break. */
   var ph = esc() + 1;
   for (var i=0;i<PATTERNS.length;i++){
     var P2 = PATTERNS[i];
@@ -2676,8 +2687,12 @@ function stepPatterns(now){
     if (P2.fn === patCounter){ if (F.brk !== PAD_FORCE) continue; }
     else if (ph < P2.from) continue;
     if (big === 1 && P2.fn !== patAimed) continue;
-    /* the fast aimed pair, silent for a second after any big move */
-    if ((P2.fn===patSnipe || P2.fn===patVolley) &&
+    /* the fast aimed round, silent for a second after any big move. It was a
+       PAIR with the volley; with the volley gone the snipe is the whole band,
+       and the identifier had to go with it - patVolley is no longer declared,
+       so the old test would have thrown a ReferenceError on the first frame a
+       pattern was considered. */
+    if (P2.fn===patSnipe &&
         (big || (F.bigEnd && F.t - F.bigEnd < BIG_QUIET))) continue;
 
     /* ══════ THE SNIPE ONLY EXISTS WHILE YOU ARE ON A TILE ═════════════════
@@ -2706,12 +2721,10 @@ function stepPatterns(now){
        VOLLEY: three aimed rounds down one line at 667/713/759, in a warm cream
        three shades off the snipe's, which is why it read as the same attack.
 
-       The two are a pair by design - "the first one moves you and the next two
-       punish moving carelessly" - and both are the fast AIMED band. A break is
-       the phase where you are supposed to be reading arms and routing through
-       them; a 759px/s round arriving down your own bearing is a different game
-       being played on top of that one. Off with the shield down, both of them. */
-    if (P2.fn===patVolley && F.brk){ patAt[i] = now; continue; }
+       A break is the phase where you are supposed to be reading arms and
+       routing through them; a 759px/s round arriving down your own bearing is a
+       different game being played on top of that one. The volley used to be
+       barred here too, and is now barred everywhere. */
     /* EVERY PATTERN TIGHTENS AS HE LOSES SEGMENTS, on top of unlocking new
        ones. Without it the last two phases fire at the same rate as the one
        that introduced them and the fight plateaus exactly where it should be
@@ -5158,7 +5171,6 @@ var TUNE_SPEC = [
   ["spiral",   "spiral arms",     40,  400,   5],
   ["counter",  "counter arms",    40,  400,   5],
   ["snipe",    "snipe",          150,  900,  10],
-  ["volley",   "volley (fastest)",150, 900,  10],
   ["padCharge","tile charge (ms)",2000,25000, 250],
   ["moveGap",  "rest between moves",0.15, 1.5, 0.05],
   ["novaOrbEvery","nova orbs (ms apart)",60, 700,  10],
@@ -5351,7 +5363,7 @@ function fightStart(){
      well ahead of real time, so a second run inherits a stamp from the future
      and silently fires nothing until the wall clock catches up. That produced a
      whole balance table in which the player was disarmed and nobody said so. */
-  F.shotAt=0; F.shotAt2=0; patAt=[0,0,0,0,0,0,0]; tapeReset(); F.bigEnd=0; F.dmgBy={}; F.runeHeat=0; F.novaHeat=0; F.aoeGlow=0;
+  F.shotAt=0; F.shotAt2=0; patAt=PATTERNS.map(function(){ return 0; }); tapeReset(); F.bigEnd=0; F.dmgBy={}; F.runeHeat=0; F.novaHeat=0; F.aoeGlow=0;
   F.bombs=BOMB_START; F.bombAt=0;
   /* every sequence index goes back to the top, or the second run of the night
      is a different fight from the first */
