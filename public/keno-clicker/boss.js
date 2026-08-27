@@ -683,8 +683,23 @@ var REPAIR_MS=2400, IFRAME_MS=850;
    charge alone, without needing the walk at all. */
 var NOVA_TELL=1000, NOVA_FIRE=1400;
 var NOVA_SAFE=0.86;                /* of the half-diagonal */
-function novaCentre(){ return { x:VW()*0.5, y:VH()*0.5 }; }
-function novaSafeR(){ return NOVA_SAFE * Math.hypot(VW()*0.5, VH()*0.5); }
+/* ══════ THE MIDDLE OF THE ROOM, NOT THE MIDDLE OF THE SCREEN ══════════════
+   Both of these were measured off the whole window, and the window stopped
+   being the room when the wall went in at 0.66. The screen centre is 218px to
+   the RIGHT of where the play area's centre actually is, and the safe radius
+   was a fraction of the screen's half-diagonal rather than the room's — so the
+   blast was aimed off-centre and sized for space the player is not allowed to
+   occupy.
+
+   Measured before this: the safe region was 5% of the reachable arena, a sliver
+   hugging the far left edge, and running to it from the middle of the board
+   took 1.23s against a 1.00s charge. From mid-board the nova simply could not
+   be survived, and nothing about it looked wrong.
+
+   Off the play area, the four corners of the ROOM are the answer again, which
+   is what this attack was always supposed to ask for. */
+function novaCentre(){ return { x:VW()*PLAY_MAX_X*0.5, y:VH()*0.5 }; }
+function novaSafeR(){ return NOVA_SAFE * Math.hypot(VW()*PLAY_MAX_X*0.5, VH()*0.5); }
 
 var RUNE_X=0.31, RUNE_Y=0.02;      /* rune offset, as a fraction of his box */
 var RUNE_CHARGE=1800, RUNE_FIRE=1400, RUNE_H=26;
@@ -1593,13 +1608,16 @@ function doorCornerAngle(which){
    Completing at 70% leaves about two full ticks with the whole 310 degrees
    burning, so everything outside the wedge is paid for. */
 var AOE_SWEEP_DONE = 0.70;
-/* the ring left standing at the end of the shower - see "the wall you come
-   back through" */
-var AOE_WALL_AT = 0.82;       /* fraction of the shower when it appears */
-var AOE_WALL_R  = 0.75;       /* of the distance to the arena edge, per bearing */
-var AOE_WALL_N  = 84;   /* he stands outside the play wall, so ~half these
-                              bearings have no arena in them and are skipped */
-var AOE_WALL_SPEED = 58;      /* px/s outward - slow enough to still be there */
+/* ══ THE RING THE NOVA LEAVES BEHIND — see "the wall you come back through" ══
+   84 was sized for the wedge AOE, where he stands past the play wall and half
+   the bearings had no arena in them to put a bullet in. The nova fires from the
+   middle of the room, so nothing is discarded and 84 became 84: a ring with
+   21px between bullets, which is not a wall to dodge through, it is a wall.
+   26 is the same ring with room in it. */
+var NOVA_WALL_AT = 0.82;      /* fraction of the blast when it appears */
+var NOVA_WALL_R  = 0.75;      /* of the distance to the room's edge, per bearing */
+var NOVA_WALL_N  = 26;
+var NOVA_WALL_SPEED = 58;     /* px/s outward - slow enough to still be there */
 function aoeSweptSpan(M){
   if (!M || M.phase === "tell") return 0;
   return Math.min(1, (M.t/AOE_FIRE)/AOE_SWEEP_DONE) * (6.28318 - DOOR_SPAN);
@@ -2170,28 +2188,6 @@ function fightStep(dt, now){
             }
           }
         }
-        /* ══════ THE WALL YOU COME BACK THROUGH ═══════════════════════════
-           Surviving the shower parks you at the outside edge of the arena in
-           the safe wedge, and the walk back to the tiles was free - the attack
-           ended and nothing stood between you and the board. So as the damage
-           is finishing, a ring of bullets is left standing about three quarters
-           of the way out, drifting outward slowly. It is the tail of the storm,
-           and it is in your way.
-
-           Born out in the arena rather than at his rim, because the whole point
-           is that it is ALREADY there when you turn round. */
-        if (!M.wallback && M.t >= AOE_FIRE*AOE_WALL_AT){
-          M.wallback = true;
-          var wOff = (doorIx*0.7)%1;
-          for (var wi=0; wi<AOE_WALL_N; wi++){
-            var wa = (wi+wOff)*6.28318/AOE_WALL_N;
-            var wd = edgeDist(wa)*AOE_WALL_R;
-            /* bearings that run straight into the wall behind him have almost
-               no arena in them; a bullet there is unreachable, so skip it */
-            if (wd < 170) continue;
-            bulletAt(wa, wd, AOE_WALL_SPEED, 8, "226,72,178");
-          }
-        }
         if (M.t>=AOE_FIRE){ W.spin=0.24; F.aoeGlow=0; F.station=null; endMove(4400); }
       }
 
@@ -2246,6 +2242,35 @@ function fightStep(dt, now){
           F.aoeTick = AOE_TICK_MS;
           var pc2 = pC(), dn = Math.hypot(pc2.x-nc.x, pc2.y-nc.y);
           if (dn < sr && dn <= M.front) hurtPlayer(aoeDmg(),"nova",true);
+        }
+        /* ══════ THE WALL YOU COME BACK THROUGH ═══════════════════════════
+           THIS is the attack that needed it. The nova clears the entire room
+           and the only answer is distance, so surviving it always ends with you
+           pinned against the outside edge — and the walk back to the tiles was
+           free, because the attack was over and nothing stood in the way.
+
+           I put this on the wedge AOE first, which was the wrong one: there you
+           are already standing in a safe corridor pointing at the room, so a
+           ring around HIM is not across your path at all.
+
+           A ring is left standing at 82% of the blast, three quarters of the
+           way out from the middle, drifting outward slowly. It is the tail of
+           the nova and it is between you and the board. Born out in the arena
+           rather than at his rim, because the point is that it is already there
+           when you turn round.
+
+           Measured PER BEARING to the edge of the play area rather than at one
+           radius — he is dead centre for this move so every direction has real
+           room in it, unlike the wedge AOE where he stands past the wall. */
+        if (!M.wallback && M.t >= NOVA_FIRE*NOVA_WALL_AT){
+          M.wallback = true;
+          var wOff = (stationIx*0.7)%1;
+          for (var wi=0; wi<NOVA_WALL_N; wi++){
+            var wa = (wi+wOff)*6.28318/NOVA_WALL_N;
+            var wd = edgeDist(wa)*NOVA_WALL_R;
+            if (wd < 170) continue;
+            bulletAt(wa, wd, NOVA_WALL_SPEED, 8, "226,72,178");
+          }
         }
         if (M.t>=NOVA_FIRE){ W.spin=0.24; F.novaHeat=0; F.aoeGlow=0; F.station=null; endMove(4200); }
       }
