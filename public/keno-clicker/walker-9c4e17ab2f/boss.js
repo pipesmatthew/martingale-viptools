@@ -1007,6 +1007,20 @@ function padDPS(){
   return k ? F.padPower * k * (1 + 0.30*(k-1)) : 0;
 }
 
+/* ARE YOU STANDING ON A TILE RIGHT NOW? Same box the charge uses, so it is
+   the same thing the player already understands - if the tile is filling, you
+   are on it. Lit tiles count too: a tile you have finished charging is still a
+   tile you are standing on. */
+function onAnyPad(){
+  if (!P.live) return false;
+  var m = pC();
+  for (var i=0;i<pads.length;i++){
+    if (Math.abs(m.x-pads[i].x) < PAD_W*0.5 && Math.abs(m.y-pads[i].y) < PAD_W*0.5)
+      return true;
+  }
+  return false;
+}
+
 function stepPads(dt){
   if (!F.on || F.over || !P.live || rewinding) return;
   var m = pC(), any = false;
@@ -1339,12 +1353,57 @@ function bullet(a, speed, r, hue){
                sz: 0.86 + ((galIx*0.3819)%1)*0.42 });
   galIx++;
 }
+/* HOW FAR THE ARENA IS IN THIS DIRECTION. "Three quarters of the way to the
+   edge" is not one radius — he stands near a corner, so a circle of fixed
+   radius round him is mostly OFF the arena. Measured with a 666px ring, 32 of
+   40 bullets landed outside and the wall was 8 bullets of noise.
+
+   Per bearing, this is the distance from him to the boundary of the space the
+   player is allowed to occupy, so 0.75 of it is genuinely three quarters of the
+   way out in every direction and the whole ring lands where it can be hit. */
+function edgeDist(a){
+  var cx=Math.cos(a), cy=Math.sin(a), best=1e9, maxX=VW()*PLAY_MAX_X;
+  if (cx >  1e-6) best=Math.min(best,(maxX - W.x)/cx);
+  if (cx < -1e-6) best=Math.min(best,(0    - W.x)/cx);
+  if (cy >  1e-6) best=Math.min(best,(VH() - W.y)/cy);
+  if (cy < -1e-6) best=Math.min(best,(0    - W.y)/cy);
+  return best;
+}
+
+/* the same bullet, born out in the arena instead of at his rim */
+function bulletAt(a, dist, speed, r, hue){
+  var n = shots.length;
+  bullet(a, speed, r, hue);
+  if (shots.length > n){
+    var b = shots[shots.length-1];
+    b.x = W.x + Math.cos(a)*dist;
+    b.y = W.y + Math.sin(a)*dist;
+  }
+}
 function aimAtPlayer(){ var m=pC(); return Math.atan2(m.y-W.y, m.x-W.x); }
 
 function patAimed(){ bullet(aimAtPlayer(), SHOT_SPEED, 9); }
+/* ══════ THE FAN IS A WIDTH, NOT AN ANGLE ══════════════════════════════════
+   A fixed 0.15 rad step means the spread grows with range, and the range is
+   large - the player works the tiles most of a screen away from him. Seven
+   bullets 0.15 apart is 0.90 rad total, which at 750px is a 650px wall with
+   110px gaps in it. You step once into a gap and are then allowed to stop,
+   which is the opposite of what this pattern is for.
+
+   Defining it by the width it will have WHEN IT ARRIVES makes it the same
+   threat at every range: FAN_W across, wherever you stand. The gaps are then
+   narrow enough that drifting into one is not a plan - you have to keep
+   moving, and because he sits to your right the spread is vertical, so moving
+   means up and down the board.
+
+   The middle bullet is aimed exactly at you, so standing perfectly still was
+   never survivable and still is not. */
+var FAN_W = 250;                  /* px across, at whatever range you are */
 function patFan(){
-  var a0=aimAtPlayer();
-  for (var i=-3;i<=3;i++) bullet(a0 + i*0.15, SHOT_SPEED*0.92, 8);
+  var m=pC(), a0=Math.atan2(m.y-W.y, m.x-W.x);
+  var d=Math.max(200, Math.hypot(m.x-W.x, m.y-W.y));
+  var step=(FAN_W/6)/d;           /* seven bullets, six gaps */
+  for (var i=-3;i<=3;i++) bullet(a0 + i*step, SHOT_SPEED*0.92, 8);
 }
 function patRing(){
   /* the ring gets denser too — 24 at first sight, 40 by the end */
@@ -1534,6 +1593,13 @@ function doorCornerAngle(which){
    Completing at 70% leaves about two full ticks with the whole 310 degrees
    burning, so everything outside the wedge is paid for. */
 var AOE_SWEEP_DONE = 0.70;
+/* the ring left standing at the end of the shower - see "the wall you come
+   back through" */
+var AOE_WALL_AT = 0.82;       /* fraction of the shower when it appears */
+var AOE_WALL_R  = 0.75;       /* of the distance to the arena edge, per bearing */
+var AOE_WALL_N  = 84;   /* he stands outside the play wall, so ~half these
+                              bearings have no arena in them and are skipped */
+var AOE_WALL_SPEED = 58;      /* px/s outward - slow enough to still be there */
 function aoeSweptSpan(M){
   if (!M || M.phase === "tell") return 0;
   return Math.min(1, (M.t/AOE_FIRE)/AOE_SWEEP_DONE) * (6.28318 - DOOR_SPAN);
@@ -1707,6 +1773,20 @@ function stepPatterns(now){
     /* the fast aimed pair, silent for a second after any big move */
     if ((P2.fn===patSnipe || P2.fn===patVolley) &&
         (big || (F.bigEnd && F.t - F.bigEnd < BIG_QUIET))) continue;
+
+    /* ══════ THE SNIPE ONLY EXISTS WHILE YOU ARE ON A TILE ═════════════════
+       It is the one round fast enough to demand a flinch, and it had nothing
+       to say about WHERE you were - it just arrived. Tying it to the tiles
+       gives it a job: standing on a tile is how you deal damage, so this is
+       the cost of dealing it, and stepping off is a real answer rather than
+       something you do for no reason.
+
+       THE TIMER RESETS WHILE YOU ARE OFF. Left running, the interval would
+       elapse in open ground and the shot would land the instant you touched a
+       tile - punishing arriving rather than lingering, which is backwards.
+       This way the clock only turns while you are standing there, so a full
+       interval on the tile is what earns it. */
+    if (P2.fn===patSnipe && !onAnyPad()){ patAt[i] = now; continue; }
     /* EVERY PATTERN TIGHTENS AS HE LOSES SEGMENTS, on top of unlocking new
        ones. Without it the last two phases fire at the same rate as the one
        that introduced them and the fight plateaus exactly where it should be
@@ -2088,6 +2168,28 @@ function fightStep(dt, now){
                 dd2 <= M.front && dd2 >= walkerR()*0.5){
               hurtPlayer(aoeDmg(),"aoe",true);
             }
+          }
+        }
+        /* ══════ THE WALL YOU COME BACK THROUGH ═══════════════════════════
+           Surviving the shower parks you at the outside edge of the arena in
+           the safe wedge, and the walk back to the tiles was free - the attack
+           ended and nothing stood between you and the board. So as the damage
+           is finishing, a ring of bullets is left standing about three quarters
+           of the way out, drifting outward slowly. It is the tail of the storm,
+           and it is in your way.
+
+           Born out in the arena rather than at his rim, because the whole point
+           is that it is ALREADY there when you turn round. */
+        if (!M.wallback && M.t >= AOE_FIRE*AOE_WALL_AT){
+          M.wallback = true;
+          var wOff = (doorIx*0.7)%1;
+          for (var wi=0; wi<AOE_WALL_N; wi++){
+            var wa = (wi+wOff)*6.28318/AOE_WALL_N;
+            var wd = edgeDist(wa)*AOE_WALL_R;
+            /* bearings that run straight into the wall behind him have almost
+               no arena in them; a bullet there is unreachable, so skip it */
+            if (wd < 170) continue;
+            bulletAt(wa, wd, AOE_WALL_SPEED, 8, "226,72,178");
           }
         }
         if (M.t>=AOE_FIRE){ W.spin=0.24; F.aoeGlow=0; F.station=null; endMove(4400); }
