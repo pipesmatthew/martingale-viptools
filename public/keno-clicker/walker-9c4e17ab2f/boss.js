@@ -344,7 +344,7 @@ var HEAT = [
   [0.22,  96,  96, 240],   /* blue */
   [0.00,  26,  20,  86]    /* deep indigo, gone against the sky */
 ];
-function heatRGB(h){
+function heatRGB0(h){
   for (var i=0;i<HEAT.length-1;i++){
     var a=HEAT[i], b=HEAT[i+1];
     if (h<=a[0] && h>=b[0]){
@@ -353,6 +353,15 @@ function heatRGB(h){
     }
   }
   return [122,24,0];
+}
+/* THE HEAT RAMP IS THE WHOLE SPARK SYSTEM - the shower, the welding spray, the
+   rune charge, every burst - so the phase colour goes on here once rather than
+   at forty call sites. sparkDraw() buckets by heat before it calls this, so it
+   runs about forty times a frame, not ten thousand. */
+function heatRGB(h){
+  var c = heatRGB0(h), d = whue(), gl = wglitch();
+  if (!d && gl < 0.01) return c;
+  return hueShift(c[0], c[1], c[2], d, 1 + 0.45*gl, 1 - 0.22*gl);
 }
 /* `g` IS A PER-SPARK GRAVITY SCALE, and the AOE needs it. A welding spark wants
    to arc and fall — that is what makes it read as hot metal rather than as a
@@ -494,6 +503,75 @@ var SEGS = 5, SEG = 6.28318/SEGS;
    dt, so the fight is the same fight at any refresh rate. The numbers are the
    old per-frame values times 60. */
 var IDLE_SPIN = 1.20;       /* rad/s — his resting turn */
+
+/* ════════════════════ HE DESCENDS THE RAINBOW AND THEN STOPS BEING A COLOUR ════════════════════
+   One hue per tile taken, walked in spectrum order, and a `glitch` that rises
+   with it: saturation pushed past where the art was authored and the whole
+   thing pulled darker and harder, so the last break is deep violet with the
+   knotwork reading as corrupted rather than lit.
+
+     esc 0     0deg   his own red, exactly as drawn
+     esc 1    48deg   amber
+     esc 2   118deg   green
+     esc 3   196deg   cyan-blue
+     esc 4   272deg   violet, glitch at full
+
+   THE BULLETS ARE DELIBERATELY NOT IN THIS. Their colours are a language the
+   player is asked to learn - "the magenta ones come in a ring" - and rotating
+   them every phase would take that away at exactly the point the screen is
+   busiest. What shifts is HIM and what leaves him: his art, his sparks, his
+   telegraphs. What comes at you keeps its name. */
+var PHASE_HUE    = [0, 48, 118, 196, 272];
+var PHASE_GLITCH = [0, 0.12, 0.30, 0.55, 1.00];
+/* the shield coming off throws the hue forward and it falls back - the pulse
+   gets a colour of its own without needing a whole new effect */
+var pulseHue = 0;
+function whue(){
+  var i = Math.min(PHASE_HUE.length-1, Math.max(0, esc()));
+  return PHASE_HUE[i] + pulseHue;
+}
+function wglitch(){
+  var i = Math.min(PHASE_GLITCH.length-1, Math.max(0, esc()));
+  return Math.min(1.5, PHASE_GLITCH[i] + pulseHue/140);
+}
+
+/* HSL round trip, because a hue rotation is meaningless in RGB. Kept local and
+   allocation-free-ish; it runs on about forty spark buckets and a dozen
+   gradient stops a frame, which is nothing next to the bullets. */
+function hueShift(r, g, b, deg, sat, lit){
+  r/=255; g/=255; b/=255;
+  var mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2, h=0, sN=0, d=mx-mn;
+  if (d){
+    sN = l>0.5 ? d/(2-mx-mn) : d/(mx+mn);
+    if (mx===r) h=(g-b)/d + (g<b?6:0);
+    else if (mx===g) h=(b-r)/d + 2;
+    else h=(r-g)/d + 4;
+    h/=6;
+  }
+  h = (h + deg/360) % 1; if (h<0) h+=1;
+  sN = Math.max(0, Math.min(1, sN*sat));
+  l  = Math.max(0, Math.min(1, l*lit));
+  if (sN < 0.0001){ var v=Math.round(l*255); return [v,v,v]; }
+  var q = l<0.5 ? l*(1+sN) : l+sN-l*sN, p = 2*l-q;
+  function hz(t){
+    if(t<0)t+=1; if(t>1)t-=1;
+    if(t<1/6) return p+(q-p)*6*t;
+    if(t<0.5) return q;
+    if(t<2/3) return p+(q-p)*(2/3-t)*6;
+    return p;
+  }
+  return [Math.round(hz(h+1/3)*255), Math.round(hz(h)*255), Math.round(hz(h-1/3)*255)];
+}
+
+/* "255,170,70" -> the same colour this phase. Every telegraph he draws goes
+   through here, so adding one is a matter of wrapping its literal. */
+function hx(rgb){
+  var d = whue(), gl = wglitch();
+  if (!d && gl < 0.01) return rgb;
+  var p = rgb.split(",");
+  var o = hueShift(+p[0], +p[1], +p[2], d, 1 + 0.45*gl, 1 - 0.22*gl);
+  return o[0] + "," + o[1] + "," + o[2];
+}
 var F = {
   on:false, move:null, t:0, next:0, over:null,
   /* HIS POOL IS SIZED TO HIS HITBOX, and it had to move when he grew. Sizing
@@ -1145,6 +1223,16 @@ function breakShield(pd){
      after the third break throws its creeping galaxies 15% faster than the one
      that opened the fight, without a number inside the move changing. */
   F.spd = 1 + 0.05*(F.won - 1);
+  /* ════════════════════ EVERY TILE PAYS YOU ════════════════════
+     Ten seconds standing still in a bullet hell is the most dangerous thing the
+     fight asks for, and until now the only thing it bought was a bigger number
+     on his bar. A bomb and a quarter of your health means the staircase is a
+     RESOURCE decision as well as a damage one - and it is what makes taking the
+     fourth tile survivable rather than merely optimal. */
+  F.bombs += 1;
+  F.hpM = Math.min(F.hpMmax, F.hpM + F.hpMmax*0.25);
+  /* the hue is thrown forward and falls back over the next second or so */
+  pulseHue = 150;
   /* every segment, not one - and the ring is the shield, so this IS the
      shield coming off */
   F.broken = []; for (var i=0;i<SEGS;i++) F.broken.push(i);
@@ -2408,6 +2496,12 @@ function fightStep(dt, now){
   }
   tapeRecord(now);
   F.t += dt*1000;
+  /* THE PULSE'S HUE SPIKE EASES BACK HERE, not in decayFx. decayFx runs from
+     frame(), which keeps running while the arena is frozen for the tuning panel
+     - so the colour would have drained out of a paused pulse while everything
+     it belongs to stood still. It is part of the simulation, so it decays with
+     the simulation. */
+  if (pulseHue > 0) pulseHue = Math.max(0, pulseHue - dt*170);
   if (F.iframe>0) F.iframe -= dt*1000;
   armAlways(); stepPads(dt);
   if (F.over) return;
@@ -3000,7 +3094,18 @@ function paintWalker(){
     c.clearRect(0,0,600,600);
     if (!img || !img.naturalWidth) continue;
     c.save(); c.translate(300,300); c.rotate(pairs[i][2]); c.translate(-300,-300);
-    c.drawImage(img,0,0,600,600); c.restore();
+    /* ════════════════════ THE ART IS FILTERED, NOT REPAINTED ════════════════════
+       hue-rotate moves the colour and leaves every bit of the shading and the
+       knotwork where it was; a source-atop tint would flatten him to one wash.
+       Saturation and contrast climb with the glitch and brightness falls, so
+       the last phase is not just a different red - it is a thing that has gone
+       wrong. Set inside the save, so restore() puts it back. */
+    var _d = whue(), _g = wglitch();
+    if (_d || _g > 0.01){
+      c.filter = "hue-rotate(" + _d.toFixed(1) + "deg) saturate(" + (1 + 0.55*_g).toFixed(2) +
+                 ") brightness(" + (1 - 0.24*_g).toFixed(2) + ") contrast(" + (1 + 0.5*_g).toFixed(2) + ")";
+    }
+    c.drawImage(img,0,0,600,600); c.filter = "none"; c.restore();
     /* THE BROKEN SEGMENTS ARE CUT OUT OF THE ART. Erased in ring-local space on
        an already-rotated canvas, so the holes travel with the spin exactly as
        gapAt() assumes — which is the whole reason the ring was split off the
@@ -3025,8 +3130,8 @@ function paintWalker(){
     if (i===0 && F.aoeGlow > 0.02){
       c.globalCompositeOperation="lighter";
       var ga=c.createRadialGradient(300,300,262,300,300,306);
-      ga.addColorStop(0,"rgba(255,220,170,0)");
-      ga.addColorStop(0.55,"rgba(255,232,196,"+(0.20*F.aoeGlow).toFixed(3)+")");
+      ga.addColorStop(0,"rgba("+hx("255,220,170")+",0)");
+      ga.addColorStop(0.55,"rgba("+hx("255,232,196")+","+(0.20*F.aoeGlow).toFixed(3)+")");
       ga.addColorStop(1,"rgba(255,246,225,"+(0.34*F.aoeGlow).toFixed(3)+")");
       c.fillStyle=ga;
       c.beginPath(); c.arc(300,300,306,0,6.28318); c.fill();
@@ -3078,9 +3183,9 @@ function fightDraw(c){
     var a0=F.move.doorAng - DOOR_SPAN/2;
     var lit=(F.move.phase==="tell") ? (0.30+0.42*F.aoeGlow) : 0.30;
     var gr=c.createRadialGradient(W.x,W.y,walkerR()*0.9,W.x,W.y,far);
-    gr.addColorStop(0,"rgba(140,225,255,"+(lit*0.55).toFixed(3)+")");
-    gr.addColorStop(0.45,"rgba(140,225,255,"+(lit*0.22).toFixed(3)+")");
-    gr.addColorStop(1,"rgba(140,225,255,0)");
+    gr.addColorStop(0,"rgba("+hx("140,225,255")+","+(lit*0.55).toFixed(3)+")");
+    gr.addColorStop(0.45,"rgba("+hx("140,225,255")+","+(lit*0.22).toFixed(3)+")");
+    gr.addColorStop(1,"rgba("+hx("140,225,255")+",0)");
     c.fillStyle=gr;
     c.beginPath(); c.moveTo(W.x,W.y);
     c.arc(W.x,W.y,far,a0,a0+DOOR_SPAN); c.closePath(); c.fill();
@@ -3088,7 +3193,7 @@ function fightDraw(c){
     /* THE TWO EDGES, AS LINES. The gradient says roughly where; the edges say
        exactly where, which is what you need when it is 50 degrees wide and
        moving. */
-    c.strokeStyle="rgba(170,240,255,"+(lit*0.75).toFixed(3)+")";
+    c.strokeStyle="rgba("+hx("170,240,255")+","+(lit*0.75).toFixed(3)+")";
     c.lineWidth=2;
     for (var ee=0; ee<2; ee++){
       var ea=a0+ee*DOOR_SPAN;
@@ -3115,14 +3220,14 @@ function fightDraw(c){
       var prog = Math.min(1, F.aoeGlow||0);
       var swept = (6.28318 - DOOR_SPAN) * prog;
       var rr2 = walkerR()*0.9 + Math.min(VW(),VH())*0.18;
-      c.strokeStyle = "rgba(255,190,110," + (0.20 + 0.55*prog).toFixed(3) + ")";
+      c.strokeStyle = "rgba("+hx("255,190,110")+"," + (0.20 + 0.55*prog).toFixed(3) + ")";
       c.lineWidth = 3;
       c.beginPath();
       c.arc(W.x, W.y, rr2, s0, s0 + sdir*swept, sdir < 0);
       c.stroke();
       /* the head, so the DIRECTION cannot be misread */
       var ha = s0 + sdir*swept;
-      c.fillStyle = "rgba(255,226,170," + (0.35 + 0.6*prog).toFixed(3) + ")";
+      c.fillStyle = "rgba("+hx("255,226,170")+"," + (0.35 + 0.6*prog).toFixed(3) + ")";
       c.beginPath();
       c.arc(W.x + Math.cos(ha)*rr2, W.y + Math.sin(ha)*rr2, 7, 0, 6.28318);
       c.fill();
@@ -3139,18 +3244,18 @@ function fightDraw(c){
     var live = F.move.phase==="fire";
     var rr2 = live ? sr2 : sr2*(0.25+0.75*h);
     var gg2=c.createRadialGradient(nc2.x,nc2.y,0,nc2.x,nc2.y,rr2);
-    gg2.addColorStop(0,"rgba(255,90,20,"+(live?0.20:0.05+0.13*h).toFixed(3)+")");
-    gg2.addColorStop(1,"rgba(255,40,0,0)");
+    gg2.addColorStop(0,"rgba("+hx("255,90,20")+","+(live?0.20:0.05+0.13*h).toFixed(3)+")");
+    gg2.addColorStop(1,"rgba("+hx("255,40,0")+",0)");
     c.fillStyle=gg2; c.beginPath(); c.arc(nc2.x,nc2.y,rr2,0,6.28318); c.fill();
-    c.strokeStyle = live ? "rgba(255,235,200,.95)"
-                         : "rgba(255,150,60,"+(0.25+0.6*h).toFixed(3)+")";
+    c.strokeStyle = live ? "rgba("+hx("255,235,200")+",.95)"
+                         : "rgba("+hx("255,150,60")+","+(0.25+0.6*h).toFixed(3)+")";
     c.lineWidth = live ? 5 : 2+3*h;
     c.setLineDash(live?[]:[14,10]);
     c.beginPath(); c.arc(nc2.x,nc2.y,sr2,0,6.28318); c.stroke();
     c.setLineDash([]);
     if (!live && h>0.2){
       var cor=[[0,0],[VW(),0],[0,VH()],[VW(),VH()]];
-      c.strokeStyle="rgba(120,255,180,"+(0.18+0.4*h).toFixed(3)+")"; c.lineWidth=3;
+      c.strokeStyle="rgba("+hx("120,255,180")+","+(0.18+0.4*h).toFixed(3)+")"; c.lineWidth=3;
       for (var ci=0;ci<4;ci++){
         var cx=cor[ci][0], cy=cor[ci][1], sx=cx?-1:1, sy=cy?-1:1;
         c.beginPath();
@@ -3193,18 +3298,18 @@ function fightDraw(c){
 
         /* the haze, well outside the kill band and obviously not the beam */
         var og=c.createLinearGradient(0,-hh*3,0,hh*3);
-        og.addColorStop(0,   "rgba(255,60,0,0)");
-        og.addColorStop(0.5, "rgba(255,110,20,.22)");
-        og.addColorStop(1,   "rgba(255,60,0,0)");
+        og.addColorStop(0,   "rgba("+hx("255,60,0")+",0)");
+        og.addColorStop(0.5, "rgba("+hx("255,110,20")+",.22)");
+        og.addColorStop(1,   "rgba("+hx("255,60,0")+",0)");
         c.fillStyle=og; c.fillRect(0,-hh*3,far2,hh*6);
 
         /* the band that burns — solid to the edge, no falloff */
         var lg=c.createLinearGradient(0,-hh,0,hh);
-        lg.addColorStop(0,   "rgba(255,140,35,.97)");
-        lg.addColorStop(0.30,"rgba(255,214,150,1)");
-        lg.addColorStop(0.5, "rgba(255,253,244,1)");
-        lg.addColorStop(0.70,"rgba(255,214,150,1)");
-        lg.addColorStop(1,   "rgba(255,140,35,.97)");
+        lg.addColorStop(0,   "rgba("+hx("255,140,35")+",.97)");
+        lg.addColorStop(0.30,"rgba("+hx("255,214,150")+",1)");
+        lg.addColorStop(0.5, "rgba("+hx("255,253,244")+",1)");
+        lg.addColorStop(0.70,"rgba("+hx("255,214,150")+",1)");
+        lg.addColorStop(1,   "rgba("+hx("255,140,35")+",.97)");
         c.fillStyle=lg; c.fillRect(0,-hh,far2,hh*2);
 
         /* the edge itself. This is the line the player reads, so it is a line. */
@@ -3215,15 +3320,15 @@ function fightDraw(c){
         c.stroke();
         c.restore();
       } else if (F.runeHeat>0.15){
-        c.strokeStyle="rgba(255,140,40,"+(0.10+0.4*F.runeHeat).toFixed(3)+")";
+        c.strokeStyle="rgba("+hx("255,140,40")+","+(0.10+0.4*F.runeHeat).toFixed(3)+")";
         c.lineWidth=1+2*F.runeHeat;
         c.beginPath(); c.moveTo(rn.x,rn.y); c.lineTo(ex,ey); c.stroke();
       }
       /* the mark itself, lit from cold to white-hot */
       if (F.runeHeat>0.04){
         var gr2=c.createRadialGradient(rn.x,rn.y,0,rn.x,rn.y,17*(2.4+3.4*F.runeHeat));
-        gr2.addColorStop(0,"rgba(255,220,160,"+(0.5*F.runeHeat).toFixed(3)+")");
-        gr2.addColorStop(1,"rgba(255,80,0,0)");
+        gr2.addColorStop(0,"rgba("+hx("255,220,160")+","+(0.5*F.runeHeat).toFixed(3)+")");
+        gr2.addColorStop(1,"rgba("+hx("255,80,0")+",0)");
         c.fillStyle=gr2; c.beginPath();
         c.arc(rn.x,rn.y,17*(2.4+3.4*F.runeHeat),0,6.28318); c.fill();
       }
@@ -3640,7 +3745,10 @@ function drawHUD(c){
   bar(c, mx, my, mw, 9, F.hpM/F.hpMmax, "#5ce08a", "#0f2418");
   /* THE BOMBS ARE PIPS, not a number — you need to know at a glance whether you
      have one, not how many you have spent. */
-  for (var bi2=0;bi2<BOMB_START;bi2++){
+  /* MORE THAN YOU STARTED WITH IS POSSIBLE NOW - a tile hands one back, so the
+     row is as long as the larger of the two rather than always three. */
+  var pipN = Math.max(BOMB_START, F.bombs);
+  for (var bi2=0;bi2<pipN;bi2++){
     var bx2 = mx + bi2*17, by2 = my - 15;
     c.beginPath(); c.arc(bx2+5, by2, 5.5, 0, 6.28318);
     if (bi2 < F.bombs){ c.fillStyle="#8ad6ff"; c.fill();
@@ -3649,7 +3757,7 @@ function drawHUD(c){
   }
   c.textAlign = "left";
   c.fillStyle = "#6a6a76";
-  c.fillText("WASD MOVE · HOLD A TILE · SHIFT BOMB", mx + BOMB_START*17 + 10, my-11);
+  c.fillText("WASD MOVE · HOLD A TILE · SHIFT BOMB", mx + pipN*17 + 10, my-11);
   c.textAlign="center";
   c.font="700 11px ui-monospace,Consolas,monospace";
   c.fillStyle = padsActive() ? "#c9b0ff" : "#6a6a76";
@@ -4058,7 +4166,7 @@ function fightStart(){
      leftover brk starts the fight already hittable with the ring intact, a
      leftover won puts the escalation at the top with no tiles on the floor,
      and a leftover spd is a silent 15% carried into a fresh run. */
-  F.brk=0; F.won=0; F.spd=1;
+  F.brk=0; F.won=0; F.spd=1; pulseHue=0;
   F.station = topStation();
   /* THE FIRING CLOCKS RESET WITH THE FIGHT. Both are "the timestamp of the last
      shot", compared against a monotonic clock — which is safe in play and not
@@ -4237,6 +4345,10 @@ function devJump(row){
 window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                 jump:devJump, gates:GATE, esc:esc, tune:TUNE,
                 deaths:deathCount, restart:restartFight,
+                /* the phase palette, exported so a test can read the colour a
+                   phase actually paints with rather than guess at it */
+                hue:whue, glitch:wglitch, heat:heatRGB, hx:hx,
+                paintWalker:paintWalker,
                 resetDeaths:function(){ try{ localStorage.setItem(DEATH_KEY,"0"); }catch(e){}
                                         F.deaths=0; return 0; },
                 pause:function(){ devPauseToggle(performance.now()); },
