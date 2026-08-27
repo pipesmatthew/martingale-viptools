@@ -1874,7 +1874,7 @@ var TUNE = {
      than a rebuild. */
   aimed:350, aimEvery:700, aimWave:60, aimWaveHz:0,
   fan:110, fanW:460, fanRows:1,
-  ring:112, spiral:124, counter:105, snipe:496, volley:660, padCharge:13500, moveGap:0.75,
+  ring:170, spiral:170, counter:145, snipe:496, volley:660, padCharge:13500, moveGap:0.75, novaOrbEvery:210,
   runeTell:1800, aoeTell:2600, novaTell:1800
 };
 /* ════════════════════ IT WAS A LINE, AND A LINE IS NOT A DODGE ════════════════════
@@ -2168,8 +2168,18 @@ var AOE_SWEEP_DONE = 0.70;
    middle of the room, so nothing is discarded and 84 became 84: a ring with
    21px between bullets, which is not a wall to dodge through, it is a wall.
    26 is the same ring with room in it. */
-var NOVA_CREEP_EVERY = 150;   /* ms between arrivals during the cast */
-var NOVA_CREEP_N     = 2;     /* how many arrive each time */
+/* ════════════════════ THE CREEP GOT 80% WORSE WITHOUT ANYONE TOUCHING IT ════════════════════
+   These were set against a 1000ms charge. The charge went to 1800 so the player
+   would have time to reach a corner - and the orb count is a RATE, so it went up
+   by the same 80% as a side effect nobody asked for. Measured before: 27 arrive
+   per nova and 32 are on the floor at the peak, and because they run at 78px/s
+   they are all still there for the walk back.
+
+   One per arrival instead of two, at 210ms instead of 150, which lands at about
+   fourteen - the density the move had when it was last deliberately tuned. The
+   interval is on the panel. */
+var NOVA_CREEP_EVERY = 210;   /* ms between arrivals during the cast */
+var NOVA_CREEP_N     = 1;     /* how many arrive each time */
 var NOVA_CREEP_SPEED = 78;    /* px/s inward - slow enough to still be there after */
 function aoeSweptSpan(M){
   if (!M || M.phase === "tell") return 0;
@@ -2871,17 +2881,22 @@ function fightStep(dt, now){
 
            Born just OUTSIDE the boundary, so they arrive from off the arena
            rather than appearing inside it. */
-        if (M.creepAt === undefined) M.creepAt = NOVA_CREEP_EVERY;
+        if (M.creepAt === undefined) M.creepAt = TUNE.novaOrbEvery;
         M.creepAt += dt*1000;
-        if (M.creepAt >= NOVA_CREEP_EVERY){
+        if (M.creepAt >= TUNE.novaOrbEvery){
           M.creepAt = 0;
-          var cm = pC();
+          /* ════════════════════ EVERYTHING COMES OFF HIM ════════════════════
+             These used to be seeded at the boundary of the room and aimed
+             inward, which made them the only thing in the fight that arrived
+             from somewhere other than Walker - so they read as spawning out of
+             nowhere at the screen edge rather than as something he did.
+
+             He is standing in the middle of the room for this move, so firing
+             them off his rim gives the same result the drift was after - the
+             floor fills between him and the walls, and the walk back is through
+             them - and it does it from the source everything else uses. */
           for (var ci=0; ci<NOVA_CREEP_N; ci++){
-            var ca = Math.random()*6.28318, cd = edgeDist(ca)*1.06;
-            if (!(cd > 0) || cd > 4000) continue;
-            var sx = nc.x + Math.cos(ca)*cd, sy = nc.y + Math.sin(ca)*cd;
-            bulletFrom(sx, sy, Math.atan2(cm.y-sy, cm.x-sx),
-                       NOVA_CREEP_SPEED, 8, "226,72,178");
+            bullet(Math.random()*6.28318, NOVA_CREEP_SPEED, 8, "226,72,178");
           }
         }
 
@@ -3635,17 +3650,19 @@ function padLabel(pd, h){
 function drawPads(c, now){
   FX = c;
   if (!F.on) return;
-  /* ════════════════════ THEY ARE NOT NEEDED WHILE THE SHIELD IS DOWN, AND THEY ARE IN THE WAY ════════════════════
-     A lit tile is a filled rainbow square with a radial glow under it, four of
-     them, in the middle of the floor you are trying to read four hundred bullets
-     across. They do nothing during a break either - every tile you own burns him
-     whether you stand on it or not - so the one phase where the screen is
-     busiest is the one phase they can be absent for. They come back with the
-     shield. */
-  if (F.brk) return;
+  /* ════════════════════ THE DARK TILES GO; THE LIT ONES ARE THE CIRCUIT ════════════════════
+     An unlit tile during a break is pure clutter: a bordered square sitting in
+     the middle of the floor you are reading four hundred rounds across, marking
+     a thing you cannot charge until the shield is back. Those are hidden.
+
+     The LIT ones stay, and so do the rays and the gem, because together they
+     are the only picture of why the health bar is moving - four tiles feeding a
+     stone that fires one line into him. Hiding that during the phase where the
+     damage actually happens was hiding the point of the phase. */
   var live=[], m=pC(), i, fp=focusPos();
   for (i=0;i<pads.length;i++){
     var pd=pads[i], h=PAD_W*0.5;
+    if (F.brk && !pd.on) continue;      /* see the note at the top */
     var frac=Math.min(1, pd.t/PAD_CHARGE_MS);
     var hot=Math.abs(m.x-pd.x)<h && Math.abs(m.y-pd.y)<h;
     /* THE TILE IS TURNED TO FACE THE FOCUS. It is aiming at the thing it feeds,
@@ -3726,9 +3743,19 @@ function drawPads(c, now){
        read by its number and nothing else, and every degree of rotation costs
        legibility for a piece of information the player already has from the
        geometry: he is on the right, always. */
-    c.font = "700 " + Math.round(PAD_W*0.38) + "px ui-monospace,Consolas,monospace";
+    /* ════════════════════ THE NUMBER HAS TO SURVIVE WHATEVER IS UNDER IT ════════════════════
+       A flat fill was fine on the dark idle tile and unreadable on the lit one,
+       which is a moving full-saturation spectrum - dark ink lands on a navy
+       facet for a third of the cycle and disappears. An outline fixes it in
+       both states at once and costs one extra pass: near-black around the
+       digit, then the digit, so it reads on a black tile, on a yellow one, and
+       on anything the phase palette turns them into. */
+    c.font = "700 " + Math.round(PAD_W*0.40) + "px ui-monospace,Consolas,monospace";
     c.textAlign="center"; c.textBaseline="middle";
-    c.fillStyle = pd.on ? "rgba(12,8,20,.92)" : "hsla("+pd.hue+",85%,66%,.95)";
+    c.lineJoin = "round"; c.miterLimit = 2;
+    c.strokeStyle = "rgba(4,3,10,.92)"; c.lineWidth = 5;
+    c.strokeText(String(pd.n), pd.x, pd.y);
+    c.fillStyle = pd.on ? "#ffffff" : "hsla("+pd.hue+",92%,74%,1)";
     c.fillText(String(pd.n), pd.x, pd.y);
     c.textBaseline="alphabetic";
   }
@@ -4206,6 +4233,7 @@ var TUNE_SPEC = [
   ["volley",   "volley (fastest)",150, 900,  10],
   ["padCharge","tile charge (ms)",2000,25000, 250],
   ["moveGap",  "rest between moves",0.15, 1.5, 0.05],
+  ["novaOrbEvery","nova orbs (ms apart)",60, 700,  10],
   ["runeTell", "rune wind-up",   400, 5000,  50],
   ["aoeTell",  "shower wind-up", 400, 6000,  50],
   ["novaTell", "nova charge",    400, 5000,  50]
