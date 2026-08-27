@@ -47,6 +47,35 @@ var IMG = {}, artLeft = 0;
 var VOICE = ["greeting","whatdidyousay","fuckyou","goatblast","irrelevant"];
 var BUF = {}, voices = [];
 var MUSIC = null, MUSIC2 = null;
+/* which element is live, and how wide the overlap is */
+var MUSIC_CUR = null, MUSIC_VOL = 0.55, CROSSFADE_S = 4.0;
+/* ════════════════════ THE CROSSFADE, STEPPED FROM THE FRAME ════════════════════
+   Called every frame while the arena is up. It does nothing at all until the
+   live element is within CROSSFADE_S of its end, then starts the other one and
+   ramps the pair past each other. equal-power rather than linear, or the
+   overlap dips in the middle and the seam is audible for the opposite reason. */
+function musicStep(){
+  if (!MUSIC || !MUSIC2 || muted()) return;
+  var cur = MUSIC_CUR || MUSIC, other = (cur === MUSIC) ? MUSIC2 : MUSIC;
+  if (!cur.duration || !isFinite(cur.duration)) return;
+  var left = cur.duration - cur.currentTime;
+  if (left > CROSSFADE_S){
+    if (other.paused) cur.volume = MUSIC_VOL;
+    return;
+  }
+  if (other.paused){
+    try { other.currentTime = 0; var p = other.play(); if (p && p.catch) p.catch(function(){}); }
+    catch(e){ return; }
+  }
+  var t = Math.max(0, Math.min(1, 1 - left/CROSSFADE_S));
+  cur.volume   = MUSIC_VOL * Math.cos(t*1.5708);
+  other.volume = MUSIC_VOL * Math.sin(t*1.5708);
+  if (left <= 0.06){
+    try { cur.pause(); cur.currentTime = 0; } catch(e){}
+    cur.volume = 0; other.volume = MUSIC_VOL;
+    MUSIC_CUR = other;
+  }
+}
 var autoWas = null;             /* the game's auto-play state, held for the exit */
 
 /* ── geometry ──────────────────────────────────────────────────────────── */
@@ -297,7 +326,16 @@ var SFX = {
   hit:   function(){ sfxNoise(0.16,0.28,1800,220,1.0);
                      sfxTone("square",320,80,0.14,0.14); },
   death: function(){ sfxTone("sawtooth",300,30,0.75,0.20);
-                     sfxNoise(0.60,0.12,700,70,0.5); }
+                     sfxNoise(0.60,0.12,700,70,0.5); },
+  /* ════════════════════ THE ONE CUE THAT IS A REWARD ════════════════════
+     Everything else here warns you. This one pays you, so it is the opposite
+     shape: a rising major arpeggio, bright and clean, the sound a pickup makes
+     in every game that has ever had one. Three short tones rather than a
+     sustained chord - it lands and gets out of the way like the other two. */
+  loot:  function(){ sfxTone("square", 784,  784, 0.09, 0.10);
+                     sfxTone("square", 988,  988, 0.09, 0.09, 0.075);
+                     sfxTone("square",1319, 1319, 0.16, 0.10, 0.150);
+                     sfxTone("triangle",1568,1568,0.22, 0.05, 0.150); }
 };
 
 var stars = [], starWarp = 0.15;
@@ -1113,8 +1151,9 @@ function hurtPlayer(n, src, raw){
    half-stopped soundtrack is the kind of bug nobody reports and everybody
    hears */
 function musicStop(){
-  try { if (MUSIC){ MUSIC.pause(); MUSIC.currentTime = 0; } } catch(e){}
-  try { if (MUSIC2){ MUSIC2.pause(); MUSIC2.currentTime = 0; } } catch(e){}
+  try { if (MUSIC){ MUSIC.pause(); MUSIC.currentTime = 0; MUSIC.volume = MUSIC_VOL; } } catch(e){}
+  try { if (MUSIC2){ MUSIC2.pause(); MUSIC2.currentTime = 0; MUSIC2.volume = 0; } } catch(e){}
+  MUSIC_CUR = MUSIC;
 }
 function musicPause(){
   try { if (MUSIC) MUSIC.pause(); } catch(e){}
@@ -1122,7 +1161,7 @@ function musicPause(){
 }
 function musicResume(){
   if (muted()) return;
-  var t = (MUSIC2 && MUSIC2.currentTime > 0) ? MUSIC2 : MUSIC;
+  var t = MUSIC_CUR || MUSIC;
   try { var p = t.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
 }
 var DEATH_KEY = "kenoidle.walker.deaths";
@@ -1349,7 +1388,12 @@ function stepPads(dt){
     if (pd.won) continue;
     if (Math.abs(m.x-pd.x) < PAD_W*0.5 && Math.abs(m.y-pd.y) < PAD_W*0.5){
       pd.t += dt*1000;
-      if (pd.t >= PAD_CHARGE_MS){ pd.t = PAD_CHARGE_MS; breakShield(pd); }
+      if (pd.t >= PAD_CHARGE_MS){
+        pd.t = PAD_CHARGE_MS;
+        breakShield(pd);          /* this is what sets F.won, so read it after */
+        SFX.loot();
+        lootShow(F.bombs);
+      }
     }
   }
 }
@@ -1661,6 +1705,46 @@ function drawShocks(c){
    cosmetic: nothing here is read back by anything. */
 var dmgNums = [], dmgAcc = 0, dmgAt = 0;
 var DMG_EVERY = 260;
+/* {B} SAY WHAT THE TILE JUST PAID {B}
+   Thirteen and a half seconds standing still under fire buys a bomb and a third
+   of your health, and the only sign of it was two small numbers changing in a
+   readout at the bottom of the screen while the room exploded. It is the single
+   biggest reward in the fight and it needs to be announced where the player is
+   actually looking - which is the middle, because that is where the pulse just
+   went off. */
+var lootMsg = null;
+function lootShow(n){
+  lootMsg = { t:0, ttl:1700, n:n };
+}
+function lootStep(dt){
+  if (!lootMsg) return;
+  lootMsg.t += dt*1000;
+  if (lootMsg.t >= lootMsg.ttl) lootMsg = null;
+}
+function lootDraw(c){
+  if (!lootMsg) return;
+  var p = lootMsg.t/lootMsg.ttl;
+  var a = p < 0.14 ? (p/0.14) : (1 - Math.pow((p-0.14)/0.86, 2.4));
+  var rise = 26*Math.pow(p, 0.6);
+  var cx = VW()*PLAY_MAX_X*0.5, cy = VH()*0.34 - rise;
+  c.save();
+  c.textAlign="center"; c.textBaseline="middle";
+  c.lineJoin="round"; c.miterLimit=2;
+  c.font = '700 34px ui-monospace,Consolas,monospace';
+  c.strokeStyle = "rgba(4,10,16,"+(0.9*a).toFixed(3)+")"; c.lineWidth = 7;
+  var msg = "+" + lootMsg.n + (lootMsg.n===1 ? " MINE" : " MINES");
+  c.strokeText(msg, cx, cy);
+  c.fillStyle = "rgba(140,214,255,"+a.toFixed(3)+")";
+  c.fillText(msg, cx, cy);
+  c.font = '700 15px ui-monospace,Consolas,monospace';
+  c.strokeStyle = "rgba(4,10,16,"+(0.9*a).toFixed(3)+")"; c.lineWidth = 5;
+  c.strokeText("SHIFT", cx, cy+26);
+  c.fillStyle = "rgba(190,235,255,"+(0.85*a).toFixed(3)+")";
+  c.fillText("SHIFT", cx, cy+26);
+  c.restore();
+  c.textBaseline="alphabetic";
+}
+
 function dmgNumStep(dt){
   for (var i=dmgNums.length-1; i>=0; i--){
     var d=dmgNums[i];
@@ -2864,7 +2948,7 @@ function fightStep(dt, now){
     }
   }
   if (F.iframe>0) F.iframe -= dt*1000;
-  armAlways(); stepPads(dt); dmgNumStep(dt);
+  armAlways(); stepPads(dt); dmgNumStep(dt); lootStep(dt);
   if (F.over) return;
 
   /* BREAK 1 HAS NO BIG MOVES AT ALL, so there is nothing to schedule and the
@@ -3666,8 +3750,16 @@ function fightDraw(c){
     }
     /* HIS COLOUR, AND NOW IT ACTUALLY ARRIVES AS HIS COLOUR - source-over, so
        255,96,70 is 255,96,70 rather than whatever additive makes of it. */
+    /* {B} AND THE WEDGE IS CLOSED AT THE SHELL {B}
+       Its two edges start DOOR_SPAN apart on his rim, which is geometrically
+       right and reads as two unrelated lines. An arc along the rim between them
+       shuts the near end, so it is one shape leaving his shell rather than a
+       pair of strays that happen to point the same way. */
+    c.strokeStyle="rgba(0,0,0,.75)"; c.lineWidth=5;
+    c.beginPath(); c.arc(W.x, W.y, wedgeR(), a0, a0+DOOR_SPAN); c.stroke();
     c.strokeStyle="rgba("+hx(WALK_COL)+","+Math.min(1,(lit*1.5)).toFixed(3)+")";
     c.lineWidth=3;
+    c.beginPath(); c.arc(W.x, W.y, wedgeR(), a0, a0+DOOR_SPAN); c.stroke();
     for (var ee=0; ee<2; ee++){
       var ea=a0+ee*DOOR_SPAN;
       c.beginPath();
@@ -3869,25 +3961,42 @@ function fightDraw(c){
            stars, a bloom falling off toward the far end, dashes that MARCH
            outward so the line has a direction before anything fires, and
            chevrons confirming it. */
+        /* {B} IT STARTS ON THE SHELL, LIKE EVERYTHING ELSE HE DRAWS {B}
+           The tell ran from the rune MARK, and runePos() puts those at 0.31 of
+           his box - deep inside the knotwork. So the safe wedge left his rim,
+           the sparks left his rim, and this one line came out of his chest,
+           which is what "lines coming out of Walker from different places"
+           is. Walked out along its own bearing to wedgeR() so it leaves the
+           same edge as the rest. The FIRING band still starts at the mark,
+           because the mark visibly lights and the beam has to come from the
+           thing that lit. */
         var hcl=F.runeHeat, ddx=ex-rn.x, ddy=ey-rn.y;
         var dL=Math.hypot(ddx,ddy)||1, dux=ddx/dL, duy=ddy/dL;
+        var shellT = (function(){
+          var vx=rn.x-W.x, vy=rn.y-W.y;
+          var bq = vx*dux + vy*duy;
+          var cq = vx*vx + vy*vy - wedgeR()*wedgeR();
+          var disc = bq*bq - cq;
+          return disc > 0 ? Math.max(0, -bq + Math.sqrt(disc)) : 0;
+        })();
+        var sx0 = rn.x + dux*shellT, sy0 = rn.y + duy*shellT;
         c.strokeStyle="rgba(0,0,0,.60)"; c.lineWidth=5+3*hcl;
-        c.beginPath(); c.moveTo(rn.x,rn.y); c.lineTo(ex,ey); c.stroke();
-        var bmg=c.createLinearGradient(rn.x,rn.y,ex,ey);
+        c.beginPath(); c.moveTo(sx0,sy0); c.lineTo(ex,ey); c.stroke();
+        var bmg=c.createLinearGradient(sx0,sy0,ex,ey);
         bmg.addColorStop(0,"rgba("+hx("255,150,60")+","+(0.30*hcl).toFixed(3)+")");
         bmg.addColorStop(1,"rgba("+hx("255,90,20")+",0)");
         c.strokeStyle=bmg; c.lineWidth=11*hcl;
-        c.beginPath(); c.moveTo(rn.x,rn.y); c.lineTo(ex,ey); c.stroke();
+        c.beginPath(); c.moveTo(sx0,sy0); c.lineTo(ex,ey); c.stroke();
         c.save();
         c.setLineDash([26,16]); c.lineDashOffset=-(F.t*0.07)%42;
         c.strokeStyle="rgba("+hx("255,186,110")+","+(0.35+0.55*hcl).toFixed(3)+")";
         c.lineWidth=1.6+1.6*hcl; c.lineCap="round";
-        c.beginPath(); c.moveTo(rn.x,rn.y); c.lineTo(ex,ey); c.stroke();
+        c.beginPath(); c.moveTo(sx0,sy0); c.lineTo(ex,ey); c.stroke();
         c.restore();
         c.strokeStyle="rgba("+hx("255,214,150")+","+(0.28+0.4*hcl).toFixed(3)+")";
         c.lineWidth=1.4;
         for (var tk=0.16; tk<0.95; tk+=0.16){
-          var tpx=rn.x+ddx*tk, tpy=rn.y+ddy*tk, tnx=-duy, tny=dux, tS=5.5;
+          var tpx=sx0+(ex-sx0)*tk, tpy=sy0+(ey-sy0)*tk, tnx=-duy, tny=dux, tS=5.5;
           c.beginPath();
           c.moveTo(tpx+tnx*tS-dux*5, tpy+tny*tS-duy*5); c.lineTo(tpx,tpy);
           c.lineTo(tpx-tnx*tS-dux*5, tpy-tny*tS-duy*5); c.stroke();
@@ -4363,19 +4472,30 @@ function drawPads(c, now){
      Arcs along the shell either side of the contact, fading as they go. Drawn
      as a handful of short segments rather than one stroke so each can carry its
      own alpha - a single arc with a gradient cannot fade along its own path. */
-  var hitA = Math.atan2(hity-W.y, hitx-W.x), segs = 7;
+  /* {B} FOUR TILES CUT FOUR TIMES AS FAR AROUND HIM {B}
+     The wrap used to widen by a tenth of a radian per tile - 0.72 to 1.02,
+     which is barely a difference and made one lit tile look very much like
+     four. It is the only picture of the damage staircase there is, and the
+     staircase is anything but linear: x1, x2.6, x4.8, x7.6.
+
+     So the arc scales properly. One tile smears a little light either side of
+     the contact; four tiles have the cut running most of the way round the
+     shell, brighter and thicker with it. The number of segments goes up too, or
+     the longer arc gets visibly faceted. */
+  var hitA = Math.atan2(hity-W.y, hitx-W.x);
+  var spread = 0.34 + 0.30*k;                 /* 0.64 rad at one tile, 1.54 at four */
+  var segs = 6 + k*3;
+  var punch = 0.55 + 0.16*k;                  /* and it burns brighter with them */
   for (var wi=0; wi<segs; wi++){
     var t0 = wi/segs, t1 = (wi+1)/segs;
-    var spread = 0.62 + 0.10*k;
-    var aA = (0.16 + 0.9*k*0.02);
     for (var sgn=-1; sgn<=1; sgn+=2){
       var a0 = hitA + sgn*spread*t0, a1 = hitA + sgn*spread*t1;
-      var fade = Math.pow(1 - t0, 2.2);
-      c.strokeStyle = "rgba(214,180,255," + (0.55*fade*flick).toFixed(3) + ")";
-      c.lineWidth = (wdt*0.55) * (1 - t0*0.75);
+      var fade = Math.pow(1 - t0, 2.0);
+      c.strokeStyle = "rgba(214,180,255," + Math.min(1, punch*fade*flick).toFixed(3) + ")";
+      c.lineWidth = (wdt*0.55) * (1 - t0*0.72);
       c.beginPath(); c.arc(W.x, W.y, rdr, a0, a1, sgn < 0); c.stroke();
-      c.strokeStyle = "rgba(255,250,255," + (0.42*fade*flick).toFixed(3) + ")";
-      c.lineWidth = (wdt*0.20) * (1 - t0*0.8);
+      c.strokeStyle = "rgba(255,250,255," + Math.min(1, (punch*0.78)*fade*flick).toFixed(3) + ")";
+      c.lineWidth = (wdt*0.22) * (1 - t0*0.78);
       c.beginPath(); c.arc(W.x, W.y, rdr, a0, a1, sgn < 0); c.stroke();
     }
   }
@@ -4388,70 +4508,43 @@ function drawPads(c, now){
   c.fillStyle = hg;
   c.beginPath(); c.arc(hitx,hity,wdt*2.9,0,6.28318); c.fill();
 
-  /* embers, along the shell rather than back down the beam */
-  if (Math.random() < 0.55){
-    var tang = hitA + 1.5708*(Math.random()<0.5?1:-1);
-    var spd2 = 120 + Math.random()*220;
+  /* {B} SHEARED OFF A TURNING WHEEL {B}
+     More tiles throw more material, and it leaves along the TANGENT rather than
+     back down the beam - that is the direction it actually comes off a cut.
+
+     And it inherits the shell's own motion: W.spin * rdr is the surface speed
+     of his ring at the contact, so the debris is flung the way the wheel is
+     turning. During a nova wind-up, when he is spinning up to two turns a
+     second, the spray visibly whips round with him. That is the detail that
+     makes it read as being scraped off something ROTATING rather than as sparks
+     at a fixed point. */
+  var surf = W.spin * rdr, ember = 1 + k;
+  for (var eq=0; eq<ember; eq++){
+    if (Math.random() > 0.30 + 0.13*k) continue;
+    var side = (Math.random()<0.5?1:-1);
+    var tang = hitA + 1.5708*side;
+    var spd2 = 110 + Math.random()*(140 + 60*k);
     addSpark(hitx, hity,
-             Math.cos(tang)*spd2 + (Math.random()-0.5)*70,
-             Math.sin(tang)*spd2 + (Math.random()-0.5)*70,
-             0.28 + Math.random()*0.30, 1, 0.25);
+             Math.cos(tang)*spd2 - Math.sin(hitA)*surf*0.45 + (Math.random()-0.5)*70,
+             Math.sin(tang)*spd2 + Math.cos(hitA)*surf*0.45 + (Math.random()-0.5)*70,
+             0.26 + Math.random()*0.32, 1, 0.25);
   }
   c.globalCompositeOperation = "source-over";
   F.hitPt = { x:hitx, y:hity };
 }
 
-/* ════════════════════ WHICH OF THE EIGHT AM I LOOKING AT ════════════════════
-   Eight phases that differ by which moves he has and how fast the rounds are
-   all look broadly alike from the outside, and testing one of them means
-   knowing which one you are in. Dev only - it is a caption on a test rig, not
-   part of the fight. */
-function drawPhaseTag(c){
-  if (typeof DEV === "undefined" || !DEV || !F.on) return;
-  var row = F.brk ? 2*F.brk : 2*F.won + 1;
-  var name = F.brk ? ("BREAK " + F.brk) : "MAIN";
-  /* ════════════════════ THE BOX HAS TO FIT ITS OWN LAST LINE ════════════════════
-     It was 74px tall around four lines whose last baseline sat at 66 with 12px
-     of font under it - so the hint line was sliced in half by the border, which
-     is what the screenshot showed. Laid out from one line table now, and the
-     height is COMPUTED from it rather than guessed, so adding a fifth line
-     cannot re-break it. */
-  var pad = 14, x = 14, y = 14, w = 292;
-  var gate = Math.round(100*GATE[F.brk||0]);
-  var lines = [
-    ['700 15px ui-monospace,Consolas,monospace', F.brk ? "#ffb08a" : "#a8c0ff", 22,
-      "PHASE " + row + "/8   " + name],
-    /* THE TUNING NUMBERS ARE GONE. Tiles, speed multiplier, break length, hp
-       and the gate were all here because they were useful while the phase model
-       was being built - and none of them is useful while PLAYING it. Which of
-       the eight you are in is the one thing a tester cannot get from the
-       screen; everything else is on the bar, on the floor, or in his colour. */
-    ['600 12px ui-monospace,Consolas,monospace',
-      DEVPAUSE.on ? "#ffd36b" : (GODMODE ? "#ff6b6b" : "rgba(150,144,140,.70)"), 0,
-      DEVPAUSE.on ? "PAUSED \u2014 ` to resume" : (GODMODE ? "INVULNERABLE \u2014 i to turn it off"
-                             : "`  panel   shift+enter  retry   i  invuln")]
-  ];
-  var h = pad*2 + 12;                    /* the last line's own descent */
-  for (var li=0; li<lines.length; li++) h += lines[li][2];
-  c.save();
-  c.fillStyle = "rgba(6,6,10,.84)";
-  c.fillRect(x, y, w, h);
-  c.strokeStyle = F.brk ? "rgba(226,120,96,.65)" : "rgba(120,140,190,.55)";
-  c.lineWidth = 1;
-  c.strokeRect(x+0.5, y+0.5, w-1, h-1);
-  c.textAlign = "left"; c.textBaseline = "top";
-  var ty = y + pad;
-  for (var li2=0; li2<lines.length; li2++){
-    c.font = lines[li2][0]; c.fillStyle = lines[li2][1];
-    c.fillText(lines[li2][3], x+pad, ty);
-    ty += lines[li2][2];
-  }
-  c.textBaseline = "alphabetic";
-  c.restore();
-}
+/* ════════════════════ THERE IS NO PHASE TAG ANY MORE ════════════════════
+   It was a box in the corner reading PHASE n/8 with the hotkeys under it, and
+   it existed because eight phases that differ by which moves he has all look
+   broadly alike from the outside. That was true while the phase model was being
+   BUILT. It is not true now: his colour walks the rainbow, the bar walks with
+   him, the ring is whole or gone, and the tiles are lit or dark - between them
+   the arena says which phase it is without a caption.
 
+   The hotkeys went with it. Backtick, shift+enter and I are three keys a tester
+   learns once, and a permanent legend for them is a permanent piece of
+   furniture over the top-left of the arena. */
 function drawHUD(c){
-  drawPhaseTag(c);
   if (!F.on) return;
   var w = VW(), total = poolTotal(), left = poolLeft();
   var frac = left/total;
@@ -4589,39 +4682,38 @@ function drawHUD(c){
      decision rather than a dot in a row. Lit and ringed while you hold it,
      hollow and grey the moment it is spent, and the word underneath either way
      so it is never a mystery symbol. */
-  /* ════════════════════ READOUT 2 ════════════════════
-     Health and bombs are different KINDS of thing and were drawn identically -
-     five boxes and a row of matching discs, same weight, same shape, sitting in
-     one undifferentiated strip. Hits move constantly; bombs only move when you
-     take a tile. So they are separated by a rule and given different geometry.
+  /* ════════════════════ READOUT 3 ════════════════════
+     One bevelled plate holding both, with the mines stacked VERTICALLY at the
+     right - so the block is the same width whether you hold one or four, and
+     the row of boxes never shifts under your eye when a tile pays out. That is
+     the whole argument for the vertical stack: a readout you glance at during a
+     bullet hell must not move.
 
-     THE BOMBS ARE DIAMONDS because the tiles that pay for them are diamonds.
-     The link between "I stood on that square for thirteen seconds" and "I have
-     a bomb" is drawn rather than explained.
-
-     The health boxes carry two faint internal dividers each - not decoration:
-     they stop five identical rectangles reading as one continuous bar at a
-     glance, which is the whole reason for counting boxes instead of filling a
-     rail. */
-  var segN = HITS_TO_DIE, segW = 48, segH = 18, segGap = 5;
+     The label says HEALTH, not HITS. "Hits" is what the DESIGNER calls the unit
+     because every source costs exactly one; the player just wants to know how
+     much of them is left. Set larger, letter-spaced and above the plate rather
+     than crammed inside it. */
+  var segN = HITS_TO_DIE, segW = 52, segH = 16, segGap = 4;
   var hpW2 = segN*segW + (segN-1)*segGap;
-  var bmax = bombMax(), bombD = 26;
-  var blockW = hpW2 + (bmax ? 17 + 17 + bmax*(bombD+8) : 0);
-  var mx = (w - blockW)/2, my = VH()-38;
+  var bmax = bombMax(), bd = 18;
+  var blockW = hpW2 + (bmax ? 30 + bd : 0);
+  var mx = (w - blockW)/2, my = VH()-40;
   var hpLeft = F.hpM/F.hpMmax*segN;
 
-  c.fillStyle = "rgba(3,3,6,.78)";
-  c.fillRect(mx-12, my-11, blockW+24, segH+24);
-  c.strokeStyle = "rgba(90,100,96,.30)"; c.lineWidth = 1;
-  c.strokeRect(mx-12.5, my-11.5, blockW+25, segH+25);
+  var pg = c.createLinearGradient(0, my-13, 0, my+segH+17);
+  pg.addColorStop(0,"rgba(16,16,24,.95)"); pg.addColorStop(1,"rgba(6,6,10,.95)");
+  c.fillStyle = pg;
+  c.fillRect(mx-15, my-13, blockW+30, segH+30);
+  c.strokeStyle = "rgba(120,132,128,.35)"; c.lineWidth = 1;
+  c.strokeRect(mx-15.5, my-13.5, blockW+31, segH+31);
 
   for (var sgi=0; sgi<segN; sgi++){
     var sx3 = mx + sgi*(segW+segGap), fill = Math.max(0, Math.min(1, hpLeft - sgi));
     c.fillStyle = "#0e1a14";
     c.fillRect(sx3, my, segW, segH);
     if (fill > 0){
-      /* the last box you have left runs hot, so "one hit from dead" is a colour
-         rather than a count you have to do while dodging */
+      /* the last one you have left runs hot, so "one hit from dead" is a colour
+         rather than a count you do while dodging */
       var last = (Math.ceil(hpLeft) === sgi+1) && hpLeft <= 1.001;
       var g3 = c.createLinearGradient(0, my, 0, my+segH);
       if (last){ g3.addColorStop(0,"#ff8f6b"); g3.addColorStop(1,"#c8341c"); }
@@ -4636,19 +4728,17 @@ function drawHUD(c){
     c.strokeRect(sx3+0.5, my+0.5, segW-1, segH-1);
   }
 
-  c.font = "700 9px ui-monospace,Consolas,monospace";
+  c.font = "700 12px ui-monospace,Consolas,monospace";
   c.textAlign = "left"; c.textBaseline = "alphabetic";
-  c.fillStyle = "rgba(150,160,158,.7)";
-  c.fillText("HITS", mx, my-16);
+  c.fillStyle = "rgba(190,225,208,.92)";
+  c.fillText("H E A L T H", mx, my-20);
 
   if (bmax){
-    var dvx = mx + hpW2 + 17;
-    c.strokeStyle = "rgba(100,112,108,.45)"; c.lineWidth = 1;
-    c.beginPath(); c.moveTo(dvx, my-3); c.lineTo(dvx, my+segH+3); c.stroke();
+    var bxc = mx + hpW2 + 30 + bd/2;
     for (var bq=0; bq<bmax; bq++){
-      var bcx = dvx + 17 + bombD/2 + bq*(bombD+8), bcy = my + segH/2;
-      c.save(); c.translate(bcx, bcy); c.rotate(0.7854);
-      var bs2 = bombD*0.62;
+      var byc = my + segH/2 + (bq - (bmax-1)/2)*(bd+4);
+      c.save(); c.translate(bxc, byc); c.rotate(0.7854);
+      var bs2 = bd*0.66;
       if (bq < F.bombs){
         var bg2 = c.createLinearGradient(-bs2/2,-bs2/2,bs2/2,bs2/2);
         bg2.addColorStop(0,"#dff4ff"); bg2.addColorStop(0.55,"#6cc4f5"); bg2.addColorStop(1,"#1d5f8c");
@@ -4661,8 +4751,9 @@ function drawHUD(c){
       }
       c.restore();
     }
-    c.fillStyle = F.bombs > 0 ? "rgba(200,235,255,.85)" : "rgba(110,125,140,.6)";
-    c.fillText("BOMB · SHIFT", dvx + 17, my-16);
+    c.textAlign = "center";
+    c.fillStyle = F.bombs > 0 ? "rgba(200,235,255,.9)" : "rgba(110,125,140,.6)";
+    c.fillText("SHIFT", bxc, my-20);
   }
 
   c.font = "700 11px ui-monospace,Consolas,monospace";
@@ -4822,6 +4913,7 @@ function frame(now){
   CLOCK = now;
 
   qualityStep(DT);
+  musicStep();
   drawStars();
   introStep(now);
   /* FROZEN MEANS THE SIMULATION, NOT THE SCREEN. Everything below still paints,
@@ -4864,6 +4956,7 @@ function frame(now){
     drawBullets(c);
     drawShocks(c);
     dmgNumDraw(c);
+    lootDraw(c);
     drawPlayer(c);
     c.restore();
 
@@ -5116,7 +5209,7 @@ function fightStart(){
      just been given control. Ninety objects moving at once is not a backdrop,
      it reads as the fight having already started without you. The shatter is
      the CUTSCENE's; the fight gets a clean floor. */
-  shots=[]; shocks=[]; sparks=[]; shardsClear(); dmgNums=[]; dmgAcc=0; buildPads();
+  shots=[]; shocks=[]; sparks=[]; shardsClear(); dmgNums=[]; dmgAcc=0; lootMsg=null; buildPads();
   /* AFTER buildPads(), because that is what reads padPower, and his pool is
      derived from it. Both are frozen for the fight here so a purchase between
      phases cannot resize him halfway down the bar. */
@@ -5177,26 +5270,26 @@ function loadAssets(){
        IF TRACK TWO IS NOT THERE, TRACK ONE LOOPS AS BEFORE. The handover is
        wired off `ended` and a load error just puts the loop back, so dropping
        the file in is the whole install and nothing breaks before it arrives. */
-    /* ════════════════════ IRON RITES OPENS; THE OLD THEME TAKES THE BACK HALF ════════════════════
-       Track one is the 3m01s Iron Rites and it plays ONCE. The original boss
-       theme is 2m41s and loops underneath everything after it. Between them
-       that is 5m42s before a single repeat, against a fight that runs about
-       four minutes - so the loop is a safety net rather than something anyone
-       should actually hear.
+    /* {B} ONE TRACK, LOOPED WITH A CROSSFADE {B}
+       Back to the original theme alone. `loop = true` is a BUTT SPLICE - the
+       last sample runs straight into the first, and on a track that does not
+       end where it begins that is an audible seam every 2m41s, which is what
+       "the song runs out" always was.
 
-       The 34.8MB PCM master stays on disk and is gitignored, exactly as
-       walker_bossfight.wav already was; only the 160kbps mp3 ships, matched to
-       the bitrate the first track was already encoded at. */
-    MUSIC = new Audio("boss/music/walker_ironrites.mp3");
-    MUSIC.preload="auto"; MUSIC.loop=false; MUSIC.volume=0.55;
+       Two elements of the same file instead, ping-ponging: the one that is
+       playing runs to CROSSFADE_S before its end, at which point the other
+       starts from zero and the two are faded across each other. The seam
+       becomes an overlap, and nothing in the arena has to know. Both are the
+       same file, so there is no second download.
+
+       Driven from frame(), not from a timer - a setInterval keeps firing when
+       the tab is hidden and would happily crossfade to a track nobody is
+       listening to. */
+    MUSIC = new Audio("boss/music/walker_bossfight.mp3");
+    MUSIC.preload="auto"; MUSIC.loop=false; MUSIC.volume=MUSIC_VOL;
     MUSIC2 = new Audio("boss/music/walker_bossfight.mp3");
-    MUSIC2.preload="auto"; MUSIC2.loop=true; MUSIC2.volume=0.55;
-    MUSIC2.addEventListener("error", function(){ MUSIC2 = null; MUSIC.loop = true; });
-    MUSIC.addEventListener("ended", function(){
-      if (!live || muted()) return;
-      if (MUSIC2){ try { MUSIC2.currentTime = 0; var p2=MUSIC2.play();
-        if (p2 && p2.catch) p2.catch(function(){}); } catch(e){} }
-    });
+    MUSIC2.preload="auto"; MUSIC2.loop=false; MUSIC2.volume=0;
+;
   }
 }
 
@@ -5360,7 +5453,13 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                   c.globalCompositeOperation="lighter";
                   sparkDraw(c); fightDraw(c);
                   c.globalCompositeOperation="source-over";
-                  drawPads(c, CLOCK); drawBullets(c); drawShocks(c); drawPlayer(c);
+                  drawPads(c, CLOCK); drawBullets(c); drawShocks(c);
+                  /* AND THE THREE LAYERS ON TOP OF THEM. Damage numbers, the
+                     loot banner and the HUD are drawn by frame() after the
+                     arena, and leaving them out here made every canvas probe of
+                     the READOUT come back empty - which reads exactly like the
+                     readout being broken. Same order as frame(). */
+                  dmgNumDraw(c); lootDraw(c); drawPlayer(c); drawHUD(c);
                 },
                 phase:function(){ return esc(); },
                 shieldLeft:shieldLeft, inGap:playerInGap };
