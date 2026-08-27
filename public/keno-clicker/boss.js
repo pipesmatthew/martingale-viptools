@@ -219,43 +219,252 @@ function pC(){ return { x:P.x+P.w/2, y:P.y+P.h/2 }; }
    So the radius is a function of how much of him is left. It reaches the corner
    exactly as he reaches zero at EVERY bet size, with no timeline to keep in
    step and nothing to re-tune if the pool changes. */
-var FIN_MARGIN = 104;   /* two player lengths of near miss, as asked */
-var FIN_RING   = 42;    /* the wall's thickness */
+/* two player lengths was the brief and it left a pocket you could stroll
+   around in; 74 is a little over one, which is still a clear near miss and a
+   place you have to actually be */
+/* seconds into the last phase at which each hide opens. The first comes in
+   fast - the phase has barely started and you should already be moving - and
+   the second five seconds later, while there is still floor left to cross. */
+var FIN_HIDE_AT = [0.8, 7.5];
+/* ════════════════════ THE CROSS-LINES: TWO CHOREOGRAPHED SETS ════════════════════
+   Perpendicular to the kill line, which in the line's own rotated frame means
+   simply horizontal - the same transform draws both, so "perpendicular" is true
+   by construction rather than by a second calculation that could drift out of
+   step with the first.
+
+   They were a random trickle and are now two SETS, each a comb of lines with
+   one gap in it. A set arms top to bottom, then fires top to bottom, coloured
+   red at the top through to violet at the bottom - so the cascade reads as one
+   deliberate object sweeping down the room rather than as scattered hazards.
+
+   THE LAST SET IS FIXED, AND SO IS THE WAY THROUGH IT. Positions come off a
+   spacing grid with a hole punched at a stated offset, so the route is the same
+   on every run and can be learned. Set one's hole is up the room; set two's is
+   at the corner, which is where the sweep is pushing you anyway - so the last
+   thing the fight asks is the thing you were already doing, done exactly.
+
+   ARM IS LONG AND THE KILL IS THIN. 2500ms of white hairline against a 200ms
+   pulse, and the lethal half-width is 1.6 against the player's 4.5 - a little
+   over six pixels of contact. Everything about the timing says "you have time";
+   everything about the width says "be precise". */
+/* ════════════════════ THREE SETS, AND THEY ESCALATE ════════════════════
+   Per-set arrays rather than one constant each, because a set that repeats
+   itself twice is a pattern you solve once. Each one is tighter than the last:
+   the comb closes up, the cascade runs faster, and the warning shortens - so
+   the first is a puzzle you walk through and the third is one you have to
+   already be standing in the answer to.
+
+   THE THIRD LANDS IN THE LAST FIVE SECONDS. 13.5s after the hide ends puts its
+   cascade at about 25 to 28 seconds of a thirty second finale, which is the
+   stretch that was previously nothing but the sweep closing.
+
+   THE HOLE IS ONE LINE WIDE. Removing everything within GAP_HALF took out three
+   lines at a time and left a 368px boulevard - "a huge gap in the shooting
+   pulses". Now exactly the one line nearest the route is dropped, so the way
+   through is 2 x spacing and closes as the spacing does: 200, 172, 144. */
+var RAY_FIRE    = 200;    /* the rainbow pulse */
+var RAY_H       = 1.6;    /* half-width of the part that hurts */
+var RAY_ARM     = [2500, 2200, 1800];  /* the white hairline, shortening */
+var RAY_STAGGER = [110, 88, 64];       /* top-to-bottom cascade, quickening */
+var RAY_SPACING = [100, 86, 72];       /* the comb, closing */
+var RAY_GAP_AT  = [-250, 120, 0];      /* where the route is, per set */
+var RAY_AT      = [4.0, 8.0, 13.5];    /* seconds after the hide ends */
+var RAY_SETS    = 3;
+/* Two player lengths was the brief and left a pocket you could stroll around
+   in. 74 was better and still roomy; 54 is a shade over one player length, so
+   the last corner is somewhere you hold rather than somewhere you wait. */
+var FIN_MARGIN = 54;
+
+/* ════════════════════ THE DRAIN CANNOT BE DONE ON THE CANVAS ════════════════════
+   The first two attempts filled the dead half with `globalCompositeOperation =
+   "saturation"`, which is the right blend and the wrong layer, for two reasons
+   that both had to be understood before this worked:
+
+   1. A BLEND MODE STILL ALPHA-COMPOSITES. Where the arena canvas is transparent
+      - which is most of it - there is no backdrop to take the luminosity from,
+      so an opaque grey source simply lands as opaque grey. The dead half was
+      not being desaturated, it was being PAINTED OVER, which is why the board
+      vanished and Walker became a flat grey disc.
+
+   2. THE BOARD IS NOT ON THAT CANVAS ANYWAY. The starfield, the nebula and
+      Walker himself are separate layers underneath bossFx (he is z-index 920,
+      the effects canvas is 930). Nothing drawn on the canvas can reach them.
+
+   backdrop-filter is the one thing that can: it desaturates whatever the
+   compositor has already put behind the element, across every layer, without
+   drawing anything of its own. So the dead half is the same board, pixel for
+   pixel, with the colour taken out - which is what was asked for and what the
+   canvas could never have given.
+
+   Seven bands rather than one element, because the rip needs to tear them apart
+   at different speeds. In normal sweep they share an offset and read as one
+   sheet. */
+var BW_SLABS = 7, BW = null;
+function bwEls(){
+  if (BW && BW.wrap.isConnected) return BW;
+  var wrap = document.createElement("div");
+  wrap.id = "finBW";
+  wrap.style.cssText = "position:fixed;inset:0;z-index:935;pointer-events:none;" +
+                       "overflow:hidden;display:none";
+  var bands = [];
+  for (var i=0;i<BW_SLABS;i++){
+    var b = document.createElement("div");
+    b.style.cssText = "position:absolute;left:0;top:0;transform-origin:0 0;" +
+                      "backdrop-filter:grayscale(1);-webkit-backdrop-filter:grayscale(1)";
+    wrap.appendChild(b); bands.push(b);
+  }
+  document.body.appendChild(wrap);
+  BW = { wrap:wrap, bands:bands };
+  return BW;
+}
+function bwHide(){ if (BW) BW.wrap.style.display = "none"; }
+function bwPlace(f){
+  var e = bwEls(), BIG = Math.hypot(VW(), VH()) * 1.7;
+  var h = (BIG*2) / BW_SLABS;
+  e.wrap.style.display = "block";
+  for (var i=0;i<BW_SLABS;i++){
+    var x0 = f.thr + (f.rip||0) * (0.55 + i*0.42);
+    var y0 = -BIG + i*h;
+    var b = e.bands[i];
+    b.style.width  = Math.round(BIG) + "px";
+    b.style.height = Math.ceil(h) + "px";
+    b.style.transform = "translate(" + f.cx.toFixed(1) + "px," + f.cy.toFixed(1) + "px) " +
+                        "rotate(" + f.an.toFixed(4) + "rad) " +
+                        "translate(" + x0.toFixed(1) + "px," + y0.toFixed(1) + "px)";
+  }
+}
 
 function finBegin(){
-  /* the top of the room, and he stays there - breakShield has just set brkPost
-     to a patrol station, so this overrides it for the last break only */
-  F.brkPost = { x: VW()*0.76, y: VH()*0.06 };
-  var cx = F.brkPost.x, cy = F.brkPost.y;
-  F.fin = { cx:cx, cy:cy, hp0:Math.max(1, F.hpW), r:0, dead:0, t:0, dt:0 };
-  /* THE FAR CORNER OF THE FLOOR YOU ARE ALLOWED TO STAND ON. From up there the
-     bottom-left is the furthest playable point by a wide margin - 1185px
-     against 689 to the bottom-right on a 1280x720 arena - so "safe only in the
-     bottom left" falls out of the geometry rather than being special-cased.
+  /* he comes DOWN off the ceiling to do this, not up into it - see the limp
+     in finStep. Starting height only; brkPost is rewritten every frame. */
+  F.brkPost = { x: VW()*0.76, y: VH()*0.13 };
+  /* ════════════════════ A LINE, NOT A CIRCLE ════════════════════
+     The expanding ring was geometrically honest and looked like a loading
+     spinner: a huge arc with no orientation, no obvious "wrong side", and a
+     curve that read as decoration until it was already on top of you. A
+     straight edge sweeping down the room says the one thing that matters -
+     THERE IS AN ABOVE AND A BELOW, AND ABOVE IS DEATH - and it says it from the
+     first frame, because a line has a side and a circle does not.
 
-     MEASURED TO THE PLAYER'S CENTRE, not to the pixel corner of the room. The
-     clamp stops P at x:0, y:VH-P.h and the hitbox is the middle of that box, so
-     the closest anyone can physically put themselves to the corner is
-     (P.w/2, VH-P.h/2) - 53px further in on this arena. Measuring to (0,VH)
-     spent that 53px out of the margin and the near miss came out at 51px
-     instead of the 104 it is set to. */
-  var corner = { x: P.w/2, y: VH() - P.h/2 };
-  F.fin.rmax = Math.max(60, Math.hypot(cx - corner.x, cy - corner.y) - FIN_MARGIN);
+     The whole thing is one dot product. C is the corner you end up in, n is the
+     unit vector from C toward the far top of the floor, and every point gets
+     s = dot(pt - C, n): zero in the corner, biggest at the far top. Death is
+     s > thr, and thr walks from "past the furthest corner" down to FIN_MARGIN.
+     One number, and it is the same number the drawing and the kill test both
+     read - which is the mistake the shower made three separate times. */
+  var C = { x: P.w/2, y: VH() - P.h/2 };
+  var wall = VW()*PLAY_MAX_X;
+  /* ════════════════════ AIMED LOWER, SO THE POCKET IS LOW AND NOT JUST LEFT ════════════════════
+     Pointing the normal at the top-right corner of the floor made the line
+     steep, and a steep line leaves its last safe ground up the whole left EDGE
+     rather than down in the corner - you could sit two thirds of the way up the
+     side of the room and still be alive at the end. Aiming it above the top of
+     the floor tips the line flatter, so the sweep comes down the room and the
+     pocket it leaves is genuinely at the bottom. */
+  var dx = wall - C.x, dy = (-VH()*0.42) - C.y, dL = Math.hypot(dx, dy) || 1;
+  F.fin = {
+    cx:C.x, cy:C.y, nx:dx/dL, ny:dy/dL,
+    an:Math.atan2(dy/dL, dx/dL),
+    hp0:Math.max(1, F.hpW),
+    smax:dL,                 /* the far top corner of the floor */
+    thr:dL, r:0, dead:0, t:0, dt:0,
+    rays:[], rayAt:0
+  };
+  /* ════════════════════ THE BAND IS THE SCREEN, NOT THE FLOOR ════════════════════
+     This was measured off the PLAY rect - x < wall - on the reasoning that the
+     lines should not spawn where the player could never stand. But they are
+     DRAWN edge to edge, and the screen is half as wide again as the floor, so
+     every y' belonging only to the right-hand strip got no line at all. On
+     screen that is a large clean band with no comb in it, sitting right across
+     the middle of the arena: "there is still a gap here".
+
+     The band is the whole viewport now. Lines outside the floor cost nothing -
+     nobody can stand there to be hit by them - and the comb reads as one object
+     crossing the entire room, which is the only way the one deliberate hole in
+     it means anything. */
+  var lo = 1e9, hi = -1e9, cs = [[0,0],[VW(),0],[0,VH()],[VW(),VH()]];
+  for (var ci=0; ci<4; ci++){
+    var ry = -(cs[ci][0]-C.x)*F.fin.ny + (cs[ci][1]-C.y)*F.fin.nx;
+    if (ry < lo) lo = ry;
+    if (ry > hi) hi = ry;
+  }
+  F.fin.yLo = lo; F.fin.yHi = hi;
 }
 
 function finStep(dt){
   var f = F.fin; if (!f) return;
-  f.t += dt;
   if (f.dead){ f.dt += dt; return; }
-  var p = 1 - Math.max(0, F.hpW) / f.hp0;
-  f.r = Math.max(0, Math.min(1, p)) * f.rmax;
+  /* ════════════════════ WHEN YOU ARE DEAD, SO IS THE FINALE ════════════════════
+     f.t kept advancing after a death, so the cross-lines carried on arming and
+     firing over the corpse and the sweep carried on eating the room. The clock
+     stops and anything in flight is dropped - a half-armed hairline frozen on
+     screen is no better than one that keeps going. */
+  if (F.over){ if (f.rays.length) f.rays.length = 0; return; }
+  f.t += dt;
+  var p = Math.max(0, Math.min(1, 1 - Math.max(0, F.hpW) / f.hp0));
+  f.p = p;
+  f.thr = f.smax + (FIN_MARGIN - f.smax) * p;
+
+  /* ════════════════════ AND HE LIMPS DOWN WHILE IT HAPPENS ════════════════════
+     He used to plant at 0.06 of the height, which put his head off the top of
+     the screen - he was not "at the top of the room", he was through the
+     ceiling. He starts lower now and SINKS as he empties, with an uneven hitch:
+     |sin| cubed spends most of its time near zero and then lurches, which reads
+     as a limp where a plain sine reads as breathing. */
+  if (F.brkPost){
+    F.brkPost.y = VH()*(0.13 + 0.20*p) +
+                  Math.pow(Math.abs(Math.sin(f.t*1.9)), 3) * 10 * p;
+  }
+
+  /* ════════════════════ TWO SETS, ON A CLOCK THAT STARTS WHEN THE HIDE ENDS ════════════════════
+     Not while a hide is up: the wedge already asks you to be in one exact
+     place, and lines through it would be asking for two things at once. */
+  if ((f.hides|0) >= 2 && !F.move && f.hideEnd === undefined) f.hideEnd = f.t;
+  if (f.hideEnd !== undefined && (f.sets|0) < RAY_SETS &&
+      f.t >= f.hideEnd + RAY_AT[f.sets|0]){
+    var si = f.sets|0;
+    var sp = RAY_SPACING[si], gap = RAY_GAP_AT[si], ys = [];
+    /* a comb across the whole band. Walking the grid from a rounded start
+       rather than from yLo keeps every set on its own regular lattice. */
+    for (var gy = Math.ceil(f.yLo/sp)*sp; gy <= f.yHi; gy += sp) ys.push(gy);
+    ys.sort(function(u,v){ return u - v; });   /* top of the screen first */
+    /* ONE LINE OUT, NOT A BAND. The route is the hole left by dropping the
+       single line nearest the stated offset, so it is exactly 2 x spacing wide
+       and shrinks with the comb - deterministic, and the same on every run. */
+    var best = 0;
+    for (var bi=1; bi<ys.length; bi++)
+      if (Math.abs(ys[bi]-gap) < Math.abs(ys[best]-gap)) best = bi;
+    ys.splice(best, 1);
+    for (var yi=0; yi<ys.length; yi++){
+      f.rays.push({ y:ys[yi], t0: f.t*1000 + yi*RAY_STAGGER[si],
+                    arm: RAY_ARM[si],
+                    hue: ys.length > 1 ? (yi/(ys.length-1))*290 : 0 });
+    }
+    f.sets = si + 1;
+  }
+  for (var ri=f.rays.length-1; ri>=0; ri--){
+    if (f.t*1000 - f.rays[ri].t0 > f.rays[ri].arm + RAY_FIRE) f.rays.splice(ri,1);
+  }
+
   if (F.over || !P.live) return;
   var m = pC();
-  /* INSIDE IS SWEPT, AND SWEPT IS DEAD. raw:true so it goes through i-frames -
-     this one is not a hit you can trade, and a mine does not stop it either
-     because useBomb only ever removes entries from `shots` and the wall is not
-     one of them. */
-  if (Math.hypot(m.x - f.cx, m.y - f.cy) <= f.r)
+  /* the pulse bites for RAY_FIRE and only then. It reaches across the WHOLE
+     screen now, both sides of the barrier - past thr you are already dead, so
+     the test does not bother excluding it. */
+  var rdx = m.x - f.cx, rdy = m.y - f.cy;
+  var rpy = -rdx*f.ny + rdy*f.nx;
+  for (var rj=0; rj<f.rays.length; rj++){
+    var r2 = f.rays[rj], age = f.t*1000 - r2.t0;
+    if (age < r2.arm || age > r2.arm + RAY_FIRE) continue;
+    if (Math.abs(rpy - r2.y) < RAY_H + P.r){
+      hurtPlayer(F.hpMmax*SHOT_FRAC, "cross-lines");
+      break;
+    }
+  }
+  /* ABOVE THE LINE IS SWEPT. raw:true so it goes through i-frames - this one is
+     not a hit you can trade, and a mine cannot stop it because useBomb only
+     removes entries from `shots` and the line is not one. */
+  if ((m.x - f.cx)*f.nx + (m.y - f.cy)*f.ny > f.thr)
     hurtPlayer(F.hpMmax * 99, "the wall", true);
 }
 
@@ -264,9 +473,18 @@ function finCollapse(){
   var f = F.fin;
   if (f){ f.dead = 1; f.dt = 0; f.r = 0; }
   shots.length = 0;                        /* every projectile vanishes */
-  shocks.push({ x:W.x, y:W.y, t:0, ms:1200, r:Math.hypot(VW(), VH()) });
-  burst(W.x, W.y, 340, 1300);
-  kick(2.2, 1.0, "190,220,255");
+  /* ════════════════════ EXTREMELY VIOLENT, ON PURPOSE ════════════════════
+     Three rings rather than one, thrown at different speeds so the front has
+     depth instead of being a single expanding circle, and the debris is fired
+     at a spread of speeds so it keeps arriving instead of leaving all at once.
+     This is the blast that tears the monochrome off the room - see finDraw. */
+  var far = Math.hypot(VW(), VH());
+  shocks.push({ x:W.x, y:W.y, t:0, ms: 620, r: far*1.25 });
+  shocks.push({ x:W.x, y:W.y, t:0, ms:1050, r: far*0.85 });
+  shocks.push({ x:W.x, y:W.y, t:0, ms:1700, r: far*0.45 });
+  burst(W.x, W.y, 520, 2100);
+  burst(W.x, W.y, 260,  900);
+  kick(4.2, 1.5, "245,250,255");
   W.spin = 0;                              /* the wheel stops dead */
   F.move = null; F.station = null;
   P.vx = 0; P.vy = 0; clearKeys();
@@ -276,23 +494,125 @@ function finCollapse(){
 }
 
 function finDraw(c){
-  var f = F.fin; if (!f || f.dead || f.r <= 1) return;
-  var hue = hx(WALK_COL);
+  var f = F.fin; if (!f) return;
+  var BIG = Math.hypot(VW(), VH()) * 1.7;
+  /* ════════════════════ THE SHEET IS RIPPED OFF, IT DOES NOT FADE ════════════════════
+     After the EMP the monochrome is torn away in slabs that fly outward at
+     different speeds, so colour floods back in widening stripes rather than
+     cross-fading. Accelerating, because the whole point is violence: about
+     350px in the first third of a second and 2400 by the first. Once the
+     nearest slab has cleared the room there is nothing left to draw. */
+  if (f.dead){
+    f.rip = 2400 * Math.pow(Math.max(0, f.dt), 1.6);
+    if (f.thr + f.rip*0.55 > BIG){ bwHide(); return; }
+  }
+
   c.save();
+  /* WORK IN THE LINE'S OWN FRAME. Translate to the corner and rotate so n is
+     +x, and the sweep becomes the vertical line x = thr with the dead half
+     simply being x > thr. Every rectangle below is axis-aligned in this frame,
+     which is why none of this needs a polygon. */
+  c.translate(f.cx, f.cy);
+  c.rotate(f.an);
+
+  /* ════════════════════ THE DRAIN IS NOT PAINTED HERE ════════════════════
+     Two earlier cuts tried to do it on this canvas with a `saturation` fill
+     and both were wrong for the same two reasons: a blend mode still
+     alpha-composites, so over transparent canvas an opaque grey lands as
+     opaque grey rather than draining anything; and the board is not on this
+     canvas anyway - the starfield and Walker himself are separate layers
+     underneath it. bwPlace drives DOM bands with backdrop-filter, which is the
+     only thing that reaches what the compositor has already stacked up. */
+  bwPlace(f);
+
+  /* ════════════════════ WHITE WHILE IT ARMS, RAINBOW WHEN IT FIRES ════════════════════
+     Orange for both made the whole set one colour and read as a warning that
+     never resolved. White is the arming state and nothing else in the arena is
+     a white hairline; the pulse is the payoff, and its hue is the line's place
+     in the set - red at the top through violet at the bottom - so a glance at
+     the colour tells you how far down the cascade has got.
+
+     Drawn edge to edge rather than stopping at the barrier. The half above it
+     is greyed by the drain like everything else up there, which is correct: the
+     line exists across the whole room, and above the barrier the room is dead. */
+  if (!f.dead){
+    for (var qi=0; qi<f.rays.length; qi++){
+      var q = f.rays[qi], age = f.t*1000 - q.t0;
+      if (age < 0) continue;
+      var X0 = -BIG, X1 = BIG;
+      if (age < q.arm){
+        var w = age / q.arm;
+        c.strokeStyle = "rgba(255,255,255," + (0.12 + 0.50*w*w).toFixed(3) + ")";
+        c.lineWidth = 0.8 + 0.8*w;
+        c.beginPath(); c.moveTo(X0, q.y); c.lineTo(X1, q.y); c.stroke();
+      } else {
+        var fw = 1 - (age - q.arm)/RAY_FIRE;
+        if (fw <= 0) continue;
+        var col = "hsl(" + q.hue.toFixed(0) + ",100%,";
+        c.save();
+        c.globalCompositeOperation = "lighter";
+        c.strokeStyle = col + "58%," + (0.30*fw).toFixed(3) + ")";
+        c.strokeStyle = "hsla(" + q.hue.toFixed(0) + ",100%,58%," + (0.30*fw).toFixed(3) + ")";
+        c.lineWidth = 16;
+        c.beginPath(); c.moveTo(X0, q.y); c.lineTo(X1, q.y); c.stroke();
+        c.strokeStyle = "hsla(" + q.hue.toFixed(0) + ",100%,66%," + (0.95*fw).toFixed(3) + ")";
+        c.lineWidth = 4.2;
+        c.beginPath(); c.moveTo(X0, q.y); c.lineTo(X1, q.y); c.stroke();
+        c.strokeStyle = "rgba(255,255,255," + (0.95*fw).toFixed(3) + ")";
+        c.lineWidth = 1.5;
+        c.beginPath(); c.moveTo(X0, q.y); c.lineTo(X1, q.y); c.stroke();
+        c.restore();
+      }
+    }
+  }
+
+
+  /* ════════════════════ THE EDGE ITSELF, IN EVERY COLOUR THE DEAD HALF NO LONGER HAS ════════════════════
+     A rainbow is the loudest thing available and it is the right call exactly
+     once: it is the only saturated object left on that side of the screen, so
+     it cannot be mistaken for a bullet, a tile or him. It also drifts, so the
+     line is never a static piece of furniture. */
+  /* THE GRADIENT HAS TO FIT ON THE SCREEN. Run across +/-BIG it put barely a
+     sixth of one hue in view, so the "rainbow" arrived as a single flat colour
+     that happened to change slowly - which is a worse tell than one deliberate
+     colour would have been. Sized to the viewport it reads as a spectrum, which
+     is the point: nothing else on that side of the line has any colour left. */
+  if (f.dead) { c.restore(); return; }   /* the line dies with him */
+  var SPAN = Math.max(VW(), VH()) * 0.60;
+  var rg = c.createLinearGradient(0, -SPAN, 0, SPAN);
+  var roll = (F.t*0.00022) % 1;
+  for (var g=0; g<=6; g++)
+    rg.addColorStop(g/6, "hsl(" + (((roll + g/6) % 1)*360).toFixed(0) + ",100%,62%)");
+
+  /* THE COLOUR HAS TO SURVIVE ITS OWN GLOW. A 26px additive bloom and a 2.2px
+     white core between them washed the spectrum to lavender - the gradient was
+     correct and simply could not be seen through the light on top of it. The
+     bloom is dimmer and the core is thinner and no longer pure white, so what
+     you read is the colour rather than the halo. */
+  /* ════════════════════ THE COLOUR SITS ON THE LIVING SIDE OF THE LINE ════════════════════
+     The drain is a DOM layer ABOVE this canvas, so anything drawn at or past
+     thr is greyed along with everything else - the rainbow was being eaten by
+     the very effect it is meant to mark the edge of. The body is drawn just
+     inside the live half so it keeps its colour, with its outer edge landing
+     exactly on thr, and a white hairline sits ON thr as the precise boundary.
+     What you see is what kills you, to the pixel, and it is the only saturated
+     thing left anywhere near that edge. */
+  var LX = f.thr - 5.5;
   c.globalCompositeOperation = "lighter";
-  /* the ground it has already taken, so "inside is death" is readable without
-     having to work it out from the direction of travel */
-  var g = c.createRadialGradient(f.cx, f.cy, Math.max(0, f.r - FIN_RING*3.2),
-                                 f.cx, f.cy, f.r);
-  g.addColorStop(0, "rgba(" + hue + ",0)");
-  g.addColorStop(1, "rgba(" + hue + ",.22)");
-  c.fillStyle = g;
-  c.beginPath(); c.arc(f.cx, f.cy, f.r, 0, 6.28318); c.fill();
-  /* the wall */
-  c.strokeStyle = "rgba(" + hue + ",.50)"; c.lineWidth = FIN_RING;
-  c.beginPath(); c.arc(f.cx, f.cy, f.r, 0, 6.28318); c.stroke();
-  c.strokeStyle = "rgba(255,255,255,.90)"; c.lineWidth = FIN_RING*0.22;
-  c.beginPath(); c.arc(f.cx, f.cy, f.r, 0, 6.28318); c.stroke();
+  c.strokeStyle = rg; c.lineWidth = 30; c.globalAlpha = 0.13;
+  c.beginPath(); c.moveTo(LX, -BIG); c.lineTo(LX, BIG); c.stroke();
+  c.globalAlpha = 1;
+  c.strokeStyle = rg; c.lineWidth = 11;
+  c.beginPath(); c.moveTo(LX, -BIG); c.lineTo(LX, BIG); c.stroke();
+  c.globalCompositeOperation = "source-over";
+  c.strokeStyle = "rgba(255,255,255,.85)"; c.lineWidth = 1.6;
+  c.beginPath(); c.moveTo(f.thr, -BIG); c.lineTo(f.thr, BIG); c.stroke();
+
+  /* NO TICK MARKS. They were there to give the line a facing in a still frame,
+     and in motion they did nothing the rainbow and the drain were not already
+     saying - the colour is on the living side and the grey is on the dead one,
+     which is the facing. They only added clutter to the one edge that has to
+     stay unambiguous. */
   c.restore();
 }
 function walkerR(){ return (WALK/2)*W.scale; }
@@ -1469,6 +1789,20 @@ function artGem(g){
   v += '<path d="M13 11.5 L18 11.5 L14.6 16 Z" fill="#fff" opacity=".8"/></svg>';
   return v;
 }
+var gemSpin = 0;
+/* ════════════════════ HIS ANGLE HAS TO BE WRAPPED, AND NOTHING WAS DOING IT ════════════════════
+   W.ang is integrated as `W.ang += W.spin * dt` and never brought back into
+   range, so after a minute of spinning it is tens of radians. That is invisible
+   almost everywhere - sin and cos do not care - and catastrophic in the one
+   place that INTERPOLATES it: the rune wind-up eases W.ang toward 0 to level
+   him before he fires, and easing 40 radians down to 0 walks through every
+   multiple of 2pi on the way. On screen that is the boss whipping round several
+   times during the wind-up, with the beam tell sweeping the whole room, which
+   reads exactly like an attack that should already have killed you.
+
+   Wrapped at the two places that integrate it, so "level" is never more than
+   half a turn away and the tell settles instead of spinning. */
+function wrapAng(a){ return ((a + Math.PI) % 6.28318 + 6.28318) % 6.28318 - Math.PI; }
 var GEM_IMG = (function(){
   try {
     var im = new Image();
@@ -1728,7 +2062,19 @@ var CLEAR_R = 300;
    THE OPENING HAS NO BOMB AT ALL, which is the deliberate cost of this: the
    first tile is charged with nothing to fall back on. */
 var BOMB_START = 0, BOMB_R = 520, BOMB_IFRAME = 1000, BOMB_COOL = 600;
-function bombMax(){ return F.won|0; }
+/* ════════════════════ EXACTLY ONE IN THE LAST PHASE ════════════════════
+   Four tiles taken is four mines held, and a mine deletes every shot within
+   520px - four of those turn the finale into a phase you can ignore. Zero was
+   the other extreme and made the closing seconds, with three sets of pulses and
+   the patterns still firing into a pocket barely a player wide, a matter of
+   luck.
+
+   One is the interesting number. It is not enough to skip the phase with and it
+   is exactly enough to survive one moment that would otherwise be unsurvivable,
+   which makes WHEN to spend it the last decision the fight asks for. finBegin()
+   runs BEFORE breakShield's `F.bombs = bombMax()`, so the fourth tile pays out
+   this one rather than the four it would otherwise. */
+function bombMax(){ return F.fin ? 1 : (F.won|0); }
 
 /* ═══════════════════════ THE REWIND ════════════════════════════════════════
    He does not die. At zero health the name on the bar becomes THETIMEWALKER,
@@ -1858,8 +2204,15 @@ function playerBlast(){
   }
   /* and it is drawn: a ring that sweeps out to exactly the radius it cleared,
      so what just happened is legible rather than merely merciful */
-  shocks.push({ x:m.x, y:m.y, t:0, ms:520, r:CLEAR_R });
-  burst(m.x, m.y, 70, 620);
+  /* ════════════════════ THE WAVE, AND NOTHING ELSE ════════════════════
+     There were seventy sparks thrown out at 620px/s on top of the ring, and in
+     an arena where every hostile thing is a small fast bright object, spraying
+     seventy of them out of the player at the exact moment they were hit is the
+     worst possible read: for a quarter of a second you cannot tell your own
+     damage effect from the attack that caused it. The ring alone says the same
+     thing - it sweeps to exactly the radius it cleared - and says it without
+     adding forty new things to look at. */
+  shocks.push({ x:m.x, y:m.y, t:0, ms:560, r:CLEAR_R });
   knock(120, 34, 0.5, 0.32);
 }
 var shocks = [];
@@ -1869,18 +2222,37 @@ function stepShocks(dt){
     if (shocks[i].t >= shocks[i].ms) shocks.splice(i,1);
   }
 }
+/* ════════════════════ A PRESSURE WAVE, NOT TWO RINGS ════════════════════
+   It was a 7px stroke with an 18px stroke behind it: two hard-edged bands of
+   flat colour, both fading at the same rate, which is why it read as a drawn
+   circle rather than as something travelling. A wave has a soft body that
+   trails BEHIND its front and a front that stays crisp while the body thins.
+
+   So: a radial gradient whose band narrows as it expands, drawn additively so
+   it behaves like light, and one bright hairline exactly on the leading edge.
+   The edge fades on a steeper curve than the body, so late in its life what is
+   left is a soft breath of colour rather than a grey hoop. */
 function drawShocks(c){
+  c.save();
+  c.globalCompositeOperation = "lighter";
   for (var i=0;i<shocks.length;i++){
-    var k=shocks[i], p=k.t/k.ms, e=1-Math.pow(1-p,3);
-    /* a shock can carry its own colour now - his pulse is the phase palette,
-       everything else keeps the old warm white */
-    c.strokeStyle="rgba("+(k.hue||"255,235,205")+","+(0.85*(1-p)).toFixed(3)+")";
-    c.lineWidth=7*(1-p*0.7);
-    c.beginPath(); c.arc(k.x,k.y,k.r*e,0,6.28318); c.stroke();
-    c.strokeStyle="rgba("+(k.hue2||"255,120,60")+","+(0.4*(1-p)).toFixed(3)+")";
-    c.lineWidth=18*(1-p*0.8);
-    c.beginPath(); c.arc(k.x,k.y,k.r*e,0,6.28318); c.stroke();
+    var k=shocks[i], p=Math.min(1,k.t/k.ms), e=1-Math.pow(1-p,3);
+    var r=k.r*e, w=Math.max(3, k.r*0.20*(1-p*0.85));
+    var hue=k.hue||"255,235,205", hue2=k.hue2||"255,150,90";
+    if (r<=1) continue;
+    var g=c.createRadialGradient(k.x,k.y,Math.max(0,r-w), k.x,k.y, r+w*0.30);
+    g.addColorStop(0,   "rgba("+hue2+",0)");
+    g.addColorStop(0.62,"rgba("+hue2+","+(0.20*(1-p)).toFixed(3)+")");
+    g.addColorStop(0.92,"rgba("+hue +","+(0.34*(1-p)).toFixed(3)+")");
+    g.addColorStop(1,   "rgba("+hue +",0)");
+    c.fillStyle=g;
+    c.beginPath(); c.arc(k.x,k.y,r+w*0.30,0,6.28318); c.fill();
+    /* the front */
+    c.strokeStyle="rgba(255,255,255,"+(0.80*Math.pow(1-p,1.6)).toFixed(3)+")";
+    c.lineWidth=Math.max(1, 2.6*(1-p*0.6));
+    c.beginPath(); c.arc(k.x,k.y,r,0,6.28318); c.stroke();
   }
+  c.restore();
 }
 /* ════════════════════ HE IS ONLY HITTABLE WITH THE SHIELD OFF ════════════════════
    There is no chipping through it any more and no random segment to pop. The
@@ -2622,7 +2994,19 @@ function doorCornerAngle(which){
      by then there is only one answer on the board and everything on screen
      should be pointing at it. */
   if (F.fin && !F.fin.dead){
-    return Math.atan2((VH() - P.h/2) - W.y, (P.w/2) - W.x);
+    /* ════════════════════ THE TWO HIDES OF THE FINALE ARE AIMED, IN ORDER ════════════════════
+       Screen angles: 0 is right, PI/2 is DOWN, PI is left. The first hide opens
+       straight out to his left, which is across the room and nowhere near where
+       the sweep ends. The second opens mostly down with a tilt back to the
+       left, which lands the player on the approach to the pocket rather than in
+       it. Between them they walk you there instead of asking you to guess -
+       and the pocket itself is the third and last thing you have to find.
+
+       OFF BY ONE ON PURPOSE: hides is incremented when the move STARTS, which
+       is before this is first read, so during the FIRST hide the counter
+       already reads 1. Testing < 1 gave the first hide the second angle and
+       measured 112 degrees when it should have been 180. */
+    return (F.fin.hides|0) <= 1 ? 3.14159 : 1.96;
   }
   var tx = VW()*0.57, ty = which ? VH()*0.03 : VH()*0.97;
   return Math.atan2(ty - W.y, tx - W.x);
@@ -3168,8 +3552,37 @@ function fightStep(dt, now){
   /* BREAK 1 HAS NO BIG MOVES AT ALL, so there is nothing to schedule and the
      timer must not fall through into a move with a null id - every branch
      downstream switches on that id and not one of them has a default. */
+  /* ════════════════════ THE FINALE KEEPS ITS OWN TIMETABLE ════════════════════
+     Break 4's set list is ["runes","aoe"] on a rolling gap, which put the first
+     hide at PULSE_GRACE and then let a RUNES cast sit between the two - so the
+     second hide arrived whenever the filler happened to finish, by which point
+     the sweep had eaten the ground the wedge was pointing at. That is what made
+     the last pocket unreachable: not the aiming, the timing.
+
+     So the last phase runs to a script. Two hides, at fixed seconds into it,
+     and nothing else - no filler to push them late and nothing else competing
+     with a line that already kills on contact. F.next is pushed forward until
+     the next hide is due, so endMove's rolling gap cannot pull one early
+     either.
+
+     NOTE THE TWO CLOCKS. F.t is MILLISECONDS and F.fin.t is SECONDS, which is
+     why the conversion is explicit here rather than implied. */
+  if (F.fin && !F.fin.dead && !F.move){
+    var fh = F.fin.hides|0;
+    if (fh >= 2) F.next = F.t + 1e9;              /* the hides are spent */
+    else {
+      /* SET, NOT MAXED. Taking the later of the two let PULSE_GRACE's 1.6s
+         hold the first hide back to 2.2s when the script asks for 0.8 - the
+         schedule has to be able to pull a hide EARLIER than the break's own
+         opening gap, not only push it later. Overdue clamps to now. */
+      var dueMs = (FIN_HIDE_AT[fh] - F.fin.t) * 1000;
+      F.next = F.t + Math.max(0, dueMs);
+    }
+  }
   if (!F.move && F.t >= F.next && moveSet().length){
     F.move = { id:pickMove(), t:0, phase:"tell" };
+    /* and in the finale every scheduled move IS a hide */
+    if (F.fin && !F.fin.dead) F.move.id = "aoe";
     /* the wind-up cue goes here, once, where the move is BORN - in the tell
        branch it would retrigger every frame for 1.8 to 2.6 seconds */
     /* THE COPY, taken before a single spark exists — see gapIn().
@@ -3234,6 +3647,8 @@ function fightStep(dt, now){
          this fires; W.y is only where he happens to have drifted to on the
          frame the move began. Outside a break he crosses to the corner, which
          is known outright. */
+      /* which of the finale's two hides this is - see doorCornerAngle */
+      if (F.fin && !F.fin.dead) F.fin.hides = (F.fin.hides|0) + 1;
       F.move.side = (function(){
         var sy = F.brk ? ((F.brkPost && F.brkPost.y !== undefined) ? F.brkPost.y : W.y)
                        : VH()*(F.move.corner ? 0.82 : 0.18);
@@ -3241,6 +3656,19 @@ function fightStep(dt, now){
       })();
       F.move.from = doorCornerAngle(F.move.side);
       F.move.dir  = F.move.corner ? 1 : -1;
+      /* ════════════════════ THE SECOND HIDE SWEEPS AWAY FROM YOU ════════════════════
+         dir < 0 starts the sweep at doorAng - DOOR_SPAN/2, the wedge's
+         LOWER-angle edge, and covers decreasing angles from there - which on a
+         canvas, where y is down and angle grows clockwise, is counterclockwise
+         on screen. For a wedge aimed at 112 degrees it opens at 96, the
+         right-hand edge, and travels the long way round so the LEFT edge is the
+         last ground it takes.
+
+         The player arrives from the left, off the first hide. Sweeping this way
+         leaves their side of the wedge standing longest, which is the extra
+         time. The first hide keeps the opposite direction so the two do not
+         read as one move repeated. */
+      if (F.fin && !F.fin.dead) F.move.dir = ((F.fin.hides|0) >= 2) ? -1 : 1;
       /* HE GOES TO THE OPPOSITE SIDE FROM THE SAFE TRIANGLE, and that is what
          makes the triangle a triangle. Standing on the same side as the safe
          wedge, the wedge left him almost level and ran the full width of the
@@ -3710,7 +4138,7 @@ function fightStep(dt, now){
      ram left it. The whole "the safe sector is a moving target" design was
      inert, and the AOE was a static wedge you could walk into once and stand in
      forever. One line, and it was the line the mechanic was made of. */
-  W.ang += W.spin * dt;
+  W.ang = wrapAng(W.ang + W.spin * dt);
 
   stepShots(dt); stepShocks(dt);
 }
@@ -4695,7 +5123,13 @@ function drawPads(c, now){
   /* THE DIAMOND IS ALWAYS THERE, lit or not — a piece of equipment standing in
      the arena rather than something that appears when it is used. Dark and
      inert with nothing feeding it; blazing with four. */
-  var k=live.length, spin=now*0.0011, sz=26+k*4;
+  /* ════════════════════ AND THE DIAMOND STOPS TURNING ════════════════════
+     Its angle was read straight off the clock, which does not stop when you do,
+     so it kept spinning over the death screen - the last moving thing in a
+     stopped arena. Latched instead: the angle only advances while the fight is
+     live, and holds wherever it was. */
+  if (!F.over) gemSpin = now*0.0011;
+  var k=live.length, spin=gemSpin, sz=26+k*4;
   c.save();
   c.translate(fp.x,fp.y); c.rotate(spin);
   if (k){
@@ -4741,7 +5175,11 @@ function drawPads(c, now){
   }
   c.restore();
 
-  if (!k) return;
+  /* THE TILES STOP FIRING WHEN THE FIGHT DOES. hurtWalker already returns on
+     F.over so no damage was landing, but the conduit and the ray carried on
+     being DRAWN - four tiles beaming into a boss over a death screen. The tiles
+     and the focus itself stay; only the firing goes. */
+  if (!k || F.over) return;
 
   /* ════════════════════ THE FEED CARRIES SOMETHING; IT IS NOT A WIRE ════════════════════
      Two straight strokes from live[b].x,live[b].y to the focus - and that is the
@@ -5087,7 +5525,13 @@ function drawHUD(c){
   var bmax = bombMax(), bd = 18, bgap = 6;
   var brow = bmax ? bmax*bd + (bmax-1)*bgap : 0;
   var blockW = hpW2 + (bmax ? 30 + brow : 0);
-  var mx = (w - blockW)/2, my = VH()-40;
+  /* ════════════════════ HARD INTO THE BOTTOM-RIGHT CORNER ════════════════════
+     Centred at the bottom it sat directly under the arena, and by the finale
+     the sweep pushes the player into the bottom-LEFT - so the one readout they
+     need was competing for the same corner of their attention as the thing
+     keeping them alive. The right-hand side is outside the play wall at 0.66
+     anyway: nothing is ever there to be covered. */
+  var mx = w - blockW - 24, my = VH()-40;
   var hpLeft = F.hpM/F.hpMmax*segN;
 
   var pg = c.createLinearGradient(0, my-13, 0, my+segH+17);
@@ -5288,7 +5732,7 @@ function introStep(now){
     if (p<0.3) W.y+=(hit-W.y)*0.5; else { W.y+=(rest.y-W.y)*0.10; W.spin*=Math.pow(0.93,DT*60); }
     W.shake=Math.max(0,1-p*2.2);
   }
-  W.ang += W.spin * DT;
+  W.ang = wrapAng(W.ang + W.spin * DT);
   if (b.text) typeOut(b, now);
   if (p>=1) nextBeat();
 }
@@ -5506,6 +5950,46 @@ function restartFight(){
   }
 }
 
+/* ════════════════════ JUMP TO A PHASE, ON THE NUMBER KEYS ════════════════════
+   The old jump row was pulled because it did not behave in play. This is a
+   rewrite rather than a revival, and the reason the old one drifted is that it
+   set some of the state a phase is and not the rest of it - a phase here is
+   SEVEN things, and leaving any of them behind leaves the fight in a position
+   it can never reach by playing.
+
+   Odd is a main phase, even is the break after it, so 1..8 reads exactly like
+   the fight does. The tiles owned come from n/2, and the health comes from the
+   gate the previous break stopped at, which is why the numbers are not round -
+   GATE is derived from the superlinear tile damage, not typed in.
+
+   Cleared as well as set: the move in flight, the station it was walking to,
+   every shot and shock on screen, the pulse hue, and F.fin - or jumping out of
+   the finale leaves an instant-kill line sweeping an arena that is no longer
+   in its last phase. */
+function devJumpTo(n){
+  if (!F.on || n < 1 || n > 8) return;
+  var won = Math.floor(n/2), brk = (n % 2 === 0) ? won : 0;
+  F.fin = null; F.over = null; bwHide();
+  F.won = won; F.brk = brk;
+  F.spd = won ? (1 + 0.05*(won-1)) : 1;
+  for (var i=0;i<pads.length;i++){
+    pads[i].won = i < won; pads[i].on = i < won; pads[i].t = 0;
+  }
+  F.hpW = F.hpWmax * (brk ? GATE[won-1] : GATE[won]);
+  F.hpM = F.hpMmax; F.iframe = 0;
+  F.move = null; F.station = null; F.bigEnd = 0; F.pulseAt = 0;
+  shots.length = 0; shocks.length = 0;
+  pulseHue = 0;
+  if (brk){
+    F.brkPost = topStation();
+    if (brk === PAD_FORCE) finBegin();
+  } else {
+    F.brkPost = null;
+  }
+  F.bombs = bombMax();
+  if (!P.live) playerReveal();
+}
+
 function clearKeys(){ for (var k in keys) delete keys[k]; }
 
 var KEYMAP = { KeyW:"w", KeyA:"a", KeyS:"s", KeyD:"d",
@@ -5521,6 +6005,12 @@ window.addEventListener("keydown", function(e){
   }
   if (e.code==="KeyI" && typeof DEV !== "undefined" && DEV){
     GODMODE = !GODMODE; e.preventDefault(); return;
+  }
+  /* 1..8 jump to a phase. Digit codes only - reading e.key would fire on the
+     numpad and on shifted symbols too. */
+  if (typeof DEV !== "undefined" && DEV && e.code.indexOf("Digit")===0){
+    var dn = +e.code.slice(5);
+    if (dn >= 1 && dn <= 8){ devJumpTo(dn); e.preventDefault(); return; }
   }
   if (DEVPAUSE.on) return;              /* the arena is frozen; it gets no input */
   var k=KEYMAP[e.code]; if (!k) return;
@@ -5578,7 +6068,7 @@ function fightStart(){
      leftover brk starts the fight already hittable with the ring intact, a
      leftover won puts the escalation at the top with no tiles on the floor,
      and a leftover spd is a silent 15% carried into a fresh run. */
-  F.brk=0; F.won=0; F.spd=1; pulseHue=0; F.mvN=0; F.pulseAt=0; F.brkPost=null; F.pulseAt=0; F.fin=null;
+  F.brk=0; F.won=0; F.spd=1; pulseHue=0; F.mvN=0; F.pulseAt=0; F.brkPost=null; F.pulseAt=0; F.fin=null; bwHide();
   F.station = topStation();
   STATS.runs++; statsSave();
   /* ════════════════════ AND HE IS ALREADY THERE ════════════════════
