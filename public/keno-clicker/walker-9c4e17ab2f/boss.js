@@ -168,6 +168,104 @@ function restPos(){
   var b=boardBox(); return { x:b.x, y:b.top - WALK/2 - HOVER_GAP };
 }
 function pC(){ return { x:P.x+P.w/2, y:P.y+P.h/2 }; }
+
+/* ════════════════════ THE FINALE ════════════════════
+   He used to not die. At zero health the fight ran BACKWARDS and rewindDone()
+   called fightStart(), so the whole thing looped and there was no victory path
+   at all - the "WALKER DOWN" screen already existed and was simply unreachable.
+
+   Now the last break IS the death. He rises to the top of the room and pulses
+   one enormous slow wall outward; touching it kills you outright, whatever your
+   health, and the only ground it never reaches is the far bottom-left corner.
+   The moment it arrives there he hits zero, the EMP goes off, the wall and
+   every projectile vanish, and he collapses.
+
+   DRIVEN BY HIS HEALTH, NOT BY A CLOCK, and that is the whole trick. The last
+   break is deterministic - measured at 602 dps whether the player is parked on
+   a tile or hiding in a corner, because in break 4 every tile is already lit
+   and damage flows wherever you stand. But it is NOT a fixed duration: 29.9s at
+   the $8 bet, 24.0s at level 42, because breakSeconds() shrinks a second per
+   upgrade and the pool shrinks with it. A timeline written against 30 seconds
+   would desync for everyone not at exactly $8.
+
+   So the radius is a function of how much of him is left. It reaches the corner
+   exactly as he reaches zero at EVERY bet size, with no timeline to keep in
+   step and nothing to re-tune if the pool changes. */
+var FIN_MARGIN = 104;   /* two player lengths of near miss, as asked */
+var FIN_RING   = 42;    /* the wall's thickness */
+
+function finBegin(){
+  /* the top of the room, and he stays there - breakShield has just set brkPost
+     to a patrol station, so this overrides it for the last break only */
+  F.brkPost = { x: VW()*0.76, y: VH()*0.06 };
+  var cx = F.brkPost.x, cy = F.brkPost.y;
+  F.fin = { cx:cx, cy:cy, hp0:Math.max(1, F.hpW), r:0, dead:0, t:0, dt:0 };
+  /* THE FAR CORNER OF THE FLOOR YOU ARE ALLOWED TO STAND ON. From up there the
+     bottom-left is the furthest playable point by a wide margin - 1185px
+     against 689 to the bottom-right on a 1280x720 arena - so "safe only in the
+     bottom left" falls out of the geometry rather than being special-cased.
+
+     MEASURED TO THE PLAYER'S CENTRE, not to the pixel corner of the room. The
+     clamp stops P at x:0, y:VH-P.h and the hitbox is the middle of that box, so
+     the closest anyone can physically put themselves to the corner is
+     (P.w/2, VH-P.h/2) - 53px further in on this arena. Measuring to (0,VH)
+     spent that 53px out of the margin and the near miss came out at 51px
+     instead of the 104 it is set to. */
+  var corner = { x: P.w/2, y: VH() - P.h/2 };
+  F.fin.rmax = Math.max(60, Math.hypot(cx - corner.x, cy - corner.y) - FIN_MARGIN);
+}
+
+function finStep(dt){
+  var f = F.fin; if (!f) return;
+  f.t += dt;
+  if (f.dead){ f.dt += dt; return; }
+  var p = 1 - Math.max(0, F.hpW) / f.hp0;
+  f.r = Math.max(0, Math.min(1, p)) * f.rmax;
+  if (F.over || !P.live) return;
+  var m = pC();
+  /* INSIDE IS SWEPT, AND SWEPT IS DEAD. raw:true so it goes through i-frames -
+     this one is not a hit you can trade, and a mine does not stop it either
+     because useBomb only ever removes entries from `shots` and the wall is not
+     one of them. */
+  if (Math.hypot(m.x - f.cx, m.y - f.cy) <= f.r)
+    hurtPlayer(F.hpMmax * 99, "the wall", true);
+}
+
+/* ════════════════════ THE EMP, AND HE GOES DOWN ════════════════════ */
+function finCollapse(){
+  var f = F.fin;
+  if (f){ f.dead = 1; f.dt = 0; f.r = 0; }
+  shots.length = 0;                        /* every projectile vanishes */
+  shocks.push({ x:W.x, y:W.y, t:0, ms:1200, r:Math.hypot(VW(), VH()) });
+  burst(W.x, W.y, 340, 1300);
+  kick(2.2, 1.0, "190,220,255");
+  W.spin = 0;                              /* the wheel stops dead */
+  F.move = null; F.station = null;
+  P.vx = 0; P.vy = 0; clearKeys();
+  F.over = "player";                       /* the WALKER DOWN screen, at last */
+  SFX.whimper();
+}
+
+function finDraw(c){
+  var f = F.fin; if (!f || f.dead || f.r <= 1) return;
+  var hue = hx(WALK_COL);
+  c.save();
+  c.globalCompositeOperation = "lighter";
+  /* the ground it has already taken, so "inside is death" is readable without
+     having to work it out from the direction of travel */
+  var g = c.createRadialGradient(f.cx, f.cy, Math.max(0, f.r - FIN_RING*3.2),
+                                 f.cx, f.cy, f.r);
+  g.addColorStop(0, "rgba(" + hue + ",0)");
+  g.addColorStop(1, "rgba(" + hue + ",.22)");
+  c.fillStyle = g;
+  c.beginPath(); c.arc(f.cx, f.cy, f.r, 0, 6.28318); c.fill();
+  /* the wall */
+  c.strokeStyle = "rgba(" + hue + ",.50)"; c.lineWidth = FIN_RING;
+  c.beginPath(); c.arc(f.cx, f.cy, f.r, 0, 6.28318); c.stroke();
+  c.strokeStyle = "rgba(255,255,255,.90)"; c.lineWidth = FIN_RING*0.22;
+  c.beginPath(); c.arc(f.cx, f.cy, f.r, 0, 6.28318); c.stroke();
+  c.restore();
+}
 function walkerR(){ return (WALK/2)*W.scale; }
 /* {B} WHERE HIS SHELL ACTUALLY ENDS {B}
    Measured off the alpha of walker_ring.png rather than guessed: the art is
@@ -325,6 +423,18 @@ function sfxNoise(dur, peak, f0, f1, q, delay){
 var SFX = {
   hit:   function(){ sfxNoise(0.16,0.28,1800,220,1.0);
                      sfxTone("square",320,80,0.14,0.14); },
+  /* ════════════════════ WHIMPERING, NOT MOANING ════════════════════
+     A moan is one long low note. A whimper is several SHORT ones, higher, each
+     bending down as it dies, each quieter than the last, with uneven gaps so it
+     does not read as a rhythm. Five of them over a second, thinning out. */
+  whimper: function(){
+    var at = [0, 0.25, 0.46, 0.74, 1.05], f0 = [530, 480, 430, 385, 340];
+    for (var i=0;i<at.length;i++){
+      var fade = 1 - i*0.15;
+      sfxTone("sawtooth", f0[i], f0[i]*0.60, 0.22, 0.085*fade, at[i]);
+      sfxNoise(0.17, 0.032*fade, 950, 320, 0.7, at[i]);
+    }
+  },
   death: function(){ sfxTone("sawtooth",300,30,0.75,0.20);
                      sfxNoise(0.60,0.12,700,70,0.5); },
   /* ════════════════════ THE ONE CUE THAT IS A REWARD ════════════════════
@@ -1444,6 +1554,9 @@ function breakShield(pd){
      that opened the fight, without a number inside the move changing. */
   F.spd = 1 + 0.05*(F.won - 1);
   F.brkPost = topStation();      /* where he plants for this whole break */
+  /* THE LAST BREAK IS THE DEATH - see finBegin(). Placed after brkPost so it
+     can override the patrol station it just chose. */
+  if (F.brk === PAD_FORCE) finBegin();
   F.pulseAt = 0;
   /* ════════════════════ EVERY TILE PAYS YOU ════════════════════
      Ten seconds standing still in a bullet hell is the most dangerous thing the
@@ -1788,7 +1901,10 @@ function hitWalker(n){
   /* banked and thrown off in readable lumps rather than per frame */
   dmgAcc += n;
   if (F.t - dmgAt >= DMG_EVERY){ dmgAt = F.t; if (dmgAcc >= 1) dmgNumPush(dmgAcc); dmgAcc = 0; }
-  if (F.hpW <= 0){ startRewind(); return; }
+  /* THE REWIND IS KEPT, NOT DELETED. startRewind() and its tape are intact and
+     still correct; nothing calls them for now. Putting the old ending back is
+     this one line. */
+  if (F.hpW <= 0){ finCollapse(); return; }
   if (F.hpW/F.hpWmax <= GATE[F.brk]) restoreShield();
 }
 
@@ -2413,6 +2529,22 @@ function doorCornerAngle(which){
 
      0.03 rather than 0.06 for the same reason - it pins the wedge to the very
      edge of the floor instead of leaving a lane of safe ground outside it. */
+  /* ════════════════════ IN THE FINALE IT AIMS WHERE THE WALL IS PUSHING YOU ════════════════════
+     Measured with him on the finale post: the wall's only safe ground is the
+     player's corner at (26, 694), and the shower's wedge sat on the floor at
+     x 488-840, y 224-712 - the opposite corner, 35 degrees off the wedge centre
+     against a half-width of 16. Two safe places, mutually exclusive, and the
+     player is not allowed to be in both. That is not a hard moment, it is an
+     unwinnable one, and it killed a stationary test player at 25.2s of a 30s
+     sequence.
+
+     So for the death sequence the door is aimed at the same corner the wall
+     leaves open. The shower stops being a second question - which is the point:
+     by then there is only one answer on the board and everything on screen
+     should be pointing at it. */
+  if (F.fin && !F.fin.dead){
+    return Math.atan2((VH() - P.h/2) - W.y, (P.w/2) - W.x);
+  }
   var tx = VW()*0.57, ty = which ? VH()*0.03 : VH()*0.97;
   return Math.atan2(ty - W.y, tx - W.x);
 }
@@ -2951,7 +3083,7 @@ function fightStep(dt, now){
     }
   }
   if (F.iframe>0) F.iframe -= dt*1000;
-  armAlways(); stepPads(dt); dmgNumStep(dt); lootStep(dt);
+  armAlways(); stepPads(dt); dmgNumStep(dt); lootStep(dt); finStep(dt);
   if (F.over) return;
 
   /* BREAK 1 HAS NO BIG MOVES AT ALL, so there is nothing to schedule and the
@@ -3655,8 +3787,22 @@ function rageHead(n){
   }
   return RAGE_IMG[n];
 }
+/* the face he is left with, loaded like the rage heads and falling back to
+   them if it is not there yet */
+var DEAD_IMG = null;
+function deadHead(){
+  if (DEAD_IMG === null){
+    DEAD_IMG = new Image();
+    DEAD_IMG.src = "../boss/walker_head_dead.png";
+  }
+  return DEAD_IMG;
+}
 function headImg(){
   if (!W.demon) return IMG.idleHead;
+  if (F.fin && F.fin.dead){
+    var d = deadHead();
+    if (d && d.naturalWidth) return d;     /* not here yet? he keeps his rage */
+  }
   var n = Math.max(0, Math.min(PAD_FORCE, F.won|0));
   if (n > 0){
     var im = rageHead(n);
@@ -3669,11 +3815,16 @@ function headImg(){
 function paintWalker(){
   var pairs = [[$("wRing"), IMG[W.demon?"demonRing":"idleRing"], W.ang],
                [$("wHead"), headImg(), 0]];
+  /* HIS SHIELD DROPS WHEN HE DOES. The ring is a separate canvas that keeps
+     turning under him; after the EMP it fades out over about a second so what
+     is left on screen is the animal and not the armour. */
+  var ringA = (F.fin && F.fin.dead) ? Math.max(0, 1 - F.fin.dt/0.95) : 1;
   for (var i=0;i<2;i++){
     var cv=pairs[i][0]; if (!cv) continue;
     var c=cv.getContext("2d"), img=pairs[i][1];
     c.clearRect(0,0,600,600);
     if (!img || !img.naturalWidth) continue;
+    if (i === 0 && ringA < 1){ if (ringA <= 0) continue; c.globalAlpha = ringA; }
     c.save(); c.translate(300,300); c.rotate(pairs[i][2]); c.translate(-300,-300);
     /* ════════════════════ THE ART IS FILTERED, NOT REPAINTED ════════════════════
        hue-rotate moves the colour and leaves every bit of the shading and the
@@ -5098,6 +5249,7 @@ function frame(now){
     drawPads(c, CLOCK);
     drawBullets(c);
     drawShocks(c);
+    finDraw(c);
     dmgNumDraw(c);
     lootDraw(c);
     drawPlayer(c);
@@ -5330,7 +5482,7 @@ function fightStart(){
      leftover brk starts the fight already hittable with the ring intact, a
      leftover won puts the escalation at the top with no tiles on the floor,
      and a leftover spd is a silent 15% carried into a fresh run. */
-  F.brk=0; F.won=0; F.spd=1; pulseHue=0; F.mvN=0; F.pulseAt=0; F.brkPost=null; F.pulseAt=0;
+  F.brk=0; F.won=0; F.spd=1; pulseHue=0; F.mvN=0; F.pulseAt=0; F.brkPost=null; F.pulseAt=0; F.fin=null;
   F.station = topStation();
   /* ════════════════════ AND HE IS ALREADY THERE ════════════════════
      W is declared at x:0, y:0 and startFight only ever set his DESTINATION, so
@@ -5377,6 +5529,7 @@ function loadAssets(){
   });
   /* the rage heads start downloading with everything else but gate nothing */
   for (var rq=1; rq<=PAD_FORCE; rq++) rageHead(rq);
+  deadHead();
 
   var a = ac();
   if (a) VOICE.forEach(function(n){
@@ -5604,7 +5757,7 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                   c.globalCompositeOperation="lighter";
                   sparkDraw(c); fightDraw(c);
                   c.globalCompositeOperation="source-over";
-                  drawPads(c, CLOCK); drawBullets(c); drawShocks(c);
+                  drawPads(c, CLOCK); drawBullets(c); drawShocks(c); finDraw(c);
                   /* AND THE THREE LAYERS ON TOP OF THEM. Damage numbers, the
                      loot banner and the HUD are drawn by frame() after the
                      arena, and leaving them out here made every canvas probe of
