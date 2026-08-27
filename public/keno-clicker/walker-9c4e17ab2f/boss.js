@@ -2890,7 +2890,11 @@ function drawBullets(c){
         c.moveTo(Math.cos(a0)*r0, Math.sin(a0)*r0);
         c.lineTo(Math.cos(a1)*r1, Math.sin(a1)*r1);
         /* the taper: fat at the bulge, a hair at the tip */
-        c.lineWidth = rr*(0.40*Math.pow(1-t0,1.6) + 0.045);
+        /* THINNER AT THE ROOT TOO. 0.40 of the radius made the base of each
+           arm 6.8px wide at a 2.6px radius - wider than the space it had to
+           live in, so the inner half of the spiral filled solid and became
+           part of the bulge. */
+        c.lineWidth = rr*(0.15*Math.pow(1-t0,1.4) + 0.040);
         c.strokeStyle = "rgba("+hue+","+(1.0-0.72*t0).toFixed(2)+")";
         c.stroke();
       }
@@ -2901,12 +2905,21 @@ function drawBullets(c){
     c.restore();
     c.lineCap="butt";
 
-    var cg=c.createRadialGradient(0,0,0,0,0,rr*0.62);
+    /* ══════ THE CORE WAS EATING THE GALAXY ═══════════════════════════════
+       It was an opaque disc of rr*0.62 drawn ON TOP of arms that live between
+       rr*0.17 and rr*0.86 - so it covered 72% of the spiral and left a band
+       2.4 to 3.7 pixels wide, at every bullet size in the game. That is the
+       "fuzzy ball": there was no spiral left to see, only a lit dot with a
+       halo, and it was never a per-machine difference.
+
+       A quarter of the radius instead. A galaxy's bulge IS small relative to
+       its arms - that was the one part of the reference this had backwards. */
+    var cg=c.createRadialGradient(0,0,0,0,0,rr*0.26);
     cg.addColorStop(0,"rgba(255,255,255,1)");
-    cg.addColorStop(0.22,"rgba(255,250,238,1)");
-    cg.addColorStop(0.55,"rgba("+hue+",.85)");
+    cg.addColorStop(0.30,"rgba(255,250,238,1)");
+    cg.addColorStop(0.62,"rgba("+hue+",.85)");
     cg.addColorStop(1,"rgba("+hue+",0)");
-    c.fillStyle=cg; c.beginPath(); c.arc(0,0,rr*0.62,0,6.28318); c.fill();
+    c.fillStyle=cg; c.beginPath(); c.arc(0,0,rr*0.26,0,6.28318); c.fill();
     c.restore();
   }
 }
@@ -3550,12 +3563,16 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                    It drew fightDraw alone, so a test that sampled the canvas
                    for the shower's corridor found an empty screen and reported
                    zero brightness everywhere — the sparks are sparkDraw's. */
+                /* THE WHOLE FRAME, IN THE FRAME'S OWN ORDER. It drew sparks
+                   and fightDraw only, so every canvas test of the BULLETS came
+                   back with an empty screen - drawBullets was never called. */
                 paint:function(){
                   var e=$("bossFx"); if(!e) return;
                   var c=e.getContext("2d");
                   c.globalCompositeOperation="lighter";
                   sparkDraw(c); fightDraw(c);
                   c.globalCompositeOperation="source-over";
+                  drawPads(c, CLOCK); drawBullets(c); drawShocks(c); drawPlayer(c);
                 },
                 phase:function(){ return phase(); },
                 shieldLeft:shieldLeft, inGap:playerInGap };
