@@ -1266,6 +1266,25 @@ body.bw .corner:hover{opacity:1}
         </span>
       </div>
 
+      <!-- REACHING THE LAST BREAK BY PLAYING IS SEVEN PHASES AND ABOUT FOUR
+           MINUTES, which is not a way to iterate on the last thirty seconds of
+           a boss fight. Odd rows are main phases, even rows are the breaks;
+           each one sets the tiles, the shield and the health you would have
+           arrived with. Start the fight first - these do nothing outside it. -->
+      <div class="devrow">
+        <span class="devlab">Walker phase</span>
+        <span class="devbtns">
+          <button data-dev="bossjump1">1 main</button>
+          <button data-dev="bossjump2">2 brk1</button>
+          <button data-dev="bossjump3">3 main</button>
+          <button data-dev="bossjump4">4 brk2</button>
+          <button data-dev="bossjump5">5 main</button>
+          <button data-dev="bossjump6">6 brk3</button>
+          <button data-dev="bossjump7">7 main</button>
+          <button data-dev="bossjump8">8 brk4</button>
+        </span>
+      </div>
+
       <div class="devrow">
         <span class="devlab">Next draw</span>
         <span class="devbtns">
@@ -1449,7 +1468,7 @@ body.bw .corner:hover{opacity:1}
      exactly what happened once already in testing. -->
 <script src="streamers.js?v=11"></script>
 <script src="music.js?v=10"></script>
-<script src="boss.js?v=47"></script>
+<script src="boss.js?v=49"></script>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
@@ -5572,6 +5591,10 @@ $("devCard").addEventListener("click", function(e){
   else if (what === "bossend"){
     if (window.Boss) Boss.stop();
     devSay("left the arena");
+  }
+  else if (what.indexOf("bossjump") === 0){
+    if (!window.Boss || !Boss.jump) devSay("boss.js did not load");
+    else devSay(Boss.jump(+what.slice(8)));
   }
   else if (what === "unlockhelp"){
     /* TEMPORARY, UNTIL THE MINI-BOSS EXISTS TO DO IT. */

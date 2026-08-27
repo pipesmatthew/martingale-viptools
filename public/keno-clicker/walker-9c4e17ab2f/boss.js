@@ -542,8 +542,25 @@ var F = {
      about two and a half minutes; 6000 puts it at four and a bit, which is what
      was asked for and also what the staircase wants — the fourth tile has to
      have time left to be worth lighting. */
-  hpW:2200, hpWmax:2200, hpM:1050, hpMmax:1050,
-  broken:[], segHP:760, segHPmax:760,
+  /* ONE POOL, AND IT IS THE OLD TOTAL. The shield's 5x760 and the exposed
+     2200 were two halves of a 6000-point boss, tuned against the tile
+     staircase for four and a bit minutes. The shield stopped being health, so
+     the whole 6000 sits in hpW rather than the fight quietly becoming a third
+     as long as the number it was balanced at. */
+  hpW:6000, hpWmax:6000, hpM:1050, hpMmax:1050,
+  /* ══════════ THE SHIELD IS A GATE NOW, NOT A POOL ═══════════════════════
+     It used to be five segments of 760 that you chipped through, and segHP was
+     how far into the current one you were. It is a switch now: a tile lighting
+     takes the whole thing off, and reaching that break's health gate puts it
+     back. So `broken` is either the one segment the intro ram took or all
+     five, with nothing in between, and the 3800 points that used to live in
+     here moved into hpW. SEGS still sets the ring's geometry - five arcs is
+     what he is drawn as - it just does not measure anything any more. */
+  broken:[],
+  brk:0,        /* 0 = main phase, 1..4 = which shield break we are in */
+  won:0,        /* tiles taken so far: the damage staircase's k, AND the
+                   escalation level every pattern is now tuned against */
+  spd:1,        /* projectile speed multiplier - permanent once earned */
   repair:0, armed:false, iframe:0, station:null, lock:null, shotAt:0, shotAt2:0, roamAt:0,
   aoeTick:0, runeHeat:0, novaHeat:0, aoeGlow:0, bombs:0, bombAt:0,
   dmgBy:{}
@@ -1013,7 +1030,10 @@ function buildPads(){
        actually own. These ARE tiles 1..n of your board — at the point Walker
        shows up that is about eight, and every one of them is a square you have
        really been playing on. */
-    pads.push({ x: VW()*sp[0], y: VH()*sp[1], t:0, on:false,
+    /* `won` IS PERMANENT, `on` IS RIGHT NOW. A tile you have taken stays
+       taken for the rest of the fight - it simply goes dark when the shield
+       comes back and lights again, free, the next time it goes off. */
+    pads.push({ x: VW()*sp[0], y: VH()*sp[1], t:0, on:false, won:false,
                 n: i+1, hue: padHue(i) });
   }
   F.padPower = padPower();
@@ -1044,20 +1064,90 @@ function onAnyPad(){
 
 function stepPads(dt){
   if (!F.on || F.over || !P.live || rewinding) return;
-  var m = pC(), any = false;
+  /* ════════════════════ A TILE IS BOUGHT IN THE MAIN PHASE AND SPENT IN THE BREAK ════════════════════
+     With the shield off there is nothing left to charge - every tile you own
+     is already burning him, and the floor is yours to run on. Charging only
+     happens while the shield is UP, and that is what stops a main phase being
+     an interlude: it is the thirty feet of open ground where you stand still
+     in front of him for ten seconds to buy the next break. */
+  if (F.brk){ hitWalker(padDPS() * dt); return; }
+  var m = pC();
   for (var i=0;i<pads.length;i++){
     var pd = pads[i];
-    if (pd.on) { any = true; continue; }
+    if (pd.won) continue;
     if (Math.abs(m.x-pd.x) < PAD_W*0.5 && Math.abs(m.y-pd.y) < PAD_W*0.5){
       pd.t += dt*1000;
-      if (pd.t >= PAD_CHARGE_MS){
-        pd.on = true; pd.t = PAD_CHARGE_MS;
-        kick(0.8, 0.45, "180,150,255"); knock(700, 240, 0.22, 0.18);
-        burst(pd.x, pd.y, 90, 520);
-      }
+      if (pd.t >= PAD_CHARGE_MS){ pd.t = PAD_CHARGE_MS; breakShield(pd); }
     }
   }
-  if (any) hitWalker(padDPS() * dt);
+}
+
+/* THE ROOM IS EMPTY FOR THIS LONG after the shield changes hands either way.
+   Both transitions wipe the screen, and dropping a wind-up into the first
+   frame after a wipe spends the clear on nothing. */
+var PULSE_GRACE = 1600;
+
+/* ════════════════════ A WIPE THAT REFILLS IN THE SAME FRAME IS NOT A WIPE ════════════════════
+   Emptying `shots` is not enough on its own: every pattern whose interval had
+   already elapsed fires on the very next tick, so the pulse cleared 218
+   bullets and 33 were back before the shockwave had left him. Pushing each
+   pattern's last-fired stamp INTO THE FUTURE buys the same beat of quiet the
+   big moves already get, and the hell builds back up from an empty floor
+   rather than snapping back to where it was. */
+function patHush(){
+  var i, t = (F.clock || 0) + PULSE_GRACE;
+  for (i=0;i<patAt.length;i++) patAt[i] = t;
+}
+
+/* ════════════════════ THE PULSE, AND WHAT IT COSTS HIM ════════════════════
+   Lighting a tile does not chip the shield - it takes the whole thing off at
+   once and clears the room doing it. The clear is the point. You have just
+   spent ten seconds standing still in a bullet hell to earn this, and what it
+   buys should start from an empty floor rather than from whatever happened to
+   be in the air when the timer ran out. */
+function breakShield(pd){
+  pd.won = true;
+  F.won++;
+  F.brk = F.won;
+  /* ════════════════════ EVERY TILE YOU OWN LIGHTS, NOT JUST THE ONE THAT CHARGED ════════════════════
+     padDPS() counts pads that are `on`, so lighting only the new one pinned
+     the staircase at x1 for the whole fight - and the only symptom was that
+     the later breaks took longer, which is exactly what a fight with more
+     health in each bite is SUPPOSED to look like. Break 2 ran 99 seconds
+     against the 38 it is designed for and nothing anywhere said so. */
+  for (var p=0;p<pads.length;p++) if (pads[p].won) pads[p].on = true;
+  /* PERMANENT, AND IT COMPOUNDS INTO THE MAIN PHASES TOO. The nova you meet
+     after the third break throws its creeping galaxies 15% faster than the one
+     that opened the fight, without a number inside the move changing. */
+  F.spd = 1 + 0.05*(F.won - 1);
+  /* every segment, not one - and the ring is the shield, so this IS the
+     shield coming off */
+  F.broken = []; for (var i=0;i<SEGS;i++) F.broken.push(i);
+  /* THE MOVE ON THE TABLE IS CANCELLED OUTRIGHT. A beam mid-burn or a shower
+     mid-sweep would otherwise carry straight across the pulse that is supposed
+     to have wiped the room, which reads as the pulse not working. */
+  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 0;
+  shots = []; sparks = []; patHush();
+  kick(2.2, 1.15, "255,220,180"); knock(1600, 520, 0.55, 0.42);
+  burst(W.x, W.y, 260, 1400);
+  shocks.push({ x:W.x, y:W.y, r:Math.max(VW(),VH())*1.15, t:0, ms:PULSE_GRACE });
+  voicePlay("whatdidyousay", true);
+}
+
+/* ════════════════════ AND HE PUTS IT BACK ON ════════════════════
+   Reaching the gate does not kill him, it ends the break: the ring reforms,
+   the tiles you own go dark, and the rotation starts again from the top. You
+   KEEP the tiles - they light again for free the next time the shield drops -
+   so the staircase is a ratchet and the only thing a main phase costs is the
+   next ten seconds of standing still. */
+function restoreShield(){
+  F.brk = 0;
+  for (var i=0;i<pads.length;i++) pads[i].on = false;
+  F.broken = [segmentAt(Math.PI/2)];
+  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 0;
+  shots = []; sparks = []; patHush();
+  kick(1.6, 0.8, "150,190,255"); knock(1200, 400, 0.45, 0.34);
+  voicePlay("irrelevant", true);
 }
 
 var CLEAR_R = 300;
@@ -1158,12 +1248,15 @@ function stepRewind(dt){
   F.bombs = Math.round(L(10));
   /* the bar refills as it unwinds — his health is the one thing that is not on
      the tape, because it is a straight function of how far back we are */
+  /* HIS BAR REFILLS AS IT UNWINDS - the one thing not on the tape, because it
+     is a straight function of how far back we are. With the shield a switch
+     rather than a pool there is only this one number to walk, and the ring
+     closes over the same interval so the two always agree. */
   var f = tapeLen ? (1 - rewindPos/tapeLen) : 0;
-  F.hpW = F.hpWmax * (1-f) + F.hpWmax * 0;      /* stays empty; the SHIELD refills */
-  var seg = Math.min(SEGS, Math.floor(f * SEGS));
+  F.hpW = F.hpWmax * f;
+  var gone = Math.round((1-f) * SEGS);
   F.broken = [];
-  for (var q=0;q<SEGS-seg;q++) F.broken.push(q);
-  if (!F.broken.length) F.broken = [];
+  for (var q=0;q<gone;q++) F.broken.push(q);
 }
 
 /* AT THE END OF THE TAPE IT IS THE MOMENT YOU ARRIVED. Everything that happened
@@ -1223,24 +1316,20 @@ function drawShocks(c){
     c.beginPath(); c.arc(k.x,k.y,k.r*e,0,6.28318); c.stroke();
   }
 }
+/* ════════════════════ HE IS ONLY HITTABLE WITH THE SHIELD OFF ════════════════════
+   There is no chipping through it any more and no random segment to pop. The
+   shield is either on, in which case this does nothing at all, or off, in
+   which case every point goes into the one pool.
+
+   THE BREAK ENDS ON THE GATE, NOT ON A CLOCK. A timer would have made a bigger
+   bet buy a bigger number on a bar that still took the same thirty seconds;
+   this way the damage you brought is what decides how long you have to survive
+   for, which is the whole reason the tiles are a staircase. */
 function hitWalker(n){
-  if (!F.on || F.over) return;
-  if (shieldLeft() > 0){
-    F.segHP -= n;
-    if (F.segHP <= 0){
-      var open=[]; for (var i=0;i<SEGS;i++) if (F.broken.indexOf(i)<0) open.push(i);
-      var pick = open[Math.random()*open.length|0];
-      F.broken.push(pick); F.segHP = F.segHPmax;
-      var a = pick*SEG + W.ang + SEG/2, R = walkerR();
-      burst(W.x+Math.cos(a)*R, W.y+Math.sin(a)*R, 110, 900);
-      knock(320,60,0.35,0.28);
-      kick(1.0, 0.55, "255,200,120");
-      voicePlay(shieldLeft()===0 ? "irrelevant" : "fuckyou", true);
-    }
-  } else {
-    F.hpW = Math.max(0, F.hpW-n);
-    if (F.hpW<=0 && !rewinding) startRewind();
-  }
+  if (!F.on || F.over || !F.brk || rewinding) return;
+  F.hpW = Math.max(0, F.hpW - n);
+  if (F.hpW <= 0){ startRewind(); return; }
+  if (F.hpW/F.hpWmax <= GATE[F.brk]) restoreShield();
 }
 
 /* THE SET LIST. Read straight through and looped, with nothing conditional left
@@ -1265,9 +1354,32 @@ function hitWalker(n){
    existed. The charge is gone too — it was the only reason he ever left the
    ceiling, which the nova now does with a point. */
 var MOVE_SCRIPT = ["runes", "aoe", "nova", "runes", "aoe", "nova"];
+/* ════════ WHAT HE STILL HAS WHILE THE SHIELD IS OFF ══════════════════════
+   A break phase is the bullet hell, and he gives up the big moves to run it -
+   then takes them back one at a time as you take the tiles.
+
+     break 1   nothing         just the patterns, and the floor is yours
+     break 2   runes           a line you are on one side of
+     break 3   runes, shower   and a wedge you are not allowed to leave
+     break 4   runes, shower   plus the counter-arm, plus 15%
+
+   THE NOVA NEVER COMES BACK. It is the one move whose answer is "be somewhere
+   else entirely" - a measured 1.60-1.78s run against 2.08s of warning - and
+   there is no crossing this arena through a bullet hell in the 0.3s of slack
+   that leaves. In the main phase, with the patterns suppressed, it is a fair
+   question. Here it would be a dice roll. */
+var BREAK_MOVES = [
+  null,                        /* 0 is the main phase, which uses MOVE_SCRIPT */
+  [],
+  ["runes"],
+  ["runes", "aoe"],
+  ["runes", "aoe"]
+];
 var moveIx = 0;
+function moveSet(){ return F.brk ? BREAK_MOVES[F.brk] : MOVE_SCRIPT; }
 function pickMove(){
-  return MOVE_SCRIPT[moveIx++ % MOVE_SCRIPT.length];
+  var s = moveSet();
+  return (s && s.length) ? s[moveIx++ % s.length] : null;
 }
 
 /* ══════════════════════════ HE LIVES AT THE TOP ════════════════════════════
@@ -1327,7 +1439,41 @@ function topStation(){
   var f = STATION_Y[stationIx++ % STATION_Y.length];
   return { x: VW()*0.76, y: VH()*f };   /* moved left a little */
 }
-function phase(){ return F.broken.length; }   /* 1 after the ram, 5 at the end */
+/* ═══════════ EQUAL-LENGTH BREAKS, NOT EQUAL-SIZED BITES ═══════════════════
+   padDPS() is superlinear - x1, x2.6, x4.5, x7.6 at one to four tiles - so
+   four flat 25% gates would run the first break 7.6 times longer than the
+   last, and the finale would be over before the arms had finished filling the
+   screen. Each break's bite is proportional to the rate that eats it, so all
+   four take the same time: mult/15.7 of the pool.
+
+     break 1   x1.0    6.4%   ends at 93.6%
+     break 2   x2.6   16.6%   ends at 77.1%
+     break 3   x4.5   28.7%   ends at 48.4%
+     break 4   x7.6   48.4%   ends at 0
+
+   DERIVED, NOT TYPED, so the two can never drift apart: change the damage
+   curve and the gates follow it on their own. */
+function tileMult(k){ return k ? k * (1 + 0.30*(k-1)) : 0; }
+var GATE = (function(){
+  var g = [1], sum = 0, left = 1, i;
+  for (i=1;i<=PAD_FORCE;i++) sum += tileMult(i);
+  for (i=1;i<=PAD_FORCE;i++){ left -= tileMult(i)/sum; g[i] = Math.max(0, left); }
+  return g;                    /* GATE[k] = the health fraction break k ends at */
+})();
+
+/* ═════════════ WHAT "PHASE" MEANS NOW, AND WHAT IT DOES NOT ═══════════════
+   It used to be F.broken.length - how many shield segments were gone - and
+   three separate things read it: the pattern gate, the interval tightening,
+   and the ring's bullet count. The shield is a switch now, so that number is
+   1 or 5 and nothing between; leaving those three on it would have stepped
+   every one of them from minimum to maximum the instant the first tile lit,
+   and back again when the shield returned.
+
+   The escalation is the TILES instead. It only goes up, it moves once per
+   break, and it is the same number the damage staircase uses - so he gets
+   harder at exactly the rate you get stronger, which is the trade the tiles
+   were always supposed to be offering. */
+function esc(){ return F.won; }
 
 /* ── the bullet patterns ────────────────────────────────────────────────────
    FOUR OF THEM, UNLOCKING AS YOU BREAK HIM, so the screen gets busier exactly
@@ -1358,6 +1504,15 @@ function varyHue(base, i){
 
 function bullet(a, speed, r, hue){
   var R=walkerR();
+  /* ══════ THE SPEED BUFF LIVES HERE, AND NOWHERE ELSE ══════════════════════
+     Every bullet pattern and the nova's creeping galaxies come through this
+     one function. The spark shower does not - it has its own emitter - and
+     that is exactly the split the buff wants. Sparks are drag-limited, so
+     their REACH is v0/-ln(drag): scaling their v0 would not make the shower
+     faster, it would move the far wall that the wedge, the 66% play bound and
+     the whole "it just reaches the corner" tuning are measured against.
+     Bullets have no drag. They simply arrive sooner. */
+  speed *= F.spd;
   shots.push({ x:W.x+Math.cos(a)*R, y:W.y+Math.sin(a)*R,
                vx:Math.cos(a)*speed, vy:Math.sin(a)*speed,
                r:(r||9), hue:varyHue(hue||"150,110,255", galIx),
@@ -1429,7 +1584,7 @@ function patRing(){
   /* the ring's phase walks by a fixed step, so successive rings interleave
      instead of landing on top of each other — and it is the same walk on every
      run */
-  var n = 24 + 4*Math.max(0, phase()-2), off = (ringIx++) * 0.41;
+  var n = 24 + 4*esc(), off = (ringIx++) * 0.41;
   for (var i=0;i<n;i++) bullet(off + i*6.28318/n, SHOT_SPEED*0.72, 8, "226,72,178");
 }
 /* WHERE THE DOOR OPENS, as fractions of the arena. All well inside the player's
@@ -1754,15 +1909,22 @@ function patVolley(){
 
    Roughly doubled across the board, the fan widened from five to seven, the
    spiral doubled to four arms, and every one of them still tightens further per
-   broken segment on top of this. */
+   tile you have taken on top of this.
+
+   THE `from:` COLUMN IS GONE, not defaulted. It said which broken-segment
+   count unlocked each pattern, and nothing reads it any more - six of these
+   run from the first break and the counter-arm is gated on the last break by
+   name in stepPatterns(). A dead column that reads as a live unlock ladder is
+   the more expensive of the two mistakes: the last rewrite of this table cost
+   a day because a field changed meaning while still looking like itself. */
 var PATTERNS = [
-  { fn:patAimed,   every: 230, from:1 },
-  { fn:patFan,     every: 800, from:1 },
-  { fn:patRing,    every:1900, from:1 },
-  { fn:patSpiral,  every:  55, from:2 },
-  { fn:patCounter, every:  62, from:3 },
-  { fn:patSnipe,   every: 900, from:1 },
-  { fn:patVolley,  every:2300, from:2 }
+  { fn:patAimed,   every: 230 },
+  { fn:patFan,     every: 800 },
+  { fn:patRing,    every:1900 },
+  { fn:patSpiral,  every:  55 },
+  { fn:patCounter, every:  62 },
+  { fn:patSnipe,   every: 900 },
+  { fn:patVolley,  every:2300 }
 ];
 var patAt = [0,0,0,0,0,0,0];
 
@@ -1784,12 +1946,26 @@ function bigMoveActive(){
 }
 
 function stepPatterns(now){
+  /* THE PATTERN CLOCK IS THE MONOTONIC ONE, not F.t, and the two transitions
+     that wipe the room need to push it forward. Stashed here because this is
+     the only function that is handed it. */
+  F.clock = now;
   var big = bigMoveActive();
   if (big === 2) return;
-  var ph = phase();
+  var ph = esc();
   for (var i=0;i<PATTERNS.length;i++){
     var P2 = PATTERNS[i];
-    if (ph < P2.from) continue;
+    /* ═══ SIX FROM THE FIRST BREAK; THE COUNTER-ARM IS THE LAST CARD ═══════
+       The `from:` column used to decide which patterns existed yet, and it was
+       also the only reason the tightening divisor below could never fall under
+       1. Both jobs are gone. Everything but the counter-arm runs from break 1,
+       and the divisor is anchored to esc() with a floor under it.
+
+       IF THE GATE EVER COMES BACK, THE FLOOR STAYS. `1 + 0.18*(ph - from)`
+       drops BELOW one for any pattern that has not unlocked, which does not
+       leave it off - it leaves it firing SLOWER than its table interval, in
+       the one direction that looks deliberate. */
+    if (P2.fn === patCounter && F.brk !== PAD_FORCE) continue;
     if (big === 1 && P2.fn !== patAimed) continue;
     /* the fast aimed pair, silent for a second after any big move */
     if ((P2.fn===patSnipe || P2.fn===patVolley) &&
@@ -1812,7 +1988,7 @@ function stepPatterns(now){
        ones. Without it the last two phases fire at the same rate as the one
        that introduced them and the fight plateaus exactly where it should be
        peaking. */
-    var every = P2.every / (1 + 0.18*(ph - P2.from));
+    var every = P2.every / (1 + 0.18*Math.max(0, ph));
     if (now - patAt[i] < every) continue;
     patAt[i] = now; P2.fn();
   }
@@ -1881,7 +2057,12 @@ function aoeSparks(dt, rate){
    0.006 to 0.020 sweeps roughly 40 to 130 degrees across the 1.1s shower —
    enough that standing still in the door does not work, and little enough that
    following it is a thing a person can actually do. */
-function aoeSpin(){ return 0.36 + 0.21*Math.max(0, F.broken.length-1); }   /* rad/s */
+/* THE WHEEL'S SPEED IS THE ESCALATION, NOT THE SHIELD. This read
+   F.broken.length, which is 1 or 5 and nothing else now - so the shower would
+   have jumped from its slowest to its fastest the moment the first tile lit
+   and dropped straight back when the shield returned. Same range, walked in
+   four steps by the tiles instead. */
+function aoeSpin(){ return 0.36 + 0.21*esc(); }   /* rad/s */
 /* ══ A BIG MOVE DOES NOT END THE INSTANT IT STOPS FIRING ═══════════════════
    The screen is still full of the shower when the patterns come back, and the
    620-660px/s aimed rounds are the ones that punish a player who is still
@@ -1956,7 +2137,10 @@ function fightStep(dt, now){
   armAlways(); stepPads(dt);
   if (F.over) return;
 
-  if (!F.move && F.t >= F.next){
+  /* BREAK 1 HAS NO BIG MOVES AT ALL, so there is nothing to schedule and the
+     timer must not fall through into a move with a null id - every branch
+     downstream switches on that id and not one of them has a default. */
+  if (!F.move && F.t >= F.next && moveSet().length){
     F.move = { id:pickMove(), t:0, phase:"tell" };
     /* THE COPY, taken before a single spark exists — see gapIn().
 
@@ -2754,11 +2938,12 @@ var BOSS_NAME = "TheOnlyWalker";   /* becomes TheTimeWalker — see the rewind *
    terminals. I could not identify the original from the image — if it has a
    name, say it and this is the one line to change. */
 var NAME_FONT = '400 30px "Archivo Black","Arial Black",Impact,sans-serif';
-function poolTotal(){ return SEGS*F.segHPmax + F.hpWmax; }
-function poolLeft(){
-  var sh = shieldLeft() > 0 ? (shieldLeft()-1)*F.segHPmax + F.segHP : 0;
-  return Math.max(0, sh + F.hpW);
-}
+/* ONE POOL, so the bar IS the pool. The shield used to be the right 63% of
+   this bar and is a state rather than a quantity now - what tells you whether
+   he can be hurt is the colour of the whole thing, not a boundary partway
+   along it. */
+function poolTotal(){ return F.hpWmax; }
+function poolLeft(){ return Math.max(0, F.hpW); }
 /* ═════════════════════ BULLETS ARE DRAWN, NOT GLOWED ═══════════════════════
    They were soft radial gradients composited with `lighter`, which is why they
    came out as fuzzy blobs that bled into each other and into the starfield —
@@ -2811,7 +2996,11 @@ function drawBullets(c){
         c.moveTo(Math.cos(a0)*r0, Math.sin(a0)*r0);
         c.lineTo(Math.cos(a1)*r1, Math.sin(a1)*r1);
         /* the taper: fat at the bulge, a hair at the tip */
-        c.lineWidth = rr*(0.40*Math.pow(1-t0,1.6) + 0.045);
+        /* THINNER AT THE ROOT TOO. 0.40 of the radius made the base of each
+           arm 6.8px wide at a 2.6px radius - wider than the space it had to
+           live in, so the inner half of the spiral filled solid and became
+           part of the bulge. */
+        c.lineWidth = rr*(0.15*Math.pow(1-t0,1.4) + 0.040);
         c.strokeStyle = "rgba("+hue+","+(1.0-0.72*t0).toFixed(2)+")";
         c.stroke();
       }
@@ -2822,12 +3011,21 @@ function drawBullets(c){
     c.restore();
     c.lineCap="butt";
 
-    var cg=c.createRadialGradient(0,0,0,0,0,rr*0.62);
+    /* ══════ THE CORE WAS EATING THE GALAXY ═══════════════════════════════
+       It was an opaque disc of rr*0.62 drawn ON TOP of arms that live between
+       rr*0.17 and rr*0.86 - so it covered 72% of the spiral and left a band
+       2.4 to 3.7 pixels wide, at every bullet size in the game. That is the
+       "fuzzy ball": there was no spiral left to see, only a lit dot with a
+       halo, and it was never a per-machine difference.
+
+       A quarter of the radius instead. A galaxy's bulge IS small relative to
+       its arms - that was the one part of the reference this had backwards. */
+    var cg=c.createRadialGradient(0,0,0,0,0,rr*0.26);
     cg.addColorStop(0,"rgba(255,255,255,1)");
-    cg.addColorStop(0.22,"rgba(255,250,238,1)");
-    cg.addColorStop(0.55,"rgba("+hue+",.85)");
+    cg.addColorStop(0.30,"rgba(255,250,238,1)");
+    cg.addColorStop(0.62,"rgba("+hue+",.85)");
     cg.addColorStop(1,"rgba("+hue+",0)");
-    c.fillStyle=cg; c.beginPath(); c.arc(0,0,rr*0.62,0,6.28318); c.fill();
+    c.fillStyle=cg; c.beginPath(); c.arc(0,0,rr*0.26,0,6.28318); c.fill();
     c.restore();
   }
 }
@@ -2970,7 +3168,11 @@ function drawHUD(c){
   if (!F.on) return;
   var w = VW(), total = poolTotal(), left = poolLeft();
   var frac = left/total;
-  var vuln = F.hpWmax/total;                      /* the exposed share, at the left */
+  /* THE WHOLE BAR GOES HOT WHILE THE SHIELD IS OFF and sits dull while it is
+     on. These two colours used to be two REGIONS of a bar that was more than
+     half shield; the shield is not a region any more, so they say the one
+     thing still worth saying at a glance - can I hurt him right now. */
+  var vuln = F.brk ? 1 : 0;
 
   if (F.ghost === undefined || F.ghost < frac) F.ghost = frac;
   F.ghost += (frac - F.ghost) * Math.min(1, DT*3.2);
@@ -3015,16 +3217,24 @@ function drawHUD(c){
   c.fillStyle = "rgba(0,0,0,.34)"; c.fillRect(bx, by+bh*0.62, bw*frac, bh*0.38);
   c.restore();
 
-  /* the segment notches, cut rather than drawn on */
+  /* ════════════════════ THE NOTCHES ARE THE GATES, AND THEY ARE NOT EVENLY SPACED ════════════════════
+     A break ends where its notch is, and because each one eats a bigger bite
+     at a higher rate than the last, the marks crowd toward the right. That
+     shape is the fight: the bar barely moves while you own one tile and falls
+     off a cliff while you own four. Without the marks the first break reads as
+     "I am accomplishing nothing" for its entire length, which is the one thing
+     a boss bar exists to prevent. */
   c.strokeStyle = "rgba(0,0,0,.9)"; c.lineWidth = 3;
-  for (var i=1;i<SEGS;i++){
-    var nx = bx + bw*(vuln + (1-vuln)*(i/SEGS));
+  for (var i=1;i<PAD_FORCE;i++){
+    var nx = bx + bw*GATE[i];
     c.beginPath(); c.moveTo(nx, by); c.lineTo(nx, by+bh); c.stroke();
   }
-  /* and the one that matters — where the shield ends and he does not */
-  var vx = bx + bw*vuln;
-  c.strokeStyle = "rgba(190,176,168,.65)"; c.lineWidth = 2;
-  c.beginPath(); c.moveTo(vx, by-4); c.lineTo(vx, by+bh+4); c.stroke();
+  /* and the one you are working toward, lit only while it is live */
+  if (F.brk){
+    var vx = bx + bw*GATE[F.brk];
+    c.strokeStyle = "rgba(225,205,190,.80)"; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(vx, by-4); c.lineTo(vx, by+bh+4); c.stroke();
+  }
 
   c.strokeStyle = "rgba(126,116,110,.55)"; c.lineWidth = 1;
   c.strokeRect(bx-0.5, by-0.5, bw+1, bh+1);
@@ -3318,7 +3528,12 @@ function fightStart(){
      bottom of the arena, where you already are. */
   /* THE PIECE THAT BROKE IS THE ONE THAT FACED THE BOARD — still straight down,
      because the ram happens before either of them has taken a side. */
-  F.broken=[segmentAt(Math.PI/2)]; F.segHP=F.segHPmax; F.ghost=undefined;
+  F.broken=[segmentAt(Math.PI/2)]; F.ghost=undefined;
+  /* THE WHOLE PHASE MODEL GOES BACK TO ZERO, and it has to be all three: a
+     leftover brk starts the fight already hittable with the ring intact, a
+     leftover won puts the escalation at the top with no tiles on the floor,
+     and a leftover spd is a silent 15% carried into a fresh run. */
+  F.brk=0; F.won=0; F.spd=1;
   F.station = topStation();
   /* THE FIRING CLOCKS RESET WITH THE FIGHT. Both are "the timestamp of the last
      shot", compared against a monotonic clock — which is safe in play and not
@@ -3448,7 +3663,44 @@ function bossStop(){
    code look dead and broken code look fine. Exposing one call that advances the
    fight by a given dt is the difference between checking the balance and
    guessing at it. Nothing in the game calls it. */
+/* ════════════════════ DROP STRAIGHT INTO A PHASE, FOR TESTING ONLY ════════════════════
+   Rows are the handoff's table: odd rows are main phases, even rows are the
+   breaks. Reaching row 8 by playing means seven phases and about four minutes,
+   which is not a way to iterate on the last thirty seconds of a boss fight.
+
+   A PHASE IS THREE NUMBERS - tiles owned, shield state, health - so this sets
+   those three and lets the fight run normally from there. The health it hands
+   you is the gate the PREVIOUS break closed at, which is exactly what you
+   would have arrived with. */
+function devJump(row){
+  if (!F.on) return "not in the fight";
+  row = Math.max(1, Math.min(2*PAD_FORCE, row|0));
+  var brk  = row >> 1;                  /* rows 2,4,6,8 -> breaks 1,2,3,4 */
+  var main = (row % 2) === 1;           /* rows 1,3,5,7 -> main phases */
+  F.won = main ? (row-1)/2 : brk;
+  F.spd = F.won ? 1 + 0.05*(F.won-1) : 1;
+  F.hpW = F.hpWmax * GATE[main ? F.won : brk-1];
+  for (var i=0;i<pads.length;i++){
+    pads[i].won = i < F.won;
+    pads[i].on  = pads[i].won && !main;
+    pads[i].t   = pads[i].won ? PAD_CHARGE_MS : 0;
+  }
+  F.brk = main ? 0 : brk;
+  F.broken = [];
+  if (F.brk){ for (var q=0;q<SEGS;q++) F.broken.push(q); }
+  else F.broken.push(segmentAt(Math.PI/2));
+  F.move = null; F.next = F.t + PULSE_GRACE; moveIx = 0;
+  shots = []; sparks = []; F.ghost = undefined;
+  return "row " + row + (main ? " main" : " break " + brk)
+       + " - " + F.won + " tiles, hp " + Math.round(F.hpW) + "/" + F.hpWmax
+       + ", spd " + F.spd.toFixed(2);
+}
+
 window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
+                jump:devJump, gates:GATE, esc:esc,
+                brk:function(){ return F.brk; },
+                won:function(){ return F.won; },
+                spd:function(){ return F.spd; },
                 keys:keys, isLive:function(){ return live; },
                 /* ADVANCES THE WHOLE SIMULATION, not just the fight. Stepping
                    the fight alone spawns sparks and never moves them, so any
@@ -3471,13 +3723,17 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                    It drew fightDraw alone, so a test that sampled the canvas
                    for the shower's corridor found an empty screen and reported
                    zero brightness everywhere — the sparks are sparkDraw's. */
+                /* THE WHOLE FRAME, IN THE FRAME'S OWN ORDER. It drew sparks
+                   and fightDraw only, so every canvas test of the BULLETS came
+                   back with an empty screen - drawBullets was never called. */
                 paint:function(){
                   var e=$("bossFx"); if(!e) return;
                   var c=e.getContext("2d");
                   c.globalCompositeOperation="lighter";
                   sparkDraw(c); fightDraw(c);
                   c.globalCompositeOperation="source-over";
+                  drawPads(c, CLOCK); drawBullets(c); drawShocks(c); drawPlayer(c);
                 },
-                phase:function(){ return phase(); },
+                phase:function(){ return esc(); },
                 shieldLeft:shieldLeft, inGap:playerInGap };
 })();
