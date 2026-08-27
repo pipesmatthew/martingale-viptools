@@ -5572,6 +5572,13 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                      readout being broken. Same order as frame(). */
                   dmgNumDraw(c); lootDraw(c); drawPlayer(c); drawHUD(c);
                 },
+                /* THE HEAD/RING PASS, WHICH frame() OWNS AND NOTHING ELSE
+                   CAN REACH. paintWalker draws the two art canvases and is
+                   called only from frame(), so a headless probe of WHICH FACE
+                   he is wearing had no way to run it - and a browser pane with
+                   requestAnimationFrame throttled cannot run frame() either.
+                   Exported for the same reason paint() is. */
+                paintWalker:paintWalker,
                 phase:function(){ return esc(); },
                 shieldLeft:shieldLeft, inGap:playerInGap };
 })();
