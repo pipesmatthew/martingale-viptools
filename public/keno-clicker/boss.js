@@ -267,7 +267,18 @@ var RAY_H       = 1.6;    /* half-width of the part that hurts */
 var RAY_ARM     = [2500, 2200, 1800];  /* the white hairline, shortening */
 var RAY_STAGGER = [110, 88, 64];       /* top-to-bottom cascade, quickening */
 var RAY_SPACING = [100, 86, 72];       /* the comb, closing */
-var RAY_GAP_AT  = [-250, 120, 0];      /* where the route is, per set */
+/* ════════════════════ SET TWO OPENS WHERE SET ONE LEFT YOU ════════════════════
+   Measured at set two's moment: the reachable band is [-426, 614] and its route
+   was at +86, while a player who had just solved set one was standing at -300,
+   where set two offered nothing but its ordinary 86px spacing. Solving the
+   first set put you in the worst place for the second, which is the opposite of
+   a route.
+
+   So set two's hole sits where set one's did. The rhythm becomes MOVE, HOLD,
+   MOVE: cross for the first, stand still through the second while the comb
+   tightens around you, then make the last trip to the corner for the third -
+   which is where the sweep has been pushing you the whole time. */
+var RAY_GAP_AT  = [-250, -300, 0];     /* where the route is, per set */
 var RAY_AT      = [4.0, 8.0, 13.5];    /* seconds after the hide ends */
 var RAY_SETS    = 3;
 /* Two player lengths was the brief and left a pocket you could stroll around
