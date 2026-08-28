@@ -126,6 +126,12 @@ var PLAY_MAX_X = 0.66;   /* a little less room than 0.74 — he sits at 0.76 */
    you are trying to play. Positive means a gap. */
 var HOVER_GAP = 30;
 function sizeWalker(){
+  /* ARENA PIXELS, and the clamps now only ever resolve one way - VH() is 1080
+     on every machine, so this is 340 for everybody and the min/max are kept as
+     the record of what the number is allowed to be rather than as live limits.
+     That is the point: his size used to come off the window, so he shrank on a
+     short screen while the room he stood in did not, and the two drifted. He is
+     a fixed fraction of the arena now and scale(VS) does the rest. */
   WALK = Math.max(200, Math.min(340, Math.round(VH() * 0.34)));
   HOVER_GAP = Math.round(WALK * 0.16);
   var el = $("walker");
@@ -174,19 +180,107 @@ var keys = {};
 
    Capped at 2 like the rest of the file: past that the pixels cost more than
    they show, and this fight is already the heaviest thing on the page. */
+/* ══════ THE ONE PERFORMANCE LEVER WAS A NO-OP ON HALF THE MACHINES ══════
+   `QUALITY < 0.85 ? Math.min(1, d) : d` reads as "drop to 1x when frames are
+   being dropped" and on a HiDPI screen that is what it did. On a DPR-1 machine
+   d is already 1, so min(1,d) is 1, and the branch returned the number it was
+   trying to reduce: the entire adaptive-quality system did NOTHING on exactly
+   the machines most likely to need it. Every laptop with an ordinary 1080p
+   panel has been running the shower at full resolution no matter how badly it
+   was coping.
+
+   It is a continuous scale now, and it goes BELOW 1. Half the linear resolution
+   is a quarter of the fill, which is the note that was already here - it just
+   could never get there.
+
+   QUANTISED TO FOUR STEPS, and that is not tidiness. Every distinct value of
+   this reallocates two full-window backing stores, and a GPU texture realloc
+   costs a visible hitch - which QUALITY, drifting every 0.5s, would have
+   triggered twice a second at exactly the moment frames were already being
+   missed. Four steps means the resize happens on the way into trouble and on
+   the way out of it, and not once in between. */
+function qScale(){
+  if (QUALITY > 0.92) return 1;
+  if (QUALITY > 0.70) return 0.80;
+  if (QUALITY > 0.45) return 0.65;
+  return 0.50;
+}
 function DPR(){
   var d = Math.min(2, window.devicePixelRatio || 1);
-  /* the one thing that gives way when frames are being dropped — half the
-     linear resolution is a quarter of the fill, and it costs sharpness rather
-     than information */
-  return QUALITY < 0.85 ? Math.min(1, d) : d;
+  return d * qScale();
 }
-function VW(){ return window.innerWidth; }
-function VH(){ return window.innerHeight; }
+/* ══════ THE ARENA IS 1920x1080 ON EVERY MONITOR ══════
+   VW/VH used to BE the window, and the window is not the same shape on every
+   desk. Everything the fight is tuned against is absolute: the player tops out
+   at 430px/s, AOE_WIND gives you 2600ms to be somewhere else, and the bullets
+   travel in pixels per second. Widen the room without touching any of those and
+   the fight does not get bigger, it gets HARDER.
+
+   Measured: at 1920 the play box is 0.66*1920 = 1267 wide and a wind-up buys
+   you 89% of a crossing. At 3440 it is 2270 and the same wind-up buys 49%.
+   Nobody designed that. It fell out of the monitor.
+
+   So the arena is a fixed 1920x1080 box - the size this was authored at, so
+   that machine renders exactly as it did - scaled UNIFORMLY to fit the window
+   and centred in it. Every VW()/VH() call site below is already a fraction of
+   one of these, which is why ninety of them become correct at once and not one
+   of them had to be edited.
+
+   UNIFORM, NOT STRETCHED. Fitting 1920x1080 into 3440x1440 by scaling each axis
+   independently would turn every ring, nova, shower and radial sweep in this
+   file into an ellipse, and this fight is made almost entirely of circles. The
+   scale is min() of the two and the remainder is margin - which the SKY still
+   paints across, see drawStars(), so what sits either side of the arena is
+   space rather than a black bar.
+
+   VS > 1 IS WANTED, NOT TOLERATED. A 2560x1440 monitor gets 1.33 and the whole
+   fight is a third larger, which is what a bigger screen should buy: the same
+   fight, closer. What it must never buy is a longer walk. */
+var DES_W = 1920, DES_H = 1080;
+var VS = 1, VOX = 0, VOY = 0;    /* scale, and the arena's top-left in real px */
+/* THE REAL WINDOW, for the two things that genuinely belong to it: the sky,
+   which paints edge to edge, and the DOM debris, which lives in page space. */
+function RW(){ return window.innerWidth; }
+function RH(){ return window.innerHeight; }
+function layout(){
+  var w = RW(), h = RH();
+  /* A 0x0 VIEWPORT IS NOT A LAYOUT, IT IS THE ABSENCE OF ONE. A minimised
+     window, a hidden tab and several window-manager transitions all report
+     innerWidth 0 for a frame or two, and a scale of zero is not merely a small
+     arena - it is a divide by zero in vX/vY, a NaN out of boardBox, and a
+     setTransform(0,0,0,0) that paints nothing at all. Every one of those
+     survives into the next real frame, because they are STATE.
+
+     The last good layout is a better answer than anything derived from
+     nothing, and the resize event that brings the window back will replace it.
+     VS is seeded at 1, so even a page that never once sees a real viewport
+     behaves as though it were 1920x1080. */
+  if (w < 2 || h < 2) return;
+  VS  = Math.min(w/DES_W, h/DES_H);
+  VOX = (w - DES_W*VS)/2;
+  VOY = (h - DES_H*VS)/2;
+}
+function VW(){ return DES_W; }
+function VH(){ return DES_H; }
+/* Once at load. The resize handler keeps it true afterwards and bossStart()
+   re-runs it, but neither is guaranteed to have fired before something reads
+   VS, and the 1 the declaration seeds it with is only right at 1920x1080. */
+layout();
+/* real px -> arena px. Two callers, and both are reading a DOM rect: the board
+   he hangs off, and the tiles it shatters into. */
+function vX(px){ return (px - VOX)/VS; }
+function vY(py){ return (py - VOY)/VS; }
 function boardBox(){
   var el = $("board"); if (!el) return { x:VW()/2, y:VH()*0.72, w:200, h:140, top:VH()*0.65 };
   var r = el.getBoundingClientRect();
-  return { x:r.left+r.width/2, y:r.top+r.height/2, top:r.top, w:r.width, h:r.height };
+  /* THE BOARD IS NOT IN THE ARENA'S COORDINATE SYSTEM. It is a real card laid
+     out by the page in real pixels and it does not scale with the fight, so its
+     rect has to be brought across before anything in this file reads it. The
+     WIDTH comes across too - sizeWalker's note argues about him being 280
+     against a 200-wide board, and a real width compared against an arena height
+     is the exact class of mix this whole change exists to remove. */
+  return { x:vX(r.left+r.width/2), y:vY(r.top+r.height/2), top:vY(r.top),
+           w:r.width/VS, h:r.height/VS };
 }
 /* HE HANGS OFF THE BOARD UNTIL THERE IS NO BOARD, then off the arena. Deriving
    it from a hidden element would give a rect of zeros and drop him into the top
@@ -473,7 +567,15 @@ function bwPlace(f){
     var b = e.bands[i];
     b.style.width  = Math.round(BIG) + "px";
     b.style.height = Math.ceil(h) + "px";
-    b.style.transform = "translate(" + f.cx.toFixed(1) + "px," + f.cy.toFixed(1) + "px) " +
+    /* ARENA -> REAL, IN THE BAND'S OWN TRANSFORM. The wrapper is the tidier
+       place for it and it is where every other container in this file would
+       take it - but these slabs carry backdrop-filter, and a transform on an
+       ANCESTOR makes Chromium cut a new backdrop root. That is how you get
+       seven bands that grey out nothing at all. On the element itself it is
+       just another matrix in the list, and the filter still sees the page. */
+    b.style.transform = "translate(" + (VOX + VS*f.cx).toFixed(1) + "px," +
+                                       (VOY + VS*f.cy).toFixed(1) + "px) " +
+                        "scale(" + VS.toFixed(4) + ") " +
                         "rotate(" + f.an.toFixed(4) + "rad) " +
                         "translate(" + x0.toFixed(1) + "px," + y0.toFixed(1) + "px)";
   }
@@ -1014,23 +1116,135 @@ function makeNebula(){
                   r:0.30+((i*0.7549)%1)*0.34, c:C[i] });
   }
 }
+/* ══════ THE CACHED LAYERS ══════
+   Two things in this file are redrawn every frame and are not animated: the
+   nebula behind the fight, and the hatch that crosses out the swept floor
+   during an AOE wind-up. Both are rebuilt here only when something they depend
+   on actually changes, and blitted the rest of the time. */
+var NEB_CV = null, NEB_KEY = "", STAR_COL_AT = -1;
+function nebulaLayer(SW, SH, dp){
+  var key = SW+"x"+SH+"@"+dp+":"+nebula.length+":"+skyDepth.toFixed(4);
+  if (NEB_CV && NEB_KEY === key) return NEB_CV;
+  if (!NEB_CV) NEB_CV = document.createElement("canvas");
+  NEB_CV.width  = Math.round(SW*dp);
+  NEB_CV.height = Math.round(SH*dp);
+  var g = NEB_CV.getContext("2d");
+  g.setTransform(dp,0,0,dp,0,0);
+  g.clearRect(0,0,SW,SH);
+  for (var n=0;n<nebula.length;n++){
+    var nb=nebula[n], nx=nb.x*SW, ny=nb.y*SH, nr=nb.r*Math.max(SW,SH);
+    var ng=g.createRadialGradient(nx,ny,0,nx,ny,nr);
+    ng.addColorStop(0,"rgba("+nb.c[0]+","+nb.c[1]+","+nb.c[2]+","+(0.17*skyDepth).toFixed(3)+")");
+    ng.addColorStop(0.55,"rgba("+nb.c[0]+","+nb.c[1]+","+nb.c[2]+","+(0.07*skyDepth).toFixed(3)+")");
+    ng.addColorStop(1,"rgba("+nb.c[0]+","+nb.c[1]+","+nb.c[2]+",0)");
+    g.fillStyle=ng; g.beginPath(); g.arc(nx,ny,nr,0,6.28318); g.fill();
+  }
+  NEB_KEY = key;
+  return NEB_CV;
+}
+/* ══════ 137 ANTIALIASED DIAGONALS, OR ONE TILE ══════
+   The scrub hatch was a fresh path of long 45-degree hairlines every frame:
+   (VW + 2*VH)/46 of them, which is 87 in the arena and was 137 across a
+   3440-wide window before the arena was fixed. Antialiased, full-length, and
+   until this change they were stroked THROUGH AN ARBITRARY CLIP PATH.
+
+   The family is x - y = 46n, so in a 46x46 tile it is exactly the main
+   diagonal - one line, tiling seamlessly, giving the identical picture. The
+   two neighbouring passes are there for the antialiasing at the tile corners,
+   where a single segment leaves a faint seam every 46px.
+
+   THE COLOUR IS BAKED AT FULL STRENGTH and the fade is done with globalAlpha,
+   because a pattern cannot be re-tinted per frame and the wind-up's whole job
+   is to get darker as it goes. Keyed on the phase colour, so it survives every
+   frame of a phase and is rebuilt on the four occasions hx() moves. */
+/* AND IT LANDS ON THE OLD LINES, NOT NEAR THEM. The loop this replaces began
+   at `-VH()`, so its lines crossed y=0 at x congruent to -VH() mod 46 - which
+   is 24, and is an accident of where the loop happened to start rather than a
+   decision anyone made. Tiling from zero instead moves every line 24px and
+   changes 3.5% of the pixels on screen: not a bug, but not the same picture,
+   and there is no reason to accept a different one. With the offset in, the
+   two techniques are pixel-identical - measured at zero differing pixels
+   across a 1920x1080 frame, which is why this number is derived here rather
+   than written as 24. */
+var HATCH_CV = null, HATCH_PAT = null, HATCH_KEY = "";
+function hatchPattern(c){
+  var col = hx("255,150,60");
+  if (HATCH_PAT && HATCH_KEY === col) return HATCH_PAT;
+  if (!HATCH_CV){ HATCH_CV = document.createElement("canvas"); HATCH_CV.width = HATCH_CV.height = 46; }
+  var off = ((-VH()) % 46 + 46) % 46;
+  var g = HATCH_CV.getContext("2d");
+  g.clearRect(0,0,46,46);
+  g.strokeStyle = "rgba("+col+",1)";
+  g.lineWidth = 1;
+  g.beginPath();
+  /* -2..2 rather than the one segment the tiling strictly needs: the outliers
+     cost nothing once and they are what keeps the antialiasing continuous
+     across the tile corners, where a single segment leaves a seam every 46px */
+  for (var k=-2;k<=2;k++){ g.moveTo(off+k*46, 0); g.lineTo(off+k*46+46, 46); }
+  g.stroke();
+  HATCH_PAT = c.createPattern(HATCH_CV, "repeat");
+  HATCH_KEY = col;
+  return HATCH_PAT;
+}
 function drawStars(){
   var cv = $("bossSky"); if (!cv) return;
-  var dp=DPR(), bw=Math.round(VW()*dp), bh=Math.round(VH()*dp);
+  /* ══════ THE SKY IS THE ONE THING THAT IS STILL THE WHOLE WINDOW ══════
+     Everything else moved into a fixed 1920x1080 arena, and on a wide monitor
+     the space either side of that arena has to be SOMETHING. Painting the sky
+     to the arena and letting the rest go black would put two hard vertical
+     seams down a screen whose entire premise is that it is open space.
+
+     It can afford to stay real because there is no geometry in it: six nebulae
+     and 190 drifting dots, every one of them a fraction of the canvas. Nothing
+     here is dodged, so nothing here has to be the same size for everyone. */
+  var dp=DPR(), bw=Math.round(RW()*dp), bh=Math.round(RH()*dp);
   if (cv.width!==bw||cv.height!==bh){ cv.width=bw; cv.height=bh; }
-  var c = cv.getContext("2d"), SW = VW(), SH = VH();
+  var c = cv.getContext("2d"), SW = RW(), SH = RH();
   /* the backing store is in device pixels; everything below is written in CSS
      pixels, so the transform does the conversion once and nothing else changes */
   c.setTransform(1,0,0,1,0,0);
   c.clearRect(0,0,cv.width,cv.height);
   c.setTransform(dp,0,0,dp,0,0);
-  for (var n=0;n<nebula.length;n++){
-    var nb=nebula[n], nx=nb.x*SW, ny=nb.y*SH, nr=nb.r*Math.max(SW,SH);
-    var ng=c.createRadialGradient(nx,ny,0,nx,ny,nr);
-    ng.addColorStop(0,"rgba("+nb.c[0]+","+nb.c[1]+","+nb.c[2]+","+(0.17*skyDepth).toFixed(3)+")");
-    ng.addColorStop(0.55,"rgba("+nb.c[0]+","+nb.c[1]+","+nb.c[2]+","+(0.07*skyDepth).toFixed(3)+")");
-    ng.addColorStop(1,"rgba("+nb.c[0]+","+nb.c[1]+","+nb.c[2]+",0)");
-    c.fillStyle=ng; c.beginPath(); c.arc(nx,ny,nr,0,6.28318); c.fill();
+  /* ══════ THE NEBULA NEVER MOVES, AND IT WAS REDRAWN SIXTY TIMES A SECOND ══════
+     Six radial gradients whose radius is up to 0.64 of the LONGER side of the
+     window, for an object that is a still life: it does not drift, it does not
+     pulse, it changes only when the board grows and makeNebula() rebuilds it.
+
+     MEASURED, because the first version of this note guessed and guessed badly.
+     Three trials on a fresh canvas, clear-then-draw as the real frame does:
+     0.40-0.42ms for the six gradients at 1920x1080 against 0.04-0.10ms for the
+     blit, and 0.68-0.80ms against 0.14-0.19ms at 3440x1440. So it is worth
+     about a third of a millisecond a frame at 1080p and six tenths on an
+     ultrawide - real, paid on EVERY frame of the fight, and nowhere near the
+     whole of what Edge is losing. Anyone reading this looking for the big win
+     should look at qScale() above instead.
+
+     It is also why the fight costs more late than early: skyDepth is zero for
+     the first few tiles, so nebula.length is zero and the opening sky is
+     genuinely free.
+
+     Rendered once into an offscreen canvas and blitted. The key covers
+     everything that can change it - size, resolution, count, depth - so it
+     rebuilds when it must and never otherwise. */
+  if (nebula.length){
+    c.setTransform(1,0,0,1,0,0);
+    c.drawImage(nebulaLayer(SW, SH, dp), 0, 0);
+    c.setTransform(dp,0,0,dp,0,0);
+  }
+  /* ══════ AND THE STAR COLOURS ARE BUILT ONCE, NOT 190 TIMES A FRAME ══════
+     The alpha is a function of the star's own z and of skyDepth, and neither of
+     those changes between frames - so this was allocating and re-parsing eleven
+     thousand identical colour strings a second purely to hand the canvas the
+     same forty distinct values it had last frame. Cached on the star and
+     rebuilt only when skyDepth moves, which is once per board growth. Reusing
+     the same string INSTANCE also lets the renderer hit its parsed-colour
+     cache, which it cannot do for a string built fresh every time. */
+  if (STAR_COL_AT !== skyDepth){
+    for (var sc=0;sc<stars.length;sc++){
+      stars[sc].col = "rgba(200,190,255," +
+        ((0.045 + 0.46*skyDepth) * (0.3 + stars[sc].z*0.7)).toFixed(3) + ")";
+    }
+    STAR_COL_AT = skyDepth;
   }
   for (var i=0;i<stars.length;i++){
     var st = stars[i];
@@ -1038,8 +1252,7 @@ function drawStars(){
     if (st.y > 1){ st.y -= 1; st.x = Math.random(); }
     /* the stars are earned too — a black sky with a full starfield in it is not
        empty, it is merely unlit */
-    c.fillStyle = "rgba(200,190,255," +
-      ((0.045 + 0.46*skyDepth) * (0.3 + st.z*0.7)).toFixed(3) + ")";
+    c.fillStyle = st.col;
     c.fillRect(st.x*SW, st.y*SH, st.r, st.r*(1 + starWarp*18*st.z));
   }
 }
@@ -1082,10 +1295,172 @@ function qualityStep(dt){
   qAcc += dt; qFrames++;
   if (qAcc < 0.5) return;
   var fps = qFrames/qAcc;
+  /* PUBLISHED, NOT RECOMPUTED. The readout wants exactly the number this
+     already measures - a second counter beside it would be a second answer to
+     the same question, and the two would disagree at the edges and start
+     arguments about which is lying. */
+  FPS = fps;
+  if (fps > FPS_PEAK) FPS_PEAK = fps;
   if (fps < 50)      QUALITY = Math.max(0.25, QUALITY - 0.15);
   else if (fps > 58) QUALITY = Math.min(1,    QUALITY + 0.08);
   qAcc = 0; qFrames = 0;
+  perfHudPaint();
 }
+
+/* ══════ THE FRAME RATE, AND WHY IT IS WHAT IT IS ══════
+   A number on its own tells a player they are having a bad time and not one
+   thing about what to do next. Three of the four reasons this fight runs badly
+   are settings rather than hardware - acceleration switched off, a reduced-
+   motion preference, a browser quietly throttling - and every one of them is
+   fixable in about thirty seconds by somebody who knows to look.
+
+   So the readout carries the diagnosis next to the symptom: the rate, the
+   resolution it is being held at, and anything about this browser that differs
+   from what the fight needs. Click it for the full environment.
+
+   IT IS A DOM ELEMENT AND NOT PART OF fightDraw, deliberately. Painted on
+   bossFx it would live in ARENA coordinates, which means on a wide monitor it
+   would sit at the corner of the letterboxed box rather than the corner of the
+   screen - and it is an instrument about the machine, not a thing inside the
+   fight. Fixed to the real viewport is where it belongs.
+
+   F TOGGLES IT, because a permanent overlay on a bullet hell is a permanent
+   distraction for anyone who has already fixed their settings. */
+var FPS = 0, FPS_PEAK = 0, HUD = null, HUD_OPEN = false, HUD_OFF = false;
+var ENV = null, ENV_WARN = null;
+/* ONE PROBE, CACHED FOREVER. Creating a WebGL context is not free and none of
+   these answers change while the page is open. */
+function envProbe(){
+  if (ENV) return ENV;
+  var ua = navigator.userAgent || "";
+  function ver(re){ var m = ua.match(re); return m ? m[1].split(".")[0] : ""; }
+  var brand = /Edg\//.test(ua)     ? ["Edge",    ver(/Edg\/([\d.]+)/)]
+            : /OPR\//.test(ua)     ? ["Opera",   ver(/OPR\/([\d.]+)/)]
+            : /Firefox\//.test(ua) ? ["Firefox", ver(/Firefox\/([\d.]+)/)]
+            : /Chrome\//.test(ua)  ? ["Chrome",  ver(/Chrome\/([\d.]+)/)]
+            : /Safari\//.test(ua)  ? ["Safari",  ver(/Version\/([\d.]+)/)]
+            : ["browser", ""];
+  /* ══ HOW YOU ASK A BROWSER WHETHER IT IS USING THE GPU ══
+     There is no API for "is Canvas2D accelerated". What there is: the WebGL
+     renderer string, which names the actual device - and when the GPU is off
+     or blocklisted, Chromium substitutes a software rasteriser and says so.
+     SwiftShader, llvmpipe and "Microsoft Basic Render" are the three names
+     that mean "this machine is drawing with the CPU". Canvas2D and WebGL ride
+     the same GPU process, so the answer transfers.
+
+     The context is thrown away immediately - WEBGL_lose_context rather than
+     letting it fall out of scope, because a leaked context counts against a
+     per-page limit that this fight has no other use for. */
+  var gpu = { renderer:"unknown", software:false };
+  try {
+    var cc = document.createElement("canvas");
+    var gl = cc.getContext("webgl") || cc.getContext("experimental-webgl");
+    if (!gl){ gpu.renderer = "WebGL unavailable"; gpu.software = true; }
+    else {
+      var ext = gl.getExtension("WEBGL_debug_renderer_info");
+      gpu.renderer = String((ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+                                 : gl.getParameter(gl.RENDERER)) || "unknown");
+      gpu.software = /swiftshader|llvmpipe|software|basic render|basic display/i.test(gpu.renderer);
+      var lc = gl.getExtension("WEBGL_lose_context"); if (lc) lc.loseContext();
+    }
+  } catch(e){ gpu.renderer = "blocked"; }
+  var rm = false;
+  try { rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch(e){}
+  ENV = { brand:brand[0], ver:brand[1], gpu:gpu, reduced:rm,
+          cores: navigator.hardwareConcurrency || 0 };
+  return ENV;
+}
+/* WHAT DIFFERS FROM WHAT THE FIGHT NEEDS. Only things the player can act on -
+   there is no line here for "your machine is slow", because that is not a
+   setting and saying it helps nobody. */
+function envWarnings(){
+  if (ENV_WARN) return ENV_WARN;
+  var e = envProbe(), w = [];
+  if (e.gpu.software){
+    w.push("Hardware acceleration is OFF \u2014 this fight is drawn on the CPU and " +
+           "will not hold 60. Turn it on in " + e.brand + " settings (search " +
+           "\u201cgraphics\u201d), then restart the browser.");
+  }
+  if (e.reduced){
+    w.push("Your system is set to reduce motion. Nothing here honours it yet, " +
+           "so the fight will be as busy as ever \u2014 worth knowing if that is " +
+           "not what you wanted.");
+  }
+  ENV_WARN = w;
+  return w;
+}
+function perfHudEl(){
+  if (HUD && HUD.box.isConnected) return HUD;
+  var box = document.createElement("div");
+  box.id = "perfHud";
+  /* no backdrop-filter: a blur behind the frame-rate meter would be a droll
+     way to cost the frames it is there to count */
+  box.style.cssText =
+    "position:fixed;top:10px;right:12px;z-index:9990;text-align:right;" +
+    "font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;" +
+    "color:#cfd4dd;background:rgba(8,8,12,.62);padding:6px 9px;border-radius:6px;" +
+    "border:1px solid rgba(150,160,180,.16);cursor:pointer;user-select:none;" +
+    "-webkit-user-select:none;max-width:min(340px,42vw)";
+  var fps  = document.createElement("div");
+  fps.style.cssText  = "font-size:15px;font-weight:700;color:#eaf0f8";
+  var res  = document.createElement("div");
+  res.style.cssText  = "color:#98a1b0";
+  var warn = document.createElement("div");
+  warn.style.cssText = "margin-top:5px;color:#ffb14a;white-space:normal;display:none";
+  var det  = document.createElement("div");
+  det.style.cssText  = "margin-top:6px;color:#798291;white-space:normal;display:none";
+  box.appendChild(fps); box.appendChild(res); box.appendChild(warn); box.appendChild(det);
+  box.addEventListener("click", function(){
+    HUD_OPEN = !HUD_OPEN;
+    det.style.display = HUD_OPEN ? "block" : "none";
+    /* AND FILL IT NOW. The detail text is written by perfHudPaint, which runs
+       on the half-second - so without this the panel opens EMPTY and stays
+       empty until the next tick, which reads as a broken button rather than as
+       a slow one. */
+    perfHudPaint();
+  });
+  document.body.appendChild(box);
+  HUD = { box:box, fps:fps, res:res, warn:warn, det:det, warnAt:-1 };
+  return HUD;
+}
+/* CALLED TWICE A SECOND FROM qualityStep, NOT EVERY FRAME. Writing text into
+   the DOM sixty times a second to report that the DOM is being written to
+   sixty times a second is its own punchline; the measurement only updates on
+   the half-second anyway, so there is nothing else to say in between. */
+function perfHudPaint(){
+  if (HUD_OFF || !live){
+    if (HUD && HUD.box.isConnected) HUD.box.style.display = "none";
+    return;
+  }
+  var h = perfHudEl(), e = envProbe(), q = qScale();
+  h.box.style.display = "block";
+  h.fps.textContent = (FPS ? Math.round(FPS) : "--") + " FPS";
+  h.fps.style.color = FPS >= 55 ? "#8ef0a8" : FPS >= 40 ? "#ffd166" : "#ff7a6b";
+  /* THE RESOLUTION LINE IS THE HONEST HALF OF THE FRAME RATE. qScale() drops
+     the backing store to protect the rate, so a machine in trouble can read a
+     comfortable 60 while quietly rendering at a quarter of the pixels. Without
+     this line the meter would be telling a flattering lie. */
+  h.res.textContent = "res " + Math.round(q*100) + "%" + (q < 1 ? "  \u2193" : "");
+  h.res.style.color = q < 1 ? "#ffd166" : "#98a1b0";
+  var w = envWarnings();
+  if (w.length && h.warnAt !== w.length){
+    h.warn.textContent = "\u26a0 " + w.join("  \u26a0 ");
+    h.warn.style.display = "block";
+    h.warnAt = w.length;
+  }
+  if (HUD_OPEN){
+    h.det.textContent =
+      e.brand + (e.ver ? " " + e.ver : "") +
+      "  \u00b7 dpr " + (window.devicePixelRatio || 1) +
+      (e.cores ? "  \u00b7 " + e.cores + " cores" : "") + "\n" +
+      "GPU  " + e.gpu.renderer + "\n" +
+      "window " + RW() + "\u00d7" + RH() +
+      "  \u00b7 arena 1920\u00d71080 \u00d7" + VS.toFixed(3) + "\n" +
+      "peak " + Math.round(FPS_PEAK) + " fps  \u00b7 F hides this";
+    h.det.style.whiteSpace = "pre-line";
+  }
+}
+function perfHudHide(){ if (HUD && HUD.box.isConnected) HUD.box.style.display = "none"; }
 /* ════════════════ THE SHOWER IS COSMIC, NOT A GRINDER ═════════════════════
    The old ramp was white -> orange -> red -> black, which is the colour of hot
    steel and exactly right for a welding spark. It is exactly wrong for this:
@@ -1707,7 +2082,19 @@ function rearm(){ F.armed = true; F.repair = 1; window.bossDead = null; repaint(
    the originals stay put and go dark, because they are what you rebuild. */
 function shatterBoard(){
   var b = $("board"); if (!b) return;
-  var c = boardBox();
+  /* ══════ THE DEBRIS STAYS IN PAGE SPACE ══════
+     These are clones of real tiles, positioned in real pixels by the same
+     getBoundingClientRect that measured them - and boardBox() now answers in
+     ARENA pixels, so taking the centre from it would put every shard's origin
+     in the wrong place by exactly the letterbox offset.
+
+     There is no gameplay in them - they are the board leaving - so rather than
+     drag them across the boundary they simply never cross it: real rect, real
+     centre, real cull in shardStep(). The one thing that does come across is
+     the SPEED, multiplied by VS, so they clear the same fraction of the arena
+     per second on every monitor instead of crawling off a big one. */
+  var br = b.getBoundingClientRect();
+  var c = { x: br.left + br.width/2, y: br.top + br.height/2 };
   [].forEach.call(b.children, function(el){
     var r = el.getBoundingClientRect();
     var d = el.cloneNode(true);
@@ -1715,8 +2102,8 @@ function shatterBoard(){
     d.style.width = r.width+"px"; d.style.height = r.height+"px";
     var dx = (r.left+r.width/2)-c.x, dy = (r.top+r.height/2)-c.y, L = Math.hypot(dx,dy)||1;
     shards.push({ el:d, x:r.left, y:r.top, w:r.width, h:r.height, a:0,
-      vx: dx/L*55 + (Math.random()-0.5)*95,
-      vy: dy/L*55 + (Math.random()-0.5)*95 - 18,
+      vx: (dx/L*55 + (Math.random()-0.5)*95) * VS,
+      vy: (dy/L*55 + (Math.random()-0.5)*95 - 18) * VS,
       va: (Math.random()-0.5)*1.5 });
     $("bossStage").appendChild(d);
   });
@@ -1732,7 +2119,8 @@ function shardStep(dt){
     var s = shards[i];
     s.vx *= 1+0.55*dt; s.vy *= 1+0.55*dt;
     s.x += s.vx*dt; s.y += s.vy*dt; s.a += s.va*dt;
-    if (s.x+s.w < -40 || s.x > VW()+40 || s.y+s.h < -40 || s.y > VH()+40){
+    /* real px, like everything else about these - see shatterBoard */
+    if (s.x+s.w < -40 || s.x > RW()+40 || s.y+s.h < -40 || s.y > RH()+40){
       s.el.remove(); shards.splice(i,1); i--; continue;
     }
     s.el.style.transform = "translate("+s.x.toFixed(1)+"px,"+s.y.toFixed(1)+"px) rotate("+s.a.toFixed(3)+"rad)";
@@ -4754,23 +5142,46 @@ function fightDraw(c){
          he looked switched off. Closing the near end at wedgeR() instead of at
          his centre takes the floor away and leaves HIM alone, which is what it
          was always meant to do. */
+      /* ══════ FILLED, NOT CLIPPED, AND THIS WAS THE WORST FRAME IN THE FIGHT ══════
+         The sector was used as a CLIP and then the whole screen was filled
+         through it - twice, once for the darkening and once for the hatch.
+         A rectangular clip is free; an arbitrary arc path is not. Skia has to
+         raster the path into a mask and composite the fill against it, which
+         allocates a save-layer the size of the clip bounds EVERY FRAME, and on
+         Edge with some driver combinations drops the whole region to software.
+         It landed on the one move that already has ten thousand sparks in the
+         air, which is why the wind-up specifically is where the frame rate
+         goes rather than the fire.
+
+         The sector is a path either way, so it is simply FILLED instead - the
+         same shape, one rasterisation, no mask, no layer. The path is left
+         standing after the first fill and filled a second time with the hatch,
+         so the two passes share one path build as well.
+
+         The picture is identical: a fill of the sector and a full-screen fill
+         clipped to the sector are the same pixels, and the hatch is matched to
+         the old line phase - measured at zero differing pixels across a
+         1920x1080 frame.
+
+         MEASURED at 0.53ms -> 0.28ms for the pair of passes at 1920x1080, and
+         1.07ms -> 0.44ms at 3440x1440. It scales with the window, which the
+         clip version did twice over: more pixels to mask AND more hairlines to
+         stroke through the mask. */
       c.beginPath();
       c.arc(W.x, W.y, far, s0, s0 + sdir*swept, sdir < 0);
       c.arc(W.x, W.y, wedgeR(), s0 + sdir*swept, s0, sdir >= 0);
       c.closePath();
-      c.clip();
       c.fillStyle = lead;
-      c.fillRect(0, 0, VW(), VH());
+      c.fill();
       /* the hatch, so "crossed out" is unmistakable even where the darkening
-         lands on ground that was already black */
-      c.strokeStyle = "rgba("+hx("255,150,60")+"," + (0.05 + 0.10*prog).toFixed(3) + ")";
-      c.lineWidth = 1;
-      c.beginPath();
-      var step = 46, span = VW() + VH();
-      for (var hxx = -VH(); hxx < span; hxx += step){
-        c.moveTo(hxx, 0); c.lineTo(hxx + VH(), VH());
-      }
-      c.stroke();
+         lands on ground that was already black - one tiled pattern now, see
+         hatchPattern(), and the fade that used to live in the stroke colour
+         moves to globalAlpha because a pattern carries its own */
+      var ga0 = c.globalAlpha;
+      c.globalAlpha = ga0 * (0.05 + 0.10*prog);
+      c.fillStyle = hatchPattern(c);
+      c.fill();
+      c.globalAlpha = ga0;
       c.restore();
       /* the leading edge of the scrub, which is the only moving part left */
       var ha = s0 + sdir*swept;
@@ -6014,7 +6425,24 @@ function frame(now){
   var el=$("walker");
   if (el){
     var sh = W.shake ? (Math.random()-0.5)*16*W.shake : 0;
-    el.style.transform="translate("+(W.x-WALK/2)+"px,"+(W.y-WALK/2+sh)+"px) scale("+W.scale.toFixed(3)+")";
+    /* ══════ THE SAME TRANSFORM THE CANVAS GOT, WRITTEN IN CSS ══════
+       He is a DOM element rather than something painted on bossFx, so the
+       arena->real mapping has to be applied to him by hand.
+
+       transform-origin is 50% 50% and it STAYS that way - it is what makes
+       scale(W.scale) pivot on his middle, which is the whole reason he grows
+       toward you rather than down and to the right. With the origin at his
+       centre the outer translate is measured from there, so it carries the
+       -WALK/2 that used to ride on W.x, and W.x itself moves inside scale(VS)
+       where it is arena pixels like everything else in this file.
+
+       His width and height are written by sizeWalker() in ARENA pixels;
+       scale(VS) is what turns them into real ones. The shake goes inside it
+       too, so a 16px kick is 16 ARENA px and lands the same on every screen. */
+    el.style.transform="translate("+(VOX-WALK/2).toFixed(1)+"px,"+(VOY-WALK/2).toFixed(1)+"px) "+
+                       "scale("+VS.toFixed(4)+") "+
+                       "translate("+W.x.toFixed(1)+"px,"+(W.y+sh).toFixed(1)+"px) "+
+                       "scale("+W.scale.toFixed(3)+")";
     var bg=$("bang");
     if (bg) bg.style.fontSize=(44/Math.max(0.35,W.scale)).toFixed(1)+"px";
   }
@@ -6023,12 +6451,21 @@ function frame(now){
   decayFx(DT);
   var cv=$("bossFx");
   if (cv){
-    var dp2=DPR(), fw=Math.round(VW()*dp2), fh=Math.round(VH()*dp2);
+    /* THE BACKING STORE IS THE WINDOW; THE COORDINATES ARE THE ARENA. Sized in
+       real device pixels because that is the surface being composited, and then
+       the transform maps arena space onto it - so this one line is what puts
+       ninety VW()/VH() call sites in the right place on any monitor.
+
+       DELIBERATELY NOT CLIPPED to the arena. The wedge reaches max(VW,VH)*1.5
+       and the finale's wall is bigger still; both are better for bleeding into
+       the margin than for stopping dead at a seam the player cannot see the
+       reason for. */
+    var dp2=DPR(), fw=Math.round(RW()*dp2), fh=Math.round(RH()*dp2);
     if (cv.width!==fw||cv.height!==fh){ cv.width=fw; cv.height=fh; }
     var c=cv.getContext("2d");
     c.setTransform(1,0,0,1,0,0);
     c.clearRect(0,0,cv.width,cv.height);
-    c.setTransform(dp2,0,0,dp2,0,0);
+    c.setTransform(VS*dp2,0,0,VS*dp2,VOX*dp2,VOY*dp2);
 
     c.save();
     if (SHAKE > 0){
@@ -6260,6 +6697,13 @@ window.addEventListener("keydown", function(e){
   if (e.code==="KeyI" && typeof DEV !== "undefined" && DEV){
     GODMODE = !GODMODE; e.preventDefault(); return;
   }
+  /* NOT BEHIND DEV. The readout exists for players on machines that are
+     struggling, and those are exactly the people who will never type ?dev. */
+  if (e.code==="KeyF"){
+    HUD_OFF = !HUD_OFF;
+    if (HUD_OFF) perfHudHide(); else perfHudPaint();
+    e.preventDefault(); return;
+  }
   /* 1..8 jump to a phase. Digit codes only - reading e.key would fire on the
      numpad and on shifted symbols too. */
   if (typeof DEV !== "undefined" && DEV && e.code.indexOf("Digit")===0){
@@ -6282,7 +6726,11 @@ window.addEventListener("blur", clearKeys);
 /* HIS SIZE IS DERIVED FROM THE WINDOW, so it has to be re-derived when the
    window changes — otherwise a resize leaves a boss scaled for a screen that is
    no longer there. */
-window.addEventListener("resize", function(){ if (live) sizeWalker(); });
+/* AND THE ARENA'S PLACE IN IT. layout() is unconditional - VS is read by the
+   walker's transform and by bwPlace whether or not the fight is up, and a
+   resize between fights would otherwise leave both scaled for a window that is
+   no longer there. */
+window.addEventListener("resize", function(){ layout(); if (live) sizeWalker(); });
 
 /* ── start / stop ──────────────────────────────────────────────────────── */
 function fightStart(){
@@ -6444,7 +6892,10 @@ function bossStart(skipIntro){
   var a=ac(); if (a && a.state==="suspended") a.resume();
   live=true;
   document.body.classList.add("boss");
-  sizeWalker(); makeStars(); makeNebula();
+  /* BEFORE sizeWalker, which reads nothing from it today but is the function
+     whose entire job is deriving sizes - a stale VS here would be the quietest
+     possible bug. */
+  layout(); sizeWalker(); makeStars(); makeNebula();
 
   /* THE GAME STOPS PLAYING ITSELF. play() already refuses while the arena is up,
      which is the guarantee — this is the tidy-up on top of it: without it the
@@ -6486,6 +6937,7 @@ function bossStart(skipIntro){
 }
 function bossStop(){
   live=false; playing=false;
+  perfHudHide();
   if (DEVPAUSE.on) DEVPAUSE.on = false;
   if (DEVPAUSE.el) DEVPAUSE.el.style.display = "none";
   fightStop(); playerHide(); hideSubs(); hideBang();
