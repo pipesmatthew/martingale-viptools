@@ -46,9 +46,25 @@ var ART = {
 var IMG = {}, artLeft = 0;
 var VOICE = ["greeting","whatdidyousay","fuckyou","goatblast","irrelevant"];
 var BUF = {}, voices = [];
-var MUSIC = null, MUSIC2 = null;
+var MUSIC = null, MUSIC2 = null, MUSIC_FIN = null;
 /* which element is live, and how wide the overlap is */
 var MUSIC_CUR = null, MUSIC_VOL = 0.55, CROSSFADE_S = 4.0;
+/* ════════════════════ THE LAST PHASE GETS ITS OWN CUE ════════════════════
+   The loop has spent the whole fight refusing to resolve - two chords a whole
+   tone apart, no leading tone, so there is no cadence available to it. That is
+   what makes the ending land: the payoff cue is the first G# in the piece and
+   the first major third on the tonic, arriving after four minutes of being
+   withheld.
+
+   It fires from finBegin() and the loop NEVER COMES BACK. finBegin is reached
+   two ways - break 4 in ordinary play, and devJump(8) from the dev panel - and
+   hooking the function rather than either call site means pressing 8 tests the
+   real thing.
+
+   IF THE CUE IS MISSING THE LOOP CARRIES ON. A blocked fetch or a slow decode
+   must not leave the fight silent for its last thirty seconds, so the flag goes
+   back on a failed play() and musicStep resumes the ordinary crossfade. */
+var MUSIC_FIN_ON = false, FIN_FADE_S = 0.8;
 /* ════════════════════ ONE VOLUME, AND IT SURVIVES THE TAB ════════════════════
    MUSIC_VOL and SFX_VOL are MIX levels - they set how loud the soundtrack sits
    against the cues, and they are not the player's business. What the player
@@ -75,6 +91,7 @@ function setVolume(v){
      undo the crossfade's ramp the moment it started */
   try { if (MUSIC  && !MUSIC.paused)  MUSIC.volume  = musVol(); } catch(e){}
   try { if (MUSIC2 && !MUSIC2.paused) MUSIC2.volume = musVol(); } catch(e){}
+  try { if (MUSIC_FIN && !MUSIC_FIN.paused) MUSIC_FIN.volume = musVol(); } catch(e){}
   return MASTER;
 }
 /* ════════════════════ THE CROSSFADE, STEPPED FROM THE FRAME ════════════════════
@@ -83,6 +100,23 @@ function setVolume(v){
    ramps the pair past each other. equal-power rather than linear, or the
    overlap dips in the middle and the seam is audible for the opposite reason. */
 function musicStep(){
+  /* ONCE THE FINALE IS UP THE LOOP IS ON ITS WAY OUT AND DOES NOT RETURN.
+     Ramped rather than cut, because finBegin() lands wherever the bar happens
+     to be. The fade is clocked off MUSIC_FIN.currentTime rather than off DT, so
+     a cue that never actually started leaves the loop at full volume instead of
+     fading the fight into silence. */
+  if (MUSIC_FIN_ON){
+    var ft = 0;
+    try { ft = MUSIC_FIN ? MUSIC_FIN.currentTime : 0; } catch(e){}
+    var k = Math.max(0, 1 - ft/FIN_FADE_S);
+    try { if (MUSIC)  MUSIC.volume  = musVol()*k; } catch(e){}
+    try { if (MUSIC2) MUSIC2.volume = musVol()*k; } catch(e){}
+    if (k <= 0){
+      try { if (MUSIC)  MUSIC.pause();  } catch(e){}
+      try { if (MUSIC2) MUSIC2.pause(); } catch(e){}
+    }
+    return;
+  }
   if (!MUSIC || !MUSIC2 || muted()) return;
   var cur = MUSIC_CUR || MUSIC, other = (cur === MUSIC) ? MUSIC2 : MUSIC;
   if (!cur.duration || !isFinite(cur.duration)) return;
@@ -588,110 +622,8 @@ function bwPlace(f){
   }
 }
 
-/* ══════ WHAT THE SWEEP LEAVES BEHIND ══════
-   The floor the line has taken was drawn as nothing - bwPlace drains its
-   colour and that is all - so the dead half read as an absence rather than as
-   something HE did. This cuts chasms into it.
-
-   TWO THINGS THE FIRST ATTEMPT GOT WRONG, both structural:
-
-   1. IT DREW TWIGS. Organic recursive branching with a smooth angle walk is
-      TREE geometry - it produces something that reads as bare branches lying
-      on the floor, which is exactly what it looked like. Ground does not
-      crack like that. A crack runs STRAIGHT until it fails, then turns
-      sharply and runs straight again; it splits rarely and at hard angles.
-      So the walk is long straight runs with abrupt kinks at the joints, and
-      branching is rare and sharp rather than frequent and soft.
-
-   2. IT WAS MID-GREY ON GREY. Everything under bwPlace is greyscaled by a
-      backdrop-filter, and a red vein greyscales to the one value that
-      disappears against both the black floor and the white starfield. A
-      chasm is not a coloured line, it is a HOLE: a near-black core with a hot
-      rim. That pair survives any filter, because black stays black and the
-      rim stays the brightest thing near it whatever the saturation.
-
-   AND IT HAS TO STAY. finDraw returns early once the rip has cleared the
-   room, so everything it drew left with it and the corpse sat on a clean
-   floor. The chasms are drawn ABOVE that return now - they are the one thing
-   in this function that is permanent. He broke the ground; the ground stays
-   broken.
-
-   SEEDED. The finale is the one deterministic phase - the sweep, the combs
-   and the hides are all learnable - so the cracks are the same every run. */
-var FIN_VEIN_R = 2100;
-function finVeins(ox, oy){
-  var r = 20260827, segs = [];
-  function rnd(){ r = (r*1103515245 + 12345) & 0x7fffffff; return r/0x7fffffff; }
-  /* one crack: straight runs, hard kinks, rare sharp splits */
-  function crack(x, y, a, dist, gen){
-    if (gen <= 0) return;
-    var runs = 5 + (rnd()*4|0);
-    for (var i=0;i<runs;i++){
-      var len = 110 + rnd()*190;                 /* long straight run */
-      var nx = x + Math.cos(a)*len, ny = y + Math.sin(a)*len, nd = dist + len;
-      if (nd > FIN_VEIN_R) return;
-      segs.push({ x1:x, y1:y, x2:nx, y2:ny, d:nd,
-                  w: Math.max(1.4, 11*(1 - nd/FIN_VEIN_R)) });
-      x = nx; y = ny; dist = nd;
-      a += (rnd() < 0.5 ? -1 : 1) * (0.22 + rnd()*0.42);   /* the kink */
-      if (rnd() < 0.30 && gen > 1)
-        crack(x, y, a + (rnd()<0.5?-1:1)*(0.7 + rnd()*0.6), dist, gen-1);
-    }
-  }
-  /* OUT OF HIS EDGE, NOT HIS MIDDLE. 160 was inside him - his shell is
-     walkerR() and the art is 340 across - so every crack started under his own
-     silhouette and the first thing you saw was a scribble on top of the boss.
-     They begin just clear of the shell and travel outward from there. */
-  var START = walkerR()*1.18;
-  for (var k=0;k<7;k++){
-    var a = (k/7)*6.28318 + rnd()*0.5;
-    crack(ox + Math.cos(a)*START, oy + Math.sin(a)*START, a, START, 3);
-  }
-  segs.sort(function(A,B){ return A.d - B.d; });
-  return segs;
-}
-function finVeinsDraw(c, f){
-  if (!f.veins || !f.veins.length) return;
-  var BIG = Math.hypot(VW(), VH()) * 1.7;
-  /* once he is down every crack is open, and stays open */
-  var reach = f.dead ? FIN_VEIN_R : Math.min(1, (f.p||0) * 1.15) * FIN_VEIN_R;
-  c.save();
-  if (!f.dead){
-    /* while the sweep is running they exist only in the half that kills, so
-       the pocket stays clean by construction rather than by a second rule */
-    c.translate(f.cx, f.cy); c.rotate(f.an);
-    c.beginPath(); c.rect(f.thr, -BIG, BIG*2, BIG*2); c.clip();
-    c.rotate(-f.an); c.translate(-f.cx, -f.cy);
-  }
-  /* AND NEVER OVER HIM. bossFx is z-index 930 and he is a DOM element at 920,
-     so anything this function strokes lands on top of his art - which is how
-     cracks meant to be spreading out of him ended up drawn across his face.
-     A hole is cut at wherever he is standing NOW (he rises through the
-     finale, and the cracks stay where they were opened), so the structure
-     always reads as leaving him rather than covering him. Reverse winding on
-     the arc is what subtracts it from the rect. */
-  c.beginPath();
-  c.rect(0, 0, VW(), VH());
-  c.arc(W.x, W.y, walkerR()*1.06, 0, 6.28318, true);
-  c.clip();
-  c.globalCompositeOperation = "source-over";
-  c.lineCap = "round"; c.lineJoin = "round";
-  for (var i=0;i<f.veins.length;i++){
-    var sg = f.veins[i]; if (sg.d > reach) break;
-    var near = Math.min(1, (reach - sg.d)/140), fl = 1 - sg.d/FIN_VEIN_R;
-    /* the hole: near-black, and wide enough to read as an opening */
-    c.strokeStyle = "rgba(2,2,4," + (0.95*near).toFixed(3) + ")";
-    c.lineWidth = sg.w * 2.4;
-    c.beginPath(); c.moveTo(sg.x1,sg.y1); c.lineTo(sg.x2,sg.y2); c.stroke();
-    /* the rim: the brightest thing beside it, so it survives the greyscale */
-    c.strokeStyle = "rgba(255," + Math.round(150 + 80*fl) + "," +
-                    Math.round(90 + 90*fl) + "," + (0.55 + 0.40*fl*near).toFixed(3) + ")";
-    c.lineWidth = Math.max(0.9, sg.w * 0.45);
-    c.beginPath(); c.moveTo(sg.x1,sg.y1); c.lineTo(sg.x2,sg.y2); c.stroke();
-  }
-  c.restore();
-}
 function finBegin(){
+  musicFinale();
   /* he comes DOWN off the ceiling to do this, not up into it - see the limp
      in finStep. Starting height only; brkPost is rewritten every frame. */
   F.brkPost = { x: VW()*0.76, y: VH()*0.13 };
@@ -722,7 +654,6 @@ function finBegin(){
   F.fin = {
     cx:C.x, cy:C.y, nx:dx/dL, ny:dy/dL,
     an:Math.atan2(dy/dL, dx/dL),
-    veins:finVeins(W.x, W.y),   /* out of him, where he stands when it starts */
     hp0:Math.max(1, F.hpW),
     smax:dL,                 /* the far top corner of the floor */
     thr:dL, r:0, dead:0, t:0, dt:0,
@@ -868,9 +799,13 @@ function finDraw(c){
      nearest slab has cleared the room there is nothing left to draw. */
   /* BEFORE the early return below, which is the whole point: once the rip has
      cleared the room that return fires every frame forever, and anything drawn
-     under it leaves with it. The chasms are the one permanent mark in this
-     function. */
-  finVeinsDraw(c, f);
+     under it leaves with it.
+
+     THE CHASMS ARE GONE. Seven seeded cracks used to open out of him across the
+     dead floor and stay open - the one permanent mark this function made. Cut
+     by request: the sweep taking the colour out of the floor says enough on its
+     own, and the cracks were competing with the one line the player has to
+     read. finVeins/finVeinsDraw/FIN_VEIN_R went with them. */
 
   if (f.dead){
     f.rip = 2400 * Math.pow(Math.max(0, f.dt), 1.6);
@@ -1200,6 +1135,23 @@ function makeStars(){
     x:Math.random(), y:Math.random(), z:0.25+Math.random()*0.75,
     r:0.4+Math.random()*1.5
   });
+  /* ══════ THE COLOUR CACHE IS KEYED ON skyDepth, AND THAT IS NOT ENOUGH ══════
+     drawStars caches each star's rgba string ON THE STAR and rebuilds the set
+     only when skyDepth moves. These stars are BRAND NEW and carry no `col` at
+     all - but skyDepth has not changed since the last fight, so the rebuild is
+     skipped and every one of them is drawn with fillStyle = undefined.
+
+     An invalid fillStyle assignment is IGNORED by the canvas, not defaulted, so
+     the context silently keeps whatever colour it was last handed and 190 stars
+     paint in it - black, on black. That is the "stars stopped showing" and the
+     "stars render black" both: it takes a SECOND fight to appear, because the
+     first one is the run that populates the cache.
+
+     Invalidated here rather than colouring the stars in this function, because
+     bossStart calls makeStars() BEFORE makeNebula(), so skyDepth is still last
+     fight's value at this point. Clearing the key defers the work to the first
+     draw, by which time it is correct. */
+  STAR_COL_AT = -1;
 }
 /* THE SKY IS NOT EMPTY. Stars on black is a starfield; what makes a picture
    read as DEEP space is the dust between them. Six huge soft blobs, fixed at
@@ -1365,8 +1317,16 @@ function drawStars(){
   }
   for (var i=0;i<stars.length;i++){
     var st = stars[i];
-    st.y += (0.0004 + 0.010*starWarp) * st.z;
-    if (st.y > 1){ st.y -= 1; st.x = Math.random(); }
+    /* THE SKY STOPS WHEN THE RUN DOES. The drift is tiny per frame and
+       completely invisible during a fight, which is the point of it - but on a
+       death screen it is the ONLY thing still moving, and a field of stars
+       sliding behind a stopped arena is the one motion left for the eye to
+       find. Held while F.over is set; the stars are still drawn, they simply
+       stay where they were when it ended. */
+    if (!F.over){
+      st.y += (0.0004 + 0.010*starWarp) * st.z;
+      if (st.y > 1){ st.y -= 1; st.x = Math.random(); }
+    }
     /* the stars are earned too — a black sky with a full starfield in it is not
        empty, it is merely unlit */
     c.fillStyle = st.col;
@@ -1375,7 +1335,7 @@ function drawStars(){
 }
 
 /* ── sparks ────────────────────────────────────────────────────────────── */
-var sparks = [], shards = [];
+var sparks = [], shards = [], embers = [];
 /* THE CAP WAS THE CEILING ON THE WHOLE ATTACK. 900 particles spread across a
    1280x820 arena is roughly one per eleven hundred square pixels — geometric
    coverage of 78%, and visually a drizzle. The AOE is supposed to be a wall of
@@ -1663,6 +1623,75 @@ function burst(x,y,n,speed){
     var a=Math.random()*6.28318, v=speed*(0.25+Math.random()*0.95);
     addSpark(x,y,Math.cos(a)*v,Math.sin(a)*v-speed*0.25,0.3+Math.random()*0.7,0.9+Math.random()*0.1);
   }
+}
+/* ════════════════════ THE SHELL EMBERS RIDE THE SHELL ════════════════════
+   These used to be ordinary sparks: launched along the tangent at the contact
+   and then handed to a LINEAR particle with drag. A tangent is one fixed
+   direction, so every ember flew off on the same straight bearing and left the
+   curve immediately - the code said "sheared off a turning wheel" and the
+   screen showed a spray of straight lines going one way.
+
+   They live in POLAR coordinates around him instead. Each carries an angle, a
+   radius and an ANGULAR velocity, so travelling means going round him: the path
+   is tangential at every point by construction rather than at the instant it
+   was born, and the streak is drawn as an ARC, so the trail curves with the
+   shell instead of cutting a chord across it.
+
+   HOW FAR THEY WRAP IS THE POWER. Angular speed scales with the number of
+   feeding tiles - about 45 degrees of travel at one tile and 125 at four - so
+   at full power the sparks run most of the way round him and at one tile they
+   barely smear off the contact. The same staircase the wrap arcs draw, said
+   with material instead of light.
+
+   AND THE SPIN IS FREE NOW. W.ang is integrated as `W.ang += W.spin*dt`, so
+   W.spin is already radians per second and the shell's own rotation is simply
+   ADDED to the ember's angular velocity. The old version faked this by turning
+   it into a surface speed in px/s and adding it to a cartesian vector with a
+   0.45 fudge on it.
+
+   Their own array rather than the spark pool: sparks are bucketed by heat and
+   stroked as one path per bin, which is what makes a three-thousand particle
+   shower affordable, and an orbital mode does not fit that shape. There are at
+   most a few dozen of these. */
+var EMBER_MAX = 260;
+function addEmber(a,r,av,vr,ttl,hue){
+  if (embers.length >= EMBER_MAX) return;
+  embers.push({a:a,r:r,av:av,vr:vr,t:0,ttl:ttl,hue:hue});
+}
+function emberStep(dt){
+  if (!embers.length) return;
+  /* nothing is being cut any more - the same guard the beam itself carries */
+  if (!F.on || F.over){ embers.length = 0; return; }
+  var dg = Math.pow(0.16, dt);
+  for (var i=embers.length-1;i>=0;i--){
+    var e = embers[i]; e.t += dt;
+    if (e.t >= e.ttl){ embers.splice(i,1); continue; }
+    e.a  += e.av*dt;
+    e.av *= dg;
+    e.r  += e.vr*dt;
+    e.vr += 90*dt;          /* they peel off the surface as the sweep dies */
+  }
+}
+function emberDraw(c){
+  var n = embers.length; if (!n) return;
+  var gco = c.globalCompositeOperation;
+  c.globalCompositeOperation = "lighter";
+  c.lineCap = "round";
+  for (var i=0;i<n;i++){
+    var e = embers[i], f = 1 - e.t/e.ttl;
+    /* A FIXED SLICE OF TIME, not the arc covered since the last frame - the
+       same rule sparkDraw follows and for the same reason: a streak measured
+       per frame ties how the thing looks to the frame rate. */
+    var sw = Math.min(0.42, Math.abs(e.av)*0.045) + 0.02;
+    if (e.av < 0) sw = -sw;
+    c.strokeStyle = "hsla(" + e.hue + ",100%," + (56+34*f).toFixed(0) + "%," + (0.85*f*f).toFixed(3) + ")";
+    c.lineWidth = 1.1 + 2.4*f;
+    c.beginPath();
+    c.arc(W.x, W.y, Math.max(1,e.r), e.a - sw, e.a, sw < 0);
+    c.stroke();
+  }
+  c.lineCap = "butt";
+  c.globalCompositeOperation = gco;
 }
 function sparkStep(dt){
   var drag = Math.pow(SPARK_DRAG, dt);
@@ -2322,7 +2351,12 @@ function repaint(){ if (typeof paintBoard === "function") paintBoard(); }
 function disarm(){
   F.armed = false; F.repair = 0;
   window.bossDead = {};
-  for (var t=1;t<=BOARD.tiles;t++) window.bossDead[t]=1;
+  /* GUARDED, like the other read of it at boardTiles(). There is no keno board
+     in the standalone build, and an unguarded BOARD.tiles throws right here -
+     inside the shield break, which is the worst possible place to find out. */
+  var bt = 0;
+  try { if (typeof BOARD === "object" && BOARD && BOARD.tiles) bt = BOARD.tiles|0; } catch(e){}
+  for (var t=1;t<=bt;t++) window.bossDead[t]=1;
   repaint();
 }
 function rearm(){ F.armed = true; F.repair = 1; window.bossDead = null; repaint(); }
@@ -2428,16 +2462,33 @@ function hurtPlayer(n, src, raw){
 function musicStop(){
   try { if (MUSIC){ MUSIC.pause(); MUSIC.currentTime = 0; MUSIC.volume = musVol(); } } catch(e){}
   try { if (MUSIC2){ MUSIC2.pause(); MUSIC2.currentTime = 0; MUSIC2.volume = 0; } } catch(e){}
-  MUSIC_CUR = MUSIC;
+  try { if (MUSIC_FIN){ MUSIC_FIN.pause(); MUSIC_FIN.currentTime = 0; MUSIC_FIN.volume = musVol(); } } catch(e){}
+  /* THE FLAG GOES BACK HERE AND NOWHERE ELSE. Shift+Enter restarts the fight
+     from phase 1 through fightStop -> musicStop, and a finale flag left set
+     would mute the loop for the whole of the next run. */
+  MUSIC_CUR = MUSIC; MUSIC_FIN_ON = false;
 }
 function musicPause(){
   try { if (MUSIC) MUSIC.pause(); } catch(e){}
   try { if (MUSIC2) MUSIC2.pause(); } catch(e){}
+  try { if (MUSIC_FIN) MUSIC_FIN.pause(); } catch(e){}
 }
 function musicResume(){
   if (muted()) return;
-  var t = MUSIC_CUR || MUSIC;
+  var t = MUSIC_FIN_ON ? MUSIC_FIN : (MUSIC_CUR || MUSIC);
   try { var p = t.play(); if (p && p.catch) p.catch(function(){}); } catch(e){}
+}
+/* Hands the soundtrack to the payoff cue. Idempotent - finBegin() is reached
+   from two call sites and a second call must not restart the cue. */
+function musicFinale(){
+  if (MUSIC_FIN_ON || !MUSIC_FIN || muted()) return;
+  MUSIC_FIN_ON = true;
+  try {
+    MUSIC_FIN.currentTime = 0;
+    MUSIC_FIN.volume = musVol();
+    var p = MUSIC_FIN.play();
+    if (p && p.catch) p.catch(function(){ MUSIC_FIN_ON = false; });
+  } catch(e){ MUSIC_FIN_ON = false; }
 }
 /* ════════════════════ WHAT ACTUALLY HAPPENS TO PEOPLE ════════════════════
    F.dmgBy has been accumulating damage per source this whole time and NOTHING
@@ -2451,7 +2502,18 @@ function musicResume(){
    half-written, or edited by hand, cannot throw on read. */
 var STATS_KEY = "kenoidle.walker.stats";
 function statsLoad(){
-  var d = { runs:0, deaths:0, wins:0, ms:0, best:0, byCause:{} };
+  /* hist: one entry per finished attempt, the ROW it ended on - 1..8 for a
+     death, 9 for a clear. It is what the run code's tail carries, so a code
+     shows not just that they won but what it took to get there. Capped on
+     write, not on read, so an old key with a long list still loads. */
+  /* log: one record per finished attempt, for the history screen.
+        r row reached (1..8, 9 = cleared)   w won   t ms   d damage taken
+        x distance px                       s kill time, epoch deciseconds
+        c the run code, on wins only
+     KEPT VERBATIM RATHER THAN REGENERATED. A code's tail is the history AS IT
+     STOOD when it was minted, so re-encoding an old win later would produce a
+     different, non-matching string. The one that was shown is the one stored. */
+  var d = { runs:0, deaths:0, wins:0, ms:0, best:0, byCause:{}, hist:[], log:[] };
   try {
     var o = JSON.parse(localStorage.getItem(STATS_KEY));
     if (o && typeof o === "object"){
@@ -2461,6 +2523,8 @@ function statsLoad(){
       if (typeof o.ms     === "number") d.ms     = o.ms;
       if (typeof o.best   === "number") d.best   = o.best;
       if (o.byCause && typeof o.byCause === "object") d.byCause = o.byCause;
+      if (Object.prototype.toString.call(o.hist) === "[object Array]") d.hist = o.hist;
+      if (Object.prototype.toString.call(o.log)  === "[object Array]") d.log  = o.log;
     }
   } catch(e){}
   return d;
@@ -2473,10 +2537,118 @@ var STATS = statsLoad(), statFlush = 0;
    every five seconds so a hard close loses at most that. */
 function statsTime(dt){
   STATS.ms += dt*1000;
+  /* STATS.ms is every run ever; F.runMs is THIS one, for the run code. */
+  F.runMs = (F.runMs||0) + dt*1000;
   statFlush += dt;
   if (statFlush >= 5){ statFlush = 0; statsSave(); }
 }
+/* ════════════════════ THE RUN CODE ════════════════════
+   A short string the player can copy off the win screen and send back. It
+   carries what the run actually cost: how long it took, how much damage they
+   took, how far they moved, and how many tiles they held at the end.
+
+   IT IS OBFUSCATION, NOT PROOF, AND THAT HAS TO BE SAID OUT LOUD. Every line
+   of this runs on the player's machine and the key is three lines below, in a
+   file anyone can read. A determined person can mint whatever code they like
+   in about a minute. What the scramble and the checksum DO buy is that a code
+   cannot be produced or edited by accident, or by hand, or by guessing at the
+   format - which is the realistic threat for a link sent to friends. If a code
+   ever has to be trusted against someone motivated, the run has to be scored
+   somewhere the player cannot reach, and no amount of cleverness here changes
+   that.
+
+   FIXED WIDTH FIELDS, so the decoder needs no delimiters and a truncated paste
+   fails the length check rather than decoding into something plausible. */
+var CODE_VER = 3, CODE_SEED = 0x5A17, CODE_HIST_MAX = 48;
+/* ══════ WHEN THE KILL HAPPENED ══════
+   Deciseconds since 2026-01-01T00:00:00Z, split across two 16-bit fields. Two
+   fields because everything else here is 16 bits wide and one exception would
+   cost the decoder its fixed stride; deciseconds because whole seconds is a
+   coarse tie-break when the whole point is separating two people who finished
+   within moments of each other. 32 bits of deciseconds runs to 2039.
+
+   IT IS THE PLAYER'S OWN CLOCK. A machine set to the wrong year, or set
+   deliberately, reports whatever it is told to. Two codes minted on two
+   correctly-set machines are comparable; a single code's timestamp is a claim,
+   not a measurement. Compare it against when they actually sent it. */
+var CODE_EPOCH = 1767225600000;
+function codeStamp(){
+  var d = Math.floor((Date.now() - CODE_EPOCH)/100);
+  return (d > 0 && d < 4294967295) ? d : 0;
+}
+function dmgTaken(){
+  var t = 0, k;
+  for (k in F.dmgBy) if (F.dmgBy.hasOwnProperty(k)) t += F.dmgBy[k];
+  return t;
+}
+function runCode(won){
+  var v = [ CODE_VER,
+            won ? 1 : 0,
+            Math.min(65535, Math.round((F.runMs||0)/100)),   /* deciseconds */
+            Math.min(65535, Math.round(dmgTaken())),
+            Math.min(65535, Math.round((F.dist||0)/10)),     /* tens of px */
+            Math.min(65535, F.won|0),
+            Math.min(65535, STATS.hist.length),              /* attempts, all time */
+            (F.killAt >>> 16) & 0xFFFF,                      /* kill time, high */
+            (F.killAt|0) & 0xFFFF ];                         /* kill time, low  */
+  var k = CODE_SEED, out = [], i;
+  for (i=0;i<v.length;i++){
+    out.push(("000" + ((v[i] ^ (k & 0xFFFF)) & 0xFFFF).toString(36)).slice(-4));
+    /* A 16-BIT LCG, AND THE WIDTH IS THE WHOLE POINT. The obvious constants
+       (1103515245/12345, used by finVeins) overflow: k*1103515245 reaches 2e18,
+       past the 2^53 where a double stops being exact, so the multiply is
+       already wrong before the mask sees it. That is harmless for a seeded
+       scatter that only has to be deterministic, and fatal here - the decoder
+       is a different language doing exact integer maths, and the two walked
+       apart after the second field. 25173*65535 is 1.6e9, exact in a double,
+       so both sides compute the same sequence. */
+    k = (k*25173 + 13849) & 0xFFFF;
+  }
+  /* ══════ THE TAIL: WHERE EVERY ATTEMPT ENDED ══════
+     One base36 character per attempt, oldest first, so the shape of the
+     campaign is readable at a glance - a run of 2s and 4s turning into 7s and
+     then a 9 is somebody learning the fight.
+
+     ADDED, NOT XORED. A row is 1..9 and a base36 digit is 0..35; XOR would
+     need the offset masked to 4 bits to stay reversible, which leaves the
+     values barely disguised. Adding a 0..27 offset and taking mod 36 uses the
+     whole alphabet and is exactly reversible, because 9 + 27 < 36.
+
+     THE LAST 48 ONLY. The attempt COUNT above is all-time; this is the recent
+     shape. Somebody on their four-hundredth try should not have a
+     four-hundred-character code. */
+  var h = STATS.hist.slice(-CODE_HIST_MAX), hi;
+  for (hi=0; hi<h.length; hi++){
+    out.push("0123456789abcdefghijklmnopqrstuvwxyz".charAt(((h[hi]|0) + (k % 28)) % 36));
+    k = (k*25173 + 13849) & 0xFFFF;
+  }
+  var s = out.join(""), c = 0;
+  for (i=0;i<s.length;i++) c = (c*31 + s.charCodeAt(i)) & 0xFFFF;
+  s = (s + ("0" + (c % 1296).toString(36)).slice(-2)).toUpperCase();
+  return "WKR-" + s.replace(/(.{6})(?=.)/g, "$1-");
+}
 function statsEnd(won){
+  /* WHERE THIS ONE ENDED, in the same row numbers devJump uses: odd rows are
+     main phases, even rows are breaks, so row = 2*brk in a break and 2*won+1
+     in a main phase. 9 means cleared. Recorded BEFORE the code is minted,
+     because the code's tail is this list. */
+  var row = won ? 9 : (F.brk ? F.brk*2 : (F.won|0)*2 + 1);
+  STATS.hist.push(row);
+  if (STATS.hist.length > 400) STATS.hist = STATS.hist.slice(-400);
+  /* STAMPED ONCE, HERE, and carried into both the code and the log so the two
+     can never disagree about when the kill happened. */
+  F.killAt = codeStamp();
+  /* minted once, at the end, and kept - so the screen can draw the same string
+     every frame without re-encoding it sixty times a second */
+  F.code = runCode(won);
+  /* DAMAGE DEALT IS THE POOL HE HAS LOST, not a separate tally. hitWalker only
+     ever subtracts from F.hpW, so what is gone IS what was dealt - keeping a
+     second running total would be two numbers that can disagree. On a clear it
+     is the whole pool by definition; on a death it says how close they got. */
+  STATS.log.push({ r:row, w:won?1:0, t:Math.round(F.runMs||0), d:Math.round(dmgTaken()),
+                   o:Math.round(Math.max(0, (F.hpWmax||0) - Math.max(0, F.hpW||0))),
+                   x:Math.round(F.dist||0), s:F.killAt, c:won ? F.code : "" });
+  if (STATS.log.length > 400) STATS.log = STATS.log.slice(-400);
   if (won) STATS.wins++;
   else {
     STATS.deaths++;
@@ -2554,6 +2726,12 @@ function playerDied(){
 
    On the panel, because this is the number most likely to move again. */
 var PAD_W = 116, PAD_CHARGE_MS = 13500, PAD_MAX = 8;
+/* ══════ HOW LONG BEFORE THE SHIELD RETURNS THE DARK TILES START COMING BACK ══════
+   They were hidden outright for the whole break and appeared on the frame the
+   shield came back, which is a pop rather than a return. Faded in over the last
+   few seconds instead, so the floor tells you the break is nearly over before
+   the bar does. */
+var PAD_RETURN_S = 5;
 
 /* FOUR, FOR NOW, EXPLICITLY. It should be "however many you have unlocked" and
    it will be again the moment the progression sets where this fight sits in the
@@ -2973,6 +3151,12 @@ var CLEAR_R = 300;
    THE OPENING HAS NO BOMB AT ALL, which is the deliberate cost of this: the
    first tile is charged with nothing to fall back on. */
 var BOMB_START = 0, BOMB_R = 520, BOMB_IFRAME = 1000, BOMB_COOL = 600;
+/* ══════ HOW LATE THE MINE STOPS ANSWERING THE PATTERNS ══════
+   Inside this many seconds of his death the mine clears the CURTAIN and
+   nothing else. See useBomb. 6.0 against FIN_BALL_AT's 4.4 means the rule is
+   already in force 1.6s before the curtain exists, so there is no frame where
+   the mine changes meaning while the wall is on screen. */
+var BOMB_FIN_ONLY_S = 6.0;
 /* ════════════════════ EXACTLY ONE IN THE LAST PHASE ════════════════════
    Four tiles taken is four mines held, and a mine deletes every shot within
    520px - four of those turn the finale into a phase you can ignore. Zero was
@@ -2986,6 +3170,17 @@ var BOMB_START = 0, BOMB_R = 520, BOMB_IFRAME = 1000, BOMB_COOL = 600;
    runs BEFORE breakShield's `F.bombs = bombMax()`, so the fourth tile pays out
    this one rather than the four it would otherwise. */
 function bombMax(){ return F.fin ? 1 : (F.won|0); }
+/* SECONDS LEFT IN THE FINALE, in the same terms FIN_BALL_AT is written in:
+   f.p is health burned as a fraction and breakSeconds() is what a break is
+   worth in seconds at this bet, so the two multiply out to a time. Deliberately
+   NOT health-over-padDPS - that is a second model of the same quantity, and the
+   curtain is already scheduled off this one. Infinity when there is no finale
+   running, so callers can compare without a null check. */
+function finSecsLeft(){
+  var f = F.fin;
+  if (!f || f.dead || F.over) return Infinity;
+  return (1 - (f.p || 0)) * breakSeconds();
+}
 
 /* ═══════════════════════ THE REWIND ════════════════════════════════════════
    He does not die. At zero health the name on the bar becomes THETIMEWALKER,
@@ -3100,8 +3295,27 @@ function useBomb(now){
   if (F.bombs <= 0 || now - F.bombAt < BOMB_COOL) return;
   F.bombs--; F.bombAt = now;
   var m = pC(), i;
-  for (i=shots.length-1;i>=0;i--)
+  /* ══════ AT THE END THE MINE IS FOR THE CURTAIN, AND ONLY THE CURTAIN ══════
+     finBall's own note already says it: the sheet is parallel so it lands
+     together, "which is what makes one mine the right answer rather than a
+     partial one" - and bombMax() hands you exactly one for the finale. But the
+     mine cleared everything inside BOMB_R, so spending it anywhere near the
+     curtain also swept up whatever the arms happened to have in the way, and
+     the last decision in the fight resolved itself.
+
+     Inside BOMB_FIN_ONLY_S the sweep is narrowed to shards tagged fin:1 -
+     finBall tags them for exactly this kind of question. The arms keep firing
+     and their rounds keep travelling; the wall goes.
+
+     THE IFRAME IS UNTOUCHED. Narrowing the clear without it would make the
+     last six seconds strictly harsher than before rather than more pointed -
+     BOMB_IFRAME still covers the second after the press, so the mine remains a
+     panic button, it just stops tidying the room on the way past. */
+  var curtainOnly = finSecsLeft() < BOMB_FIN_ONLY_S;
+  for (i=shots.length-1;i>=0;i--){
+    if (curtainOnly && shots[i].fin !== 1) continue;
     if (Math.hypot(shots[i].x-m.x, shots[i].y-m.y) < BOMB_R) shots.splice(i,1);
+  }
   F.iframe = Math.max(F.iframe, BOMB_IFRAME);
   shocks.push({ x:m.x, y:m.y, t:0, ms:760, r:BOMB_R });
   burst(m.x, m.y, 220, 900);
@@ -3218,9 +3432,11 @@ function lootDraw(c){
   c.fillText(msg, cx, cy);
   c.font = '700 15px ui-monospace,Consolas,monospace';
   c.strokeStyle = "rgba(4,10,16,"+(0.9*a).toFixed(3)+")"; c.lineWidth = 5;
-  c.strokeText("SHIFT", cx, cy+26);
+  /* SPACE, not SHIFT. Both fire it, but the pickup has room for one word and
+     space is the key a player's thumb is already resting on. */
+  c.strokeText("SPACE", cx, cy+26);
   c.fillStyle = "rgba(190,235,255,"+(0.85*a).toFixed(3)+")";
-  c.fillText("SHIFT", cx, cy+26);
+  c.fillText("SPACE", cx, cy+26);
   c.restore();
   c.textBaseline="alphabetic";
 }
@@ -4535,7 +4751,12 @@ function fightStep(dt, now){
      - so the colour would have drained out of a paused pulse while everything
      it belongs to stood still. It is part of the simulation, so it decays with
      the simulation. */
-  if (pulseHue > 0) pulseHue = Math.max(0, pulseHue - dt*170);
+  /* AND SO DOES THE HUE. pulseHue is thrown forward when a shield breaks and
+     falls back over about a second, and everything read through hx() moves with
+     it - his art, the bar, the bullets. Decaying it after the run has ended
+     leaves the whole screen sliding through colour with nothing causing it.
+     Frozen where it was, which is also what the greyscale drain expects. */
+  if (!F.over && pulseHue > 0) pulseHue = Math.max(0, pulseHue - dt*170);
   /* ══════ PLANTED, SO HE PULSES INSTEAD ══════
      Up here rather than down with the patrol, because the move branches return
      before they reach it and he would have pulsed once at the top of a break
@@ -5217,6 +5438,12 @@ function playerStep(dt){
   if (L>0){ ax=ax/L*P_ACC; ay=ay/L*P_ACC; }
   P.vx+=ax*dt; P.vy+=ay*dt;
   var drag=Math.pow(P_DRAG,dt); P.vx*=drag; P.vy*=drag;
+  /* HOW FAR THEY ACTUALLY MOVED, banked here because this is the one place
+     position changes under the player's own power. Speed x dt rather than the
+     delta between frames, so a clamp against the wall does not silently add
+     distance the player never travelled. Arena pixels, so it means the same
+     thing on every monitor - see the note on VS in layout(). */
+  F.dist = (F.dist||0) + Math.hypot(P.vx, P.vy)*dt;
   P.x+=P.vx*dt; P.y+=P.vy*dt;
   /* one expression per axis: two ifs fight when the window is narrower than he
      is, and he ends up outside on the side he was pushed away from */
@@ -5948,6 +6175,27 @@ function fightDraw(c){
            which is precisely what perp < RUNE_H + P.r tests. Nothing is hidden
            in a falloff any more. */
         c.save();
+        /* ══════ AND NEVER OVER HIM ══════
+           Same trick the beam's own origin uses further down, and for the same
+           reason: bossFx is
+           z-930 and he is a DOM element at 920, so anything stroked in here
+           lands on top of his art. The fire band runs `far2` from the mark -
+           the whole screen - so during a break, with him planted at the top of
+           the room, it drew a bar straight across his face.
+
+           The TELL never had this problem because it starts at shellT, where
+           the line leaves his silhouette. The band cannot do that: it has to
+           start at the mark, because the mark visibly lights and the beam has
+           to come from the thing that lit. So his disc is subtracted from this
+           layer instead and the band passes behind him.
+
+           TAKEN BEFORE THE TRANSLATE, while the transform is still screen
+           space - inside the beam's rotated frame the arc would land somewhere
+           else entirely. Reverse winding is what subtracts it from the rect. */
+        c.beginPath();
+        c.rect(0, 0, VW(), VH());
+        c.arc(W.x, W.y, walkerR()*1.02, 0, 6.28318, true);
+        c.clip();
         c.translate(rn.x, rn.y);
         c.rotate(Math.atan2(bd3[1], bd3[0]));
 
@@ -6152,7 +6400,12 @@ function fightDraw(c){
    band lags behind the real value and catches up over half a second, so a hit
    reads as an amount rather than as a new position. Without it, chip damage
    from a single bolt is invisible and the bar looks stuck. */
-var BOSS_NAME = "Walker";   /* becomes TheTimeWalker — see the rewind */
+/* ONE PLACE, BECAUSE TWO PLACES IS WHAT BROKE IT. The name was written as a
+   literal here AND again in fightStop, and the two had drifted: the first fight
+   of a session read WALKER and every fight after it read THEONLYWALKER, because
+   fightStop had already renamed him on the way out of the previous one. */
+var BOSS_NAME_BASE = "Walker";
+var BOSS_NAME = BOSS_NAME_BASE;   /* becomes TheTimeWalker — see the rewind */
 /* THE CLOSEST FACE I COULD MATCH to the reference: very heavy, geometric, flat
    terminals. I could not identify the original from the image — if it has a
    name, say it and this is the one line to change. */
@@ -6357,9 +6610,9 @@ function padLabel(pd, h){
      to a tile has no business arriving in a colour that belongs to none of
      them. Same hue as its digit, one step brighter so it reads off the floor. */
   c.strokeStyle = "rgba(3,6,10,.92)"; c.lineWidth = 4.5;
-  c.strokeText("RESTORING", pd.x, pd.y + h + 17);
+  c.strokeText("REPAIRING", pd.x, pd.y + h + 17);
   c.fillStyle = "hsla("+pd.hue+",95%,72%,1)";
-  c.fillText("RESTORING", pd.x, pd.y + h + 17);
+  c.fillText("REPAIRING", pd.x, pd.y + h + 17);
   c.restore();
   c.textBaseline = "alphabetic";
 }
@@ -6379,9 +6632,41 @@ function drawPads(c, now){
   var live=[], m=pC(), i, fp=focusPos();
   for (i=0;i<pads.length;i++){
     var pd=pads[i], h=PAD_W*0.5;
-    if (F.brk && !pd.on) continue;      /* see the note at the top */
+    /* ══════ THEY COME BACK BEFORE THE PHASE DOES ══════
+       PREDICTED, NOT TIMED. A break ends at a health gate, not on a clock, so
+       there is no countdown to read - but the damage rate is fixed for the
+       whole break (you cannot charge a tile while the shield is off, so the
+       number of feeders cannot change) and the gate is a known fraction. Health
+       remaining above the gate divided by padDPS() IS the seconds left, and it
+       is exact rather than an estimate.
+
+       Held at zero alpha until the last PAD_RETURN_S, then ramped, so the fade
+       is the same five seconds whether the break ran thirty seconds at the
+       tuned bet or ten at the floor. */
+    var padA = 1;
+    if (F.brk && !pd.on){
+      var pdps = padDPS();
+      var togo = pdps > 0 ? (F.hpW - F.hpWmax*GATE[F.brk]) / pdps : 1e9;
+      padA = Math.max(0, Math.min(1, 1 - togo/PAD_RETURN_S));
+      if (padA <= 0.004) continue;   /* still far off - not drawn at all */
+    }
+    c.globalAlpha = padA;
     var frac=Math.min(1, pd.t/PAD_CHARGE_MS);
-    var hot=Math.abs(m.x-pd.x)<h && Math.abs(m.y-pd.y)<h;
+    /* ══════ HOVER MEANS SOMETHING ONLY IF STANDING THERE WOULD DO SOMETHING ══════
+       This was pure geometry - is the cursor inside the box - so a tile lit its
+       rim and put REPAIRING under itself whenever you crossed it, including
+       through the whole of a break, when charging is off and the label is a
+       promise the fight will not keep. Fading the dark tiles back in before the
+       shield returns made it worse: they now arrive already offering something
+       they cannot give for another few seconds.
+
+       These are stepPads' OWN conditions, in its order, because the two must
+       never disagree - what lights up has to be exactly what charges. F.brk is
+       the one doing the work: charging happens only with the shield UP. pd.won
+       covers a tile that is already finished. */
+    var hot = F.on && !F.over && P.live && !rewinding && !F.brk &&
+              !pd.won &&
+              Math.abs(m.x-pd.x)<h && Math.abs(m.y-pd.y)<h;
     /* THE TILE IS TURNED TO FACE THE FOCUS. It is aiming at the thing it feeds,
        so it looks at it — and a row of them fanned toward one point reads as a
        circuit at a glance, which four axis-aligned squares never did.
@@ -6545,6 +6830,7 @@ function drawPads(c, now){
     c.fillStyle = pd.on ? "#ffffff" : "hsla("+pd.hue+",92%,74%,1)";
     c.fillText(String(pd.n), pd.x, pd.y);
     c.textBaseline="alphabetic";
+    c.globalAlpha = 1;
   }
   /* THE DIAMOND IS ALWAYS THERE, lit or not — a piece of equipment standing in
      the arena rather than something that appears when it is used. Dark and
@@ -6554,8 +6840,22 @@ function drawPads(c, now){
      so it kept spinning over the death screen - the last moving thing in a
      stopped arena. Latched instead: the angle only advances while the fight is
      live, and holds wherever it was. */
-  if (!F.over) gemSpin = now*0.0011;
-  var k=live.length, spin=gemSpin, sz=26+k*4;
+  var k=live.length, sz=26+k*4;
+  /* ══════ IT IS ALWAYS THERE, AND IT DOES NOT TURN UNTIL IT HAS BEEN FED ══════
+     ACCUMULATED, NOT READ OFF THE CLOCK. This was `gemSpin = now*0.0011`, an
+     absolute position - gating that on anything makes the angle JUMP by however
+     long the gate was shut, so the stone would sit still and then snap to
+     wherever the clock had got to. Adding DT each frame means a held stone
+     holds its angle and starts again from where it stopped.
+
+     IT TURNS ONLY WHILE SOMETHING IS FEEDING IT. Latching it on the first tile
+     was tried and it is wrong: tiles darken at every break gate, so a latched
+     stone goes on turning through every break with nothing powering it. Gated
+     on k it stops dead when the last tile goes out and picks up again when one
+     comes back - which is the whole reason the angle is accumulated above
+     rather than read off the clock. */
+  if (!F.over && k) gemSpin += DT*1.1;        /* 1.1 rad/s == the old .0011/ms */
+  var spin=gemSpin;
   c.save();
   c.translate(fp.x,fp.y); c.rotate(spin);
   if (k){
@@ -6564,16 +6864,21 @@ function drawPads(c, now){
     fg.addColorStop(1,"rgba(160,120,255,0)");
     c.fillStyle=fg; c.beginPath(); c.arc(0,0,sz*3.2,0,6.28318); c.fill();
   }
-  if (!k){
-    /* ══════ A LOOSE GEM ON THE FLOOR IS A PICKUP ══════
-       Sitting there dimmed with nothing happening, the most valuable-looking
-       object in the product reads as something to go and collect - which is
-       exactly the wrong instruction in a room where the floor is the hazard.
-       It is not there until a tile feeds it. The first ray is what installs
-       it, and after that the brackets below say it is mounted, not dropped. */
-    c.restore();
-    return;
-  }
+  /* ══════ IT USED TO NOT BE DRAWN AT ALL WITH NOTHING FEEDING IT ══════
+     There was an early return here, on the argument that a dimmed gem sitting
+     on the floor reads as a PICKUP - something to walk over and collect, which
+     is the wrong instruction in a room where the floor is the hazard.
+
+     It also flatly contradicted the line above it, which says the diamond is
+     always there lit or not, a piece of equipment standing in the arena rather
+     than something that appears when it is used. That is the one that wins:
+     a socket you can see from the first second explains what the tiles are FOR,
+     where a stone that pops into existence on the first ray is a surprise.
+
+     The pickup risk is answered by the stone being still. Nothing else in the
+     arena that you are meant to collect sits motionless, and it is dark, small
+     (sz is 26 with nothing feeding it, 42 with four) and mounted at the focus
+     rather than lying on the floor. */
   /* ══════ A CUT STONE, LIT BY WHOEVER IS FEEDING IT ══════
      This was a 44px SVG of a brilliant cut, baked to a data URI once at load
      and blitted. Two things were wrong with that, and one of them is the whole
@@ -6706,26 +7011,16 @@ function drawPads(c, now){
   }
   c.globalCompositeOperation = gco;
 
-  /* ══════ A CLAW SETTING, NOT A SQUARE ══════
-     The mount used to be four L-brackets at the diagonals, which drew a BOX
-     around a round object: the corners read as a UI frame rather than as
-     hardware, and squaring off a stone is the one shape a setting never is.
+  /* ══════ NO SETTING, BY REQUEST ══════
+     There was a claw mount here: a thin collar at sz*1.06 with six prongs
+     crossing it from 1.10 to 0.82. The intent was jewellery - what actually
+     holds a stone - but at arena scale, over a black floor and against the
+     bloom off the conduits, it read as a white UI ring with tick marks drawn
+     around the gem rather than as hardware gripping it. Removed 2026-08-28.
 
-     Six prongs off a thin collar instead. It is what actually holds a stone, it
-     follows the girdle rather than boxing it, and six is enough to read as a
-     grip from any angle while still leaving most of the crown visible. */
-  c.strokeStyle = "rgba(178,164,222,.80)"; c.lineWidth = 1.6;
-  c.beginPath(); c.arc(0, 0, sz*1.06, 0, 6.28318); c.stroke();
-  c.lineWidth = 3.2; c.lineCap = "round";
-  c.strokeStyle = "rgba(222,210,255,.95)";
-  c.beginPath();
-  for (gi=0; gi<6; gi++){
-    ga = gi*1.047198 - spin*0.5;      /* the setting turns against the stone */
-    c.moveTo(Math.cos(ga)*sz*1.10, Math.sin(ga)*sz*1.10);
-    c.lineTo(Math.cos(ga)*sz*0.82, Math.sin(ga)*sz*0.82);
-  }
-  c.stroke();
-  c.lineCap = "butt";
+     The girdle below is NOT part of this and stays. That is the stone's own
+     edge; without it the lit crown facets run straight into the background
+     and the cut stops reading at the rim. */
 
   /* the girdle, bright, and over the prongs so the stone sits in front of its
      own setting rather than behind it */
@@ -6773,12 +7068,26 @@ function drawPads(c, now){
 
     /* the conduit itself, dim at the tile and bright at the diamond - the
        gradient alone says which way it flows even between packets */
+    /* ══════ AND IT IS THE TILE'S OWN COLOUR ══════
+       One lavender served all four, which put a white-violet wire between a red
+       tile and a stone burning red on exactly the side that tile feeds. Every
+       other link in the chain already carried the hue - the tile's rim, its
+       digit, the facet it lights, the beam leaving the stone - and the conduit
+       was the single segment that dropped it, in the middle of the run.
+
+       LIGHTNESS NEAR 50, because this whole pass is under `lighter`, where
+       hsl(h,100%,50%) is the pure hue and anything above it is hue plus white.
+       Same note the stone's own facets carry, and these are drawn touching. */
+    var chu = pdb.hue;
     var cg = c.createLinearGradient(sx4,sy4,fp.x,fp.y);
-    cg.addColorStop(0,"rgba(150,110,255,.22)");
-    cg.addColorStop(1,"rgba(205,170,255,.62)");
+    cg.addColorStop(0,"hsla("+chu+",100%,52%,.22)");
+    cg.addColorStop(1,"hsla("+chu+",100%,62%,.62)");
     c.strokeStyle = cg; c.lineWidth = 2.6 + k*0.45;
     c.beginPath(); c.moveTo(sx4,sy4); c.lineTo(fp.x,fp.y); c.stroke();
-    c.strokeStyle = "rgba(255,255,255,.28)"; c.lineWidth = 1;
+    /* the hairline stays near-white on purpose: it is what makes the run read
+       as a taut LINE rather than a smear of glow, and one pixel of it does not
+       cost the hue anything */
+    c.strokeStyle = "hsla("+chu+",100%,86%,.28)"; c.lineWidth = 1;
     c.beginPath(); c.moveTo(sx4,sy4); c.lineTo(fp.x,fp.y); c.stroke();
 
     for (var q=0;q<PK;q++){
@@ -6787,14 +7096,19 @@ function drawPads(c, now){
       var px4 = sx4 + fux*runL*tt, py4 = sy4 + fuy*runL*tt;
       var pa = 0.30 + 0.70*tt, pr = 2.8 + 3.2*tt;
       var trail = pr*3.4;
-      c.strokeStyle = "rgba(235,215,255," + (pa*0.42).toFixed(3) + ")";
+      c.strokeStyle = "hsla("+chu+",100%,68%," + (pa*0.42).toFixed(3) + ")";
       c.lineWidth = pr*0.8;
       c.beginPath();
       c.moveTo(px4 - fux*trail, py4 - fuy*trail); c.lineTo(px4, py4); c.stroke();
       var pgr = c.createRadialGradient(px4,py4,0,px4,py4,pr*2.6);
+      /* A WHITE PINPOINT IN A COLOURED HALO, not a white ball. The core stays
+         white because a charge packet wants to look hot at its centre - what
+         was wrong was the HALO being violet on every tile. Mid stop lifted from
+         .45 to .55: pure hue at lightness 56 carries less light than the old
+         214,180,255 did, so matching the alpha would have dimmed the run. */
       pgr.addColorStop(0,"rgba(255,255,255," + (pa*0.95).toFixed(3) + ")");
-      pgr.addColorStop(0.42,"rgba(214,180,255," + (pa*0.45).toFixed(3) + ")");
-      pgr.addColorStop(1,"rgba(150,110,255,0)");
+      pgr.addColorStop(0.42,"hsla("+chu+",100%,56%," + (pa*0.55).toFixed(3) + ")");
+      pgr.addColorStop(1,"hsla("+chu+",100%,50%,0)");
       c.fillStyle = pgr;
       c.beginPath(); c.arc(px4,py4,pr*2.6,0,6.28318); c.fill();
       if (ph > 0.86) arrive = Math.max(arrive, (ph-0.86)/0.14);
@@ -6885,8 +7199,15 @@ function drawPads(c, now){
      all starting at one point and immediately splaying to their full offsets
      drew a hard white chevron over the middle of the crown, which at four tiles
      (amp 17px) read as a graphical fault. The taper below is the other half of
-     that fix. */
-  var bx0 = fp.x + Math.cos(rda)*sz*1.14, by0 = fp.y + Math.sin(rda)*sz*1.14;
+     that fix.
+
+     BACK TO 0.99 NOW THAT THE SETTING IS GONE. 1.14 was chosen to clear the
+     collar at 1.06 and the prongs at 1.10, and both of those were removed - so
+     the number was holding the beam 14% of the stone's radius out in open
+     space. At four tiles the bloom is wdt*2.1 = 59px of flat-ended stroke, and
+     59px of rectangle floating off a round stone is exactly what it looked
+     like. It leaves the girdle again. */
+  var bx0 = fp.x + Math.cos(rda)*sz*0.99, by0 = fp.y + Math.sin(rda)*sz*0.99;
   var bdx = hitx - bx0, bdy = hity - by0;
   var bLen = Math.hypot(bdx, bdy) || 1;
   var bux = bdx/bLen, buy = bdy/bLen;          /* along */
@@ -6896,9 +7217,46 @@ function drawPads(c, now){
   var twist = bLen/210;                        /* about one full turn per 210px */
   var roll  = now*0.0042;                      /* the braid runs toward him */
 
+  /* ════════════════════ THE BEAM CARRIES THE TILES' OWN COLOUR ════════════════════
+     It was one fixed lavender from the bloom to the contact, so four tiles cut
+     at him with exactly the same light as one. The stone has coloured its
+     facets from the feed since it was rewritten; the thing LEAVING the stone
+     said nothing about what went into it.
+
+     ONE STRAND PER TILE. There are four strands and at most four tiles, so the
+     braid IS the feed - each strand takes a feeding tile's hue and they wind
+     round each other, going white where they cross because this is all drawn
+     under `lighter`. Fewer tiles and the strands cycle through the hues there
+     are, so one tile is a single-colour rope and four is a full braid.
+
+     THE MIX IS A CIRCULAR MEAN. Everything that is one colour rather than four
+     - the bloom, the wrap, the contact - takes the average, and hue is an ANGLE:
+     averaging 350 and 10 arithmetically gives 180, which is cyan for two reds.
+     Summed as unit vectors and taken back with atan2 instead.
+
+     LIGHTNESS 58, NOT 81. The old lavender was hsl(264,100%,81%) and under
+     `lighter` anything above 50 is the hue PLUS white - which is how the stone
+     itself went pastel before, see the note on its facets. Kept near 50 so the
+     hue survives being added four times where the strands cross. */
+  var bhC = 0, bhS = 0, bq, bra;
+  for (bq=0; bq<feed.length; bq++){
+    bra = feed[bq].hue*0.0174533;
+    bhC += Math.cos(bra); bhS += Math.sin(bra);
+  }
+  var bmix = feed.length ? Math.round((Math.atan2(bhS,bhC)*57.29578 + 360) % 360) : 264;
+
   /* the bloom stays straight and wide - it is the light in the air around the
      braid, and giving it the braid's own shape would just be a fifth strand */
-  c.strokeStyle = "rgba(150,110,255,.26)"; c.lineWidth = wdt*2.1;
+  /* AND IT FADES IN OFF THE STONE. A constant-alpha stroke has a flat end
+     wherever it starts, and at this width that end is a bar cap sitting across
+     the girdle. Ramped from nothing over the first sixth of the run - the same
+     sixth the strands use to splay - so the bloom grows out of the stone
+     instead of being butted against it. */
+  var blg = c.createLinearGradient(bx0, by0, hitx, hity);
+  blg.addColorStop(0,    "hsla("+bmix+",100%,54%,0)");
+  blg.addColorStop(0.17, "hsla("+bmix+",100%,54%,.26)");
+  blg.addColorStop(1,    "hsla("+bmix+",100%,54%,.26)");
+  c.strokeStyle = blg; c.lineWidth = wdt*2.1;
   c.beginPath(); c.moveTo(bx0,by0); c.lineTo(hitx,hity); c.stroke();
 
   /* the strands, back-to-front so the near ones cover the far ones */
@@ -6926,7 +7284,7 @@ function drawPads(c, now){
     }
     bd = Math.cos(6.28318*(twist*0.5 + bs/STR) + roll);   /* -1 behind, +1 in front */
     c.lineCap = "round";
-    c.strokeStyle = "rgba(196,158,255," + (0.34 + 0.34*(bd*0.5+0.5)).toFixed(3) + ")";
+    c.strokeStyle = "hsla(" + (feed[bs % feed.length].hue|0) + ",100%,58%," + (0.34 + 0.34*(bd*0.5+0.5)).toFixed(3) + ")";
     c.lineWidth = wdt*(0.30 + 0.26*(bd*0.5+0.5));
     c.stroke();
     c.lineCap = "butt";
@@ -6935,8 +7293,13 @@ function drawPads(c, now){
   /* the core, breathing, straight down the middle of the braid - the thing the
      strands are wound around, and the only part that has to be unambiguous
      about where the beam actually is */
-  c.strokeStyle = "rgba(255,252,255,.97)"; c.lineWidth = wdt*0.26*flick;
+  var clg = c.createLinearGradient(bx0, by0, hitx, hity);
+  clg.addColorStop(0,    "rgba(255,252,255,0)");
+  clg.addColorStop(0.10, "rgba(255,252,255,.97)");
+  clg.addColorStop(1,    "rgba(255,252,255,.97)");
+  c.strokeStyle = clg; c.lineWidth = wdt*0.26*flick; c.lineCap = "round";
   c.beginPath(); c.moveTo(bx0,by0); c.lineTo(hitx,hity); c.stroke();
+  c.lineCap = "butt";
 
   /* ════════════════════ THE WRAP ════════════════════
      Arcs along the shell either side of the contact, fading as they go. Drawn
@@ -6961,7 +7324,7 @@ function drawPads(c, now){
     for (var sgn=-1; sgn<=1; sgn+=2){
       var a0 = hitA + sgn*spread*t0, a1 = hitA + sgn*spread*t1;
       var fade = Math.pow(1 - t0, 2.0);
-      c.strokeStyle = "rgba(214,180,255," + Math.min(1, punch*fade*flick).toFixed(3) + ")";
+      c.strokeStyle = "hsla(" + bmix + ",100%,60%," + Math.min(1, punch*fade*flick).toFixed(3) + ")";
       c.lineWidth = (wdt*0.55) * (1 - t0*0.72);
       c.beginPath(); c.arc(W.x, W.y, rdr, a0, a1, sgn < 0); c.stroke();
       c.strokeStyle = "rgba(255,250,255," + Math.min(1, (punch*0.78)*fade*flick).toFixed(3) + ")";
@@ -6973,31 +7336,30 @@ function drawPads(c, now){
   /* the contact itself */
   var hg = c.createRadialGradient(hitx,hity,0,hitx,hity,wdt*2.9);
   hg.addColorStop(0,"rgba(255,255,255,.92)");
-  hg.addColorStop(0.35,"rgba(214,180,255,.50)");
-  hg.addColorStop(1,"rgba(150,110,255,0)");
+  hg.addColorStop(0.35,"hsla("+bmix+",100%,62%,.50)");
+  hg.addColorStop(1,"hsla("+bmix+",100%,58%,0)");
   c.fillStyle = hg;
   c.beginPath(); c.arc(hitx,hity,wdt*2.9,0,6.28318); c.fill();
 
-  /* ══════ SHEARED OFF A TURNING WHEEL ══════
-     More tiles throw more material, and it leaves along the TANGENT rather than
-     back down the beam - that is the direction it actually comes off a cut.
+  /* ══════ SHEARED OFF A TURNING WHEEL, AND IT STAYS ON THE WHEEL ══════
+     Emitted at the contact with an ANGULAR velocity round him - see emberStep.
+     More tiles spin them harder, so they wrap further; W.spin adds straight in,
+     so during a nova wind-up the whole spray whips round with him.
 
-     And it inherits the shell's own motion: W.spin * rdr is the surface speed
-     of his ring at the contact, so the debris is flung the way the wheel is
-     turning. During a nova wind-up, when he is spinning up to two turns a
-     second, the spray visibly whips round with him. That is the detail that
-     makes it read as being scraped off something ROTATING rather than as sparks
-     at a fixed point. */
-  var surf = W.spin * rdr, ember = 1 + k;
+     They take the beam's mixed hue with a little spread either side, because
+     this IS the beam arriving - sparks in a stock orange over a beam in the
+     tiles' colours were two accounts of the same event. */
+  var ember = 1 + k;
   for (var eq=0; eq<ember; eq++){
     if (Math.random() > 0.30 + 0.13*k) continue;
-    var side = (Math.random()<0.5?1:-1);
-    var tang = hitA + 1.5708*side;
-    var spd2 = 110 + Math.random()*(140 + 60*k);
-    addSpark(hitx, hity,
-             Math.cos(tang)*spd2 - Math.sin(hitA)*surf*0.45 + (Math.random()-0.5)*70,
-             Math.sin(tang)*spd2 + Math.cos(hitA)*surf*0.45 + (Math.random()-0.5)*70,
-             0.26 + Math.random()*0.32, 1, 0.25);
+    var eside = (Math.random()<0.5?1:-1);
+    var eav = eside*(0.9 + 1.35*k)*(0.65 + Math.random()*0.8) + W.spin;
+    addEmber(hitA + (Math.random()-0.5)*0.07,
+             rdr + (Math.random()-0.5)*wdt*0.30,
+             eav,
+             8 + Math.random()*46,
+             0.34 + Math.random()*0.34,
+             ((bmix + (Math.random()-0.5)*34) + 360) % 360 | 0);
   }
   c.globalCompositeOperation = "source-over";
   F.hitPt = { x:hitx, y:hity };
@@ -7089,16 +7451,40 @@ function drawHUD(c){
      off a cliff while you own four. Without the marks the first break reads as
      "I am accomplishing nothing" for its entire length, which is the one thing
      a boss bar exists to prevent. */
-  c.strokeStyle = "rgba(0,0,0,.9)"; c.lineWidth = 3;
+  /* ══════ MARKED ON THE RIM, NOT SLICED THROUGH ══════
+     They were 3px black lines the full height of the bar, and a line drawn
+     right through a bar cuts it into boxes - which is the exact opposite of
+     what this bar is arguing. The shield and the health under it are ONE pool
+     drained right to left; five compartments say five separate things.
+
+     Short ticks off the top and bottom edges instead, hairline, biting about a
+     fifth of the height in from each rim. The gate is in the same place and
+     just as findable, and the quantity between the marks stays continuous. */
+  var tkH = Math.max(3, bh*0.20);
+  c.lineWidth = 1;
+  c.strokeStyle = "rgba(216,202,192,.28)";
+  c.beginPath();
   for (var i=1;i<PAD_FORCE;i++){
-    var nx = bx + bw*GATE[i];
-    c.beginPath(); c.moveTo(nx, by); c.lineTo(nx, by+bh); c.stroke();
+    var nx = Math.round(bx + bw*GATE[i]) + 0.5;
+    c.moveTo(nx, by);          c.lineTo(nx, by+tkH);
+    c.moveTo(nx, by+bh-tkH);   c.lineTo(nx, by+bh);
   }
-  /* and the one you are working toward, lit only while it is live */
+  c.stroke();
+  /* and the one you are working toward: same tick brighter, plus a caret below
+     the bar - the live gate should be findable without reading the rim */
   if (F.brk){
-    var vx = bx + bw*GATE[F.brk];
-    c.strokeStyle = "rgba(225,205,190,.80)"; c.lineWidth = 2;
-    c.beginPath(); c.moveTo(vx, by-4); c.lineTo(vx, by+bh+4); c.stroke();
+    var vx = Math.round(bx + bw*GATE[F.brk]) + 0.5;
+    c.strokeStyle = "rgba(238,226,214,.90)"; c.lineWidth = 1.5;
+    c.beginPath();
+    c.moveTo(vx, by);          c.lineTo(vx, by+tkH);
+    c.moveTo(vx, by+bh-tkH);   c.lineTo(vx, by+bh);
+    c.stroke();
+    c.fillStyle = "rgba(238,226,214,.90)";
+    c.beginPath();
+    c.moveTo(vx, by+bh+2.5);
+    c.lineTo(vx-3.5, by+bh+6.5);
+    c.lineTo(vx+3.5, by+bh+6.5);
+    c.closePath(); c.fill();
   }
 
   c.strokeStyle = "rgba(126,116,110,.55)"; c.lineWidth = 1;
@@ -7159,14 +7545,27 @@ function drawHUD(c){
     c.stroke();
   c.textBaseline = "alphabetic";
 
-  if (!shieldLeft()){
-    c.font = "700 13px ui-monospace,Consolas,monospace";
-    /* it pulses, because it is the one moment in the fight that changes what
-       you should be doing */
-    var pl = 0.45 + 0.35*Math.sin(F.t/220);
-    c.fillStyle = "rgba(176,150,142,"+pl.toFixed(3)+")";
-    c.fillText("SHIELD DOWN", w/2, by+bh+22);
-  }
+  /* ══════ IT SAYS SO EITHER WAY ══════
+     Only the DOWN state was ever written, so the DEFAULT state of the fight -
+     shield up, him untouchable, charging a tile the only thing that matters -
+     was announced by nothing at all. An absent readout is not a readout: a
+     player who has not learned the fight yet cannot tell "he is shielded" from
+     "this HUD has nothing to say".
+
+     THE WORD ALONE, NO ICON. A heater-shield glyph was tried beside it and cut
+     - at 13px it read as a decorated bullet point rather than as a state, and
+     the readout is one short word that already says the thing exactly.
+
+     DOWN keeps the pulse, because it is the one moment in the fight that
+     changes what you should be doing. UP is steady and cooler - it is the
+     resting state, and a default that pulses is just noise competing with the
+     four hundred moving things below it. The temperature difference between
+     the two is the visual tell; the bar's own two-tone split is the other. */
+  var shUp = !!shieldLeft();
+  var salp = shUp ? 0.50 : (0.45 + 0.35*Math.sin(F.t/220));
+  c.font = "700 13px ui-monospace,Consolas,monospace";
+  c.fillStyle = "rgba(" + (shUp ? "146,164,192" : "176,150,142") + "," + salp.toFixed(3) + ")";
+  c.fillText(shUp ? "SHIELD UP" : "SHIELD DOWN", w/2, by + bh + 22);
 
   /* ══════ FIVE BOXES AND ONE BOMB ══════
      It was a 240x9 continuous bar and a row of little pips, both of which make
@@ -7309,7 +7708,16 @@ function drawHUD(c){
     c.fillText(Math.max(0, rewindPos/REWIND_FPS).toFixed(1)+"s BACK", w/2, VH()*0.40+28);
   }
 
-  if (F.over){
+  /* ══════ A SHELL CAN OWN THIS SCREEN INSTEAD ══════
+     Everything below is painted onto the canvas, which means it cannot be
+     selected, cannot be clicked, and cannot be copied - fine when the arena is
+     a panel inside the idle game and ESC is the only exit, wrong when the page
+     around it has real buttons and a run code the player has to get out of the
+     screen and into a message.
+
+     A host that sets window.BOSS_NO_OVERLAY draws its own ending and this stays
+     out of the way. The fight is unchanged either way; only the epitaph moves. */
+  if (F.over && !window.BOSS_NO_OVERLAY){
     c.font = '400 44px "Archivo Black","Arial Black",Impact,sans-serif';
     c.lineJoin = "round";
     c.strokeStyle = "#08080f"; c.lineWidth = 14;
@@ -7328,6 +7736,26 @@ function drawHUD(c){
     c.strokeText("PRESS SHIFT+ENTER TO RETRY", w/2, dy+46);
     c.fillStyle = "#ffd36b";
     c.fillText("PRESS SHIFT+ENTER TO RETRY", w/2, dy+46);
+    /* ══════ AND THE PROOF, ON THE SCREEN THAT EARNED IT ══════
+       Only on a win: a code for a death is a code for nothing. Monospace and
+       widely spaced because the one thing a player will do with it is read it
+       off the screen and type it somewhere, and every character of a base36
+       blob has to survive that. */
+    if (F.over === "player" && F.code){
+      c.font = '700 15px ui-monospace,Consolas,monospace';
+      c.strokeStyle = "#08080f"; c.lineWidth = 7;
+      c.strokeText("YOUR CODE", w/2, dy+86);
+      c.fillStyle = "#8fa6bb";
+      c.fillText("YOUR CODE", w/2, dy+86);
+      c.font = '700 21px ui-monospace,Consolas,monospace';
+      var hadLS2 = ("letterSpacing" in c);
+      if (hadLS2) c.letterSpacing = "0.10em";
+      c.strokeStyle = "#08080f"; c.lineWidth = 8;
+      c.strokeText(F.code, w/2, dy+114);
+      c.fillStyle = "#7dffb0";
+      c.fillText(F.code, w/2, dy+114);
+      if (hadLS2) c.letterSpacing = "0px";
+    }
     /* the tally, big enough to read across the room */
     if (F.over !== "player"){
       var dn = F.deaths || deathCount();
@@ -7452,7 +7880,7 @@ function frame(now){
      so the panel is dragged against a still frame of the thing being tuned. */
   if (!DEVPAUSE.on){
     fightStep(DT, now);
-    sparkStep(DT); shardStep(DT); playerStep(DT);
+    sparkStep(DT); emberStep(DT); shardStep(DT); playerStep(DT);
   }
 
   var el=$("walker");
@@ -7476,6 +7904,14 @@ function frame(now){
                        "scale("+VS.toFixed(4)+") "+
                        "translate("+W.x.toFixed(1)+"px,"+(W.y+sh).toFixed(1)+"px) "+
                        "scale("+W.scale.toFixed(3)+")";
+    /* ══════ HE DRAINS ══════
+       A CSS filter on the element, not a context filter - paintWalker already
+       uses c.filter on his two art canvases for the phase hue, and this has to
+       sit on top of the composited result rather than fight it.
+
+       It RAMPS over the seal and then STAYS. He does not get his colour back:
+       the grey is what the last phase looks like, and the only saturated things
+       left up there are the beam cutting him and the curtain when it comes. */
     var bg=$("bang");
     if (bg) bg.style.fontSize=(44/Math.max(0.35,W.scale)).toFixed(1)+"px";
   }
@@ -7525,7 +7961,7 @@ function frame(now){
       c.translate((Math.random()-0.5)*k2, (Math.random()-0.5)*k2);
     }
     c.globalCompositeOperation="lighter";
-    sparkDraw(c); fightDraw(c);
+    sparkDraw(c); emberDraw(c); fightDraw(c);
     c.globalCompositeOperation="source-over";
     /* SOURCE-OVER, NOT `lighter`. He is a dark tile with a light edge; drawn
        additively the dark body simply would not exist. */
@@ -7789,7 +8225,11 @@ function clearKeys(){ for (var k in keys) delete keys[k]; }
 
 var KEYMAP = { KeyW:"w", KeyA:"a", KeyS:"s", KeyD:"d",
                ArrowUp:"w", ArrowLeft:"a", ArrowDown:"s", ArrowRight:"d",
-               Space:"shoot", ShiftLeft:"bomb", ShiftRight:"bomb" };
+               /* SPACE FIRES THE MINE, same as either shift. It was mapped to
+                  "shoot" - a leftover from when the player had a gun; nothing
+                  has ever read keys.shoot. Space is already swallowed below so
+                  it cannot scroll the page. */
+               Space:"bomb", ShiftLeft:"bomb", ShiftRight:"bomb" };
 window.addEventListener("keydown", function(e){
   if (!live) return;
   if (e.code==="Escape"){ bossStop(); return; }
@@ -7847,6 +8287,10 @@ function fightStart(){
      empty arena is most of the first tile. Long enough to find yourself on the
      screen, and no longer. */
   F.on=true; F.over=null; F.move=null; F.t=0; F.next=OPEN_PAUSE;
+  /* the stone starts every fight dark and still - gemSpin is held by F.over at
+     the end of a run, so without this Shift+Enter would open the next fight on
+     a stone sitting at whatever angle the last one died at */
+  gemSpin = 0;
   F.hpW=F.hpWmax; F.hpM=F.hpMmax; F.iframe=0;
   F.repair=0; F.armed=false; F.station=null; F.lock=null;
   /* THE PIECE THAT HIT THE BOARD IS THE PIECE THAT BREAKS. A random segment was
@@ -7891,6 +8335,7 @@ function fightStart(){
      and silently fires nothing until the wall clock catches up. That produced a
      whole balance table in which the player was disarmed and nobody said so. */
   F.shotAt=0; F.shotAt2=0; patAt=PATTERNS.map(function(){ return 0; }); tapeReset(); F.bigEnd=0; F.dmgBy={}; F.runeHeat=0; F.novaHeat=0; F.aoeGlow=0;
+  F.dist=0; F.runMs=0; F.code=null; F.killAt=0;
   F.bombs=BOMB_START; F.bombAt=0;
   /* every sequence index goes back to the top, or the second run of the night
      is a different fight from the first */
@@ -7911,7 +8356,11 @@ function fightStart(){
 }
 function fightStop(){
   F.on=false; F.move=null; shots=[]; pads=[];
-  rewinding=false; tapeReset(); BOSS_NAME="TheOnlyWalker";
+  /* BACK TO THE BASE NAME, not to a second one. This used to set
+     "TheOnlyWalker", which is why the name changed after the first fight -
+     fightStop runs on every exit from the arena, so the name it leaves behind
+     is the name the NEXT fight opens with. */
+  rewinding=false; tapeReset(); BOSS_NAME=BOSS_NAME_BASE;
 }
 
 function loadAssets(){
@@ -7947,9 +8396,9 @@ function loadAssets(){
     try { document.fonts.load('400 44px "Archivo Black"'); } catch(e){}
   }
   if (!MUSIC){
-    /* MP3, NOT WAV. The source was 30.9MB of PCM for 160.68 seconds - thirty
+    /* MP3, NOT WAV. The source was 30.2MB of PCM for 157.16 seconds - thirty
        megabytes to download before the fight can start, on a static host, for
-       one loop of music. LAME at 160k CBR is 3.2MB for the identical 160.68s.
+       one loop of music. LAME at 160k CBR is 3.1MB for the identical 157.16s.
        Nothing else about the cue changes: still one Audio element decoded up
        front, because the fight's beats are timed off it. The .wav stays on
        disk as the master and is gitignored - it is not something to deploy. */
@@ -7970,7 +8419,7 @@ function loadAssets(){
     /* ══════ ONE TRACK, LOOPED WITH A CROSSFADE ══════
        Back to the original theme alone. `loop = true` is a BUTT SPLICE - the
        last sample runs straight into the first, and on a track that does not
-       end where it begins that is an audible seam every 2m41s, which is what
+       end where it begins that is an audible seam every 2m37s, which is what
        "the song runs out" always was.
 
        Two elements of the same file instead, ping-ponging: the one that is
@@ -7986,6 +8435,9 @@ function loadAssets(){
     MUSIC.preload="auto"; MUSIC.loop=false; MUSIC.volume=musVol();
     MUSIC2 = new Audio("boss/music/walker_bossfight.mp3");
     MUSIC2.preload="auto"; MUSIC2.loop=false; MUSIC2.volume=0;
+    /* the payoff. 35.3s, plays once from finBegin(), never loops. */
+    MUSIC_FIN = new Audio("boss/music/walker_bossfight_fin.mp3");
+    MUSIC_FIN.preload="auto"; MUSIC_FIN.loop=false; MUSIC_FIN.volume=musVol();
 ;
   }
 }
@@ -8137,7 +8589,7 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                    empty — which reads as "the sparks do not travel" when the
                    truth is "nothing asked them to". */
                 step:function(dt, now){
-                  fightStep(dt, now); playerStep(dt); sparkStep(dt); shardStep(dt);
+                  fightStep(dt, now); playerStep(dt); sparkStep(dt); emberStep(dt); shardStep(dt);
                 },
                 sparks:function(){ return sparks; },
                 pads:function(){ return pads; },
@@ -8159,7 +8611,7 @@ window.Boss = { start:bossStart, stop:bossStop, state:F, walker:W, player:P,
                   var e=$("bossFx"); if(!e) return;
                   var c=e.getContext("2d");
                   c.globalCompositeOperation="lighter";
-                  sparkDraw(c); fightDraw(c);
+                  sparkDraw(c); emberDraw(c); fightDraw(c);
                   c.globalCompositeOperation="source-over";
                   drawPads(c, CLOCK); drawBullets(c); drawShocks(c); finDraw(c);
                   /* AND THE THREE LAYERS ON TOP OF THEM. Damage numbers, the
