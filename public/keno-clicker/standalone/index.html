@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Cinzel:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cormorant+Garamond:wght@300&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════ THE STANDALONE SHELL ══════════════════
    This page is only the room the fight happens in: an arena layer stack, a
@@ -171,11 +171,28 @@ body.boss #door{display:none}
 #after.on{display:flex}
 #after .btn,#after .codebar{pointer-events:auto}
 #after .row{display:flex;gap:14px}
-.verdict{font-family:"Archivo Black","Arial Black",Impact,sans-serif;
-  font-size:clamp(30px,5vw,50px);line-height:1;letter-spacing:.01em;
-  text-shadow:0 3px 20px rgba(0,0,0,.92)}
-.verdict.win{color:var(--good)}
-.verdict.loss{color:var(--bad)}
+/* ══════ A HEADSTONE, NOT A SHOUT ══════
+   Archivo Black at 46px was a slab that competed with the arena behind it and
+   said the same thing every death, louder. A light serif at size says it once
+   and lets the drained room carry the rest - which is the whole reason the
+   greyscale is there.
+
+   LIGHTER AND BIGGER TOGETHER. Cormorant at weight 300 has almost no stroke, so
+   it needs the size to have presence at all; at 46px it would read as an
+   apology. The tracking is what stops it looking merely small.
+
+   text-indent MATCHES letter-spacing, because letter-spacing appends a gap
+   AFTER the final glyph too - without the indent the whole line sits half a
+   space left of centre, which is visible at this width.
+
+   It is the only thing on the page using this face, and it replaced the only
+   thing using Archivo Black - so the page now loads one font fewer. */
+.verdict{font-family:"Cormorant Garamond",Georgia,serif;font-weight:300;
+  font-size:clamp(40px,6.6vw,66px);line-height:1;
+  letter-spacing:.14em;text-indent:.14em;
+  text-shadow:0 3px 24px rgba(0,0,0,.92)}
+.verdict.win{color:#b6ffd6}
+.verdict.loss{color:#ff9c88}
 /* the code is TEXT, not paint. user-select:all means one click takes the whole
    thing, which is what somebody does before they even find the button. */
 .codebar{display:none;align-items:center;gap:10px;background:#0b0f14;
