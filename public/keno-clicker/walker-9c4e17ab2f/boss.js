@@ -5669,7 +5669,19 @@ function paintWalker(){
     var c=cv.getContext("2d"), img=pairs[i][1];
     c.clearRect(0,0,600,600);
     if (!img || !img.naturalWidth) continue;
-    if (i === 0 && ringA < 1){ if (ringA <= 0) continue; c.globalAlpha = ringA; }
+    /* ══════ ASSIGNED EVERY FRAME, NOT ONLY WHILE FADING ══════
+       This used to set globalAlpha only inside `if (ringA < 1)`, and never put
+       it back. A canvas context is not per-frame state - it persists - so once
+       the ring faded out on a kill, the wRing context was left holding an alpha
+       near zero for ever. The next fight set ringA back to 1, which meant the
+       branch did not run, which meant nothing restored the alpha: he came back
+       with no shield and stayed that way until a reload.
+
+       Setting it unconditionally costs one assignment and cannot leak. The
+       early-out stays for the fully-faded case, but AFTER the assignment, so
+       the frame that skips still leaves the context correct for the next one. */
+    c.globalAlpha = (i === 0) ? ringA : 1;
+    if (i === 0 && ringA <= 0) continue;
     c.save(); c.translate(300,300); c.rotate(pairs[i][2]); c.translate(-300,-300);
     /* ════════════════════ THE ART IS FILTERED, NOT REPAINTED ════════════════════
        hue-rotate moves the colour and leaves every bit of the shading and the
