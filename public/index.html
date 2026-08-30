@@ -339,14 +339,9 @@ a.railbtn.clicker::before{content:"";position:absolute;inset:-1px;padding:1px;
    The href is relative for the same reason the Clicker's is - it resolves the
    same on localhost as on martingale.viptools.gg, with nothing to repoint at
    deploy time. */
-a.railbtn.walker{display:block;padding:0;overflow:hidden;line-height:0;
   background:#0a0708;border-color:#3a2320}
-a.railbtn.walker img{display:block;width:100%;height:auto;
   filter:saturate(.82) brightness(.84);
   transition:filter .2s ease, transform .2s ease}
-a.railbtn.walker:hover{border-color:#8a3326;background:#0a0708}
-a.railbtn.walker:hover img{filter:saturate(1.18) brightness(1.08);transform:scale(1.04)}
-@media (prefers-reduced-motion:reduce){ a.railbtn.walker:hover img{transform:none} }
 .railsep{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
   font-weight:700;padding:8px 2px 3px}
 @media (max-width:860px){
@@ -355,7 +350,6 @@ a.railbtn.walker:hover img{filter:saturate(1.18) brightness(1.08);transform:scal
   .railcol .railsep{padding:0 4px 0 0}
   .railcol .railbtn{flex:1 1 auto}
   /* the portrait keeps its square instead of being stretched by the row */
-  .railcol a.railbtn.walker{flex:0 0 auto;width:96px}
 }
 
 /* one row per setting: a label on the left, whatever it takes on the right */
@@ -706,12 +700,25 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:3px 0}
         <div class="railsep">Game</div>
         <a class="railbtn clicker" href="keno-clicker/"
            target="_blank" rel="noopener">Keno Clicker &rarr;</a>
-        <!-- the picture IS the link: see the CSS -->
-        <a class="railbtn walker" href="keno-clicker/walker-9c4e17ab2f/?dev"
-           target="_blank" rel="noopener" aria-label="Fight Walker">
-          <img src="keno-clicker/boss/walker_head_rage4.png" alt="Walker"
-               width="1024" height="1024" loading="lazy" decoding="async">
-        </a>
+        <!-- ══ IT WAS A PICTURE, AND IT LINKED TO A DEV PAGE ══
+             This was <a href="keno-clicker/walker-9c4e17ab2f/?dev"> with the
+             fight's own art as the button. Two things wrong with it, found
+             2026-08-29 after a player said he had used exactly this:
+
+             `?dev` WAS IN THE HREF. That preview page defined DEV from the
+             query string and, unlike the standalone, never narrowed
+             window.Boss - so the front page was handing every visitor phase
+             jumps, the godmode key and the mutable tuning object, one click
+             away, with the flag already set. The handoff called it an unlisted
+             preview. It was linked from the rail.
+
+             AND THE FIGHT DOES NOT LIVE HERE ANY MORE. It is viptools.gg/walker
+             and only there. The art went with it, which is why this is words
+             now: martingale's CSP is `img-src 'self' data:`, so the button
+             cannot show a picture served from the other origin. One small
+             local copy would bring the picture back if it is wanted. -->
+        <a class="railbtn go" href="https://viptools.gg/walker"
+           target="_blank" rel="noopener">Fight Walker &rarr;</a>
       </div>
 
       <div class="split">
