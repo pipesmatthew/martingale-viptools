@@ -67,7 +67,7 @@ function musicBus(){
   var ac = audio(); if (!ac) return null;
   if (!MUSIC.bus){
     MUSIC.bus = ac.createGain();
-    MUSIC.bus.gain.value = S.muted ? 0 : 1;
+    MUSIC.bus.gain.value = S.muted ? 0 : musicMaster();
     MUSIC.bus.connect(ac.destination);
   }
   return MUSIC.bus;
@@ -107,6 +107,17 @@ function musicLoad(){
      version keeps serving it and every fix looks like it did nothing.
      Bump these whenever the audio is regenerated. */
   grab("audio/cold-open.m4a?v=1", "bed");
+  /* THE TWO WAKE BEDS. One is picked at random each time the cold open runs -
+     see musicWakeStart. Both are normalised to within 0.4 dB of each other so
+     the coin toss cannot change how loud the game is. */
+  /* THE TITLE'S OWN BED. title-bed.m4a is cold-open.m4a with its first fifteen
+     seconds cut off and re-encoded at 64k - the same music, starting where
+     something is already happening, and 837KB against 1434KB. It is what the
+     Walker standalone plays on its front door, and a title screen that shares
+     a room with that one should share its bed. */
+  grab("audio/title-bed.m4a?v=1", "title");
+  grab("audio/wake-empty.m4a?v=1", "wake1");
+  grab("audio/wake-coldroom.m4a?v=1", "wake2");
   grab("audio/gem.m4a?v=4", "gem");
   grab("audio/victory.m4a?v=1", "win");
 }
@@ -136,6 +147,85 @@ function musicBedStart(){
   MUSIC.bedNode = { node: n, gain: g };
   MUSIC.started = true;
 }
+/* ══════════════ THE TITLE, AND THE COLD OPEN ══════════════
+   Both play the same kind of thing as the bed and neither is the bed, which
+   is why they do not go through musicBedStart.
+
+   MUSIC_BED_OFF AND THE PICKS GATE ARE ABOUT ORDINARY PLAY. The bed is a room
+   tone for a room you do not have yet, held back until three numbers are on
+   the board and currently switched off entirely - that decision is about the
+   game, and a title screen and a scripted opening are not the game. They get
+   their own path rather than a flag that would drag the drone back under
+   everything else.
+
+   ONE NODE, ONE SLOT. Starting either while the other is up would be two
+   ambient drones at once, which is mud - so they share MUSIC.altNode and
+   whichever starts second replaces the first. */
+function musicAltStart(buf, gain, fade, offset){
+  var ac = audio(); if (!ac || !buf) return;
+  var bus = musicBus(); if (!bus) return;
+  musicAltStop(0.8);
+  var g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, ac.currentTime);
+  g.gain.linearRampToValueAtTime(gain, ac.currentTime + (fade || 2.5));
+  var n = ac.createBufferSource();
+  n.buffer = buf; n.loop = true;
+  /* ══════ AN OFFSET HAS TO MOVE THE LOOP TOO ══════
+     Starting at `offset` and leaving loopStart at 0 skips the opening once
+     and then plays it on every wrap afterwards, which is the same bad
+     seconds arriving late instead of early. Moving loopStart with it means
+     the head of the file is never heard at all.
+
+     Done here rather than by re-cutting the file, because title-bed.m4a is
+     shared with the Walker standalone's front door and a re-trim would move
+     that too. */
+  if (offset){ n.loopStart = offset; n.loopEnd = buf.duration; }
+  n.connect(g); g.connect(bus);
+  n.start(0, offset || 0);
+  MUSIC.altNode = { node:n, gain:g };
+  MUSIC.started = true;
+}
+function musicAltStop(fade){
+  var ac = audio(); if (!ac || !MUSIC.altNode) return;
+  var a = MUSIC.altNode; MUSIC.altNode = null;
+  var t = ac.currentTime + (fade === undefined ? 1.2 : fade);
+  try {
+    a.gain.gain.cancelScheduledValues(ac.currentTime);
+    a.gain.gain.setValueAtTime(a.gain.gain.value, ac.currentTime);
+    a.gain.gain.linearRampToValueAtTime(0.0001, t);
+    a.node.stop(t + 0.05);
+  } catch(e){}
+}
+/* the title's own bed - cold-open.m4a, which is what it was written for */
+var MUSIC_TITLE_GAIN = 0.30;
+/* TWO SECONDS IN. title-bed.m4a already has fifteen cut off the front, and
+   where that cut lands is mid-transition - the bed arrives on a move rather
+   than on a held note. Two more seconds puts it on the drone. */
+var MUSIC_TITLE_FROM = 2.0;
+function musicTitleStart(){
+  /* the trimmed cut if it has decoded, the full one if it has not - they are
+     the same recording, so falling back costs a slow opening and nothing else */
+  var b = MUSIC.title || MUSIC.bed;
+  /* the untrimmed fallback needs the fifteen seconds as well as the two */
+  var off = (b === MUSIC.title) ? MUSIC_TITLE_FROM : (15 + MUSIC_TITLE_FROM);
+  musicAltStart(b, MUSIC_TITLE_GAIN, 2.0, off);
+}
+/* ══════ ONE OF TWO, AT RANDOM ══════
+   Chosen per run rather than per session, so the opening is not the same
+   twice running. If only one has decoded yet it uses that one instead of
+   waiting - a silent cold open is worse than a predictable one. */
+/* 0.42 -> 0.29, thirty percent off. The two tracks sit at -28.5 LUFS in the
+   file, so this is the only place the sequence's level is decided and it is
+   the one number to move. */
+var MUSIC_WAKE_GAIN = 0.29;
+function musicWakeStart(){
+  var pool = [];
+  if (MUSIC.wake1) pool.push(MUSIC.wake1);
+  if (MUSIC.wake2) pool.push(MUSIC.wake2);
+  if (!pool.length) return;
+  musicAltStart(pool[(Math.random()*pool.length)|0], MUSIC_WAKE_GAIN, 6.0);
+}
+function musicAltActive(){ return !!MUSIC.altNode; }
 function musicBedStop(fade){
   var ac = audio(); if (!ac || !MUSIC.bedNode) return;
   var b = MUSIC.bedNode;
@@ -321,13 +411,25 @@ function musicGemStop(fade, force){
    ONE BUS, so mute is one number. Every synthesised effect already checks
    `S.muted` and returns before making a node; the score is already playing
    by then, so it needs a gain to duck instead. */
-function musicMuted(m){
+/* ══════════ THE MASTER REACHES THE MUSIC TOO ══════════
+   boss.js owns the master - Boss.vol(), persisted, already scaling the sfx bus
+   and the arena's own music elements. This bus was the one thing outside it,
+   pinned at 1 and moved only by mute, so a volume slider would have turned
+   everything down except the thing most people mean by "the volume".
+
+   Read rather than mirrored: there is one number and it lives in boss.js. */
+function musicMaster(){
+  try { return (window.Boss && Boss.vol) ? Boss.vol() : 1; } catch(e){ return 1; }
+}
+function musicVolume(){
   var ac = audio(); if (!ac) return;
   var bus = musicBus(); if (!bus) return;
+  var want = S.muted ? 0.0001 : Math.max(0.0001, musicMaster());
   bus.gain.cancelScheduledValues(ac.currentTime);
   bus.gain.setValueAtTime(bus.gain.value, ac.currentTime);
-  bus.gain.linearRampToValueAtTime(m ? 0.0001 : 1, ac.currentTime + 0.25);
+  bus.gain.linearRampToValueAtTime(want, ac.currentTime + 0.12);
 }
+function musicMuted(m){ musicVolume(); }
 
 /* ── the first gesture ─────────────────────────────────────────────────
    NOTHING PLAYS BEFORE ONE. Browsers will not start an AudioContext without
