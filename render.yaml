@@ -71,6 +71,25 @@ services:
       # 'self' only: the audio ships from this origin. The frame-accuracy
       # argument still stands and the music should move to decodeAudioData like
       # the voices did - but a silent boss fight is not the way to enforce it.
+      #
+      # `connect-src https://predictions.viptools.gg` WAS ADDED FOR /hit.js,
+      # the traffic beacon. One origin, not a wildcard, and it is the same
+      # service the apex and the giveaways site already talk to, so this widens
+      # the policy to something already trusted by a sibling rather than opening
+      # a new hole.
+      #
+      # IT DOES NOT BREAK A GUARANTEE HERE, which is the only reason it was done
+      # without asking. `connect-src 'self'` was already present for the voice
+      # lines, so this page could always fetch; nonce-site and bethistory OMIT
+      # the directive entirely, and there the absence is what makes a promise
+      # true rather than merely documented. Those two were left alone.
+      #
+      # IF THIS FILE IS NOT WHAT CONFIGURES THIS SERVICE, THIS CHANGE DOES
+      # NOTHING. home-viptools was created through the dashboard's New Static
+      # Site form and reads nothing from render.yaml; if martingale was too, the
+      # header has to be edited under the service's Headers page as well, and
+      # the failure mode is silent - the beacon is simply refused and the
+      # dashboard shows no traffic for this site.
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
+        value: "default-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://predictions.viptools.gg; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
